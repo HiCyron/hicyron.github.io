@@ -1,7 +1,7 @@
 # Publica o site da CYRON em hicyron.github.io.
 #
 # O site é escrito na pasta cyron/ do repositório principal
-# (portal-alianca/CYRON, público). Este workflow só busca
+# (portal-alianca/portal-alianca.github.io, público). Este workflow só busca
 # essa pasta e a publica aqui, na raiz -- sem token, sem cópia manual.
 #
 # Roda de hora em hora, quando alguém aperta "Run workflow" e a cada push aqui.
@@ -35,7 +35,7 @@ jobs:
       - name: buscar o site
         uses: actions/checkout@v4
         with:
-          repository: portal-alianca/CYRON
+          repository: portal-alianca/portal-alianca.github.io
           sparse-checkout: cyron
           path: origem
 
