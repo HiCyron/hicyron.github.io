@@ -1,0 +1,55 @@
+# Publica o site da CYRON em hicyron.github.io.
+#
+# O site é escrito na pasta cyron/ do repositório principal
+# (portal-alianca/portal-alianca.github.io, público). Este workflow só busca
+# essa pasta e a publica aqui, na raiz -- sem token, sem cópia manual.
+#
+# Roda de hora em hora, quando alguém aperta "Run workflow" e a cada push aqui.
+
+name: Publicar o site
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: buscar o site
+        uses: actions/checkout@v4
+        with:
+          repository: portal-alianca/portal-alianca.github.io
+          sparse-checkout: cyron
+          path: origem
+
+      - name: montar a pasta
+        run: |
+          mkdir site
+          cp -r origem/cyron/. site/
+          touch site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
