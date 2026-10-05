@@ -1,16 +1,25 @@
 # Publica o site da CYRON em hicyron.github.io.
 #
 # O site é escrito na pasta cyron/ do repositório principal
-# (portal-alianca/portal-alianca.github.io, público). Este workflow só busca
+# (portal-alianca/portal-alianca.github.io, público). Este workflow busca
 # essa pasta e a publica aqui, na raiz -- sem token, sem cópia manual.
 #
-# Roda de hora em hora, quando alguém aperta "Run workflow" e a cada push aqui.
+# De 10 em 10 minutos ele olha se cyron/ mudou desde a última publicação
+# (o site guarda a versão em /versao.txt). Sem mudança, para ali, em
+# segundos. "Run workflow" e push aqui publicam sempre.
+#
+# CACHE: o GitHub Pages deixa o navegador guardar cada arquivo por 10 min,
+# e o celular às vezes mais. Para ninguém ficar preso numa versão velha de
+# script, CSS ou imagem, cada endereço local desses dentro dos .html ganha
+# ?v=<versão> na hora de publicar: mudou o site, mudou o endereço, e o
+# navegador é obrigado a baixar de novo. Na fonte ninguém precisa lembrar
+# de trocar número nenhum.
 
 name: Publicar o site
 
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
@@ -22,7 +31,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   publicar:
@@ -32,24 +41,52 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - name: ver se cyron/ mudou
+        id: muda
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          versao=$(gh api "repos/portal-alianca/portal-alianca.github.io/commits?path=cyron&per_page=1" --jq '.[0].sha')
+          no_ar=$(curl -fsS https://hicyron.github.io/versao.txt 2>/dev/null | tr -d '[:space:]' || true)
+          echo "versao=$versao" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "schedule" ] && [ -n "$versao" ] && [ "$versao" = "$no_ar" ]; then
+            echo "mudou=nao" >> "$GITHUB_OUTPUT"
+            echo "::notice::Nada mudou em cyron/ ($versao); nada a publicar."
+          else
+            echo "mudou=sim" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: buscar o site
+        if: steps.muda.outputs.mudou == 'sim'
         uses: actions/checkout@v4
         with:
           repository: portal-alianca/portal-alianca.github.io
           sparse-checkout: cyron
           path: origem
 
-      - name: montar a pasta
+      - name: montar a pasta (e carimbar a versão nos endereços)
+        if: steps.muda.outputs.mudou == 'sim'
+        env:
+          VERSAO: ${{ steps.muda.outputs.versao }}
         run: |
           mkdir site
           cp -r origem/cyron/. site/
           touch site/.nojekyll
+          echo "$VERSAO" > site/versao.txt
+          curta="${VERSAO:0:8}"
+          # src="./x.js", href="./x.css", imagens e vídeos: troca (ou põe) o ?v=.
+          find site -name '*.html' -print0 | xargs -0 sed -i -E \
+            "s~((src|href)=\"\./[^\"?#]+\.(js|css|png|jpe?g|webp|svg|mp4))(\?v=[^\"#]*)?\"~\1?v=${curta}\"~g"
+          grep -ho 'casca\.js?v=[a-z0-9]*' site/*.html | sort -u
 
       - uses: actions/configure-pages@v5
+        if: steps.muda.outputs.mudou == 'sim'
 
       - uses: actions/upload-pages-artifact@v3
+        if: steps.muda.outputs.mudou == 'sim'
         with:
           path: site
 
       - id: deploy
+        if: steps.muda.outputs.mudou == 'sim'
         uses: actions/deploy-pages@v4
