@@ -9455,7 +9455,7 @@ async function lembrarInscritos(guild, ev, inscritos) {
         embeds: [{
           color: COR,
           title: `🔔 ${String(ev.titulo).slice(0, 240)}`,
-          description: (nome ? `👋 **${nome}**\n` : "") + frases.get(idioma) + `\n\n🕒 <t:${s}:F> · ⏳ <t:${s}:R>`,
+          description: (nome ? `${emojiDaCyron("aceno", "👋")} **${nome}**\n` : "") + frases.get(idioma) + `\n\n🕒 <t:${s}:F> · ⏳ <t:${s}:R>`,
           ...(ev.gif_url ? { image: { url: String(ev.gif_url) } } : {}),
           footer: { text: guild.name.slice(0, 100) },
         }],
@@ -10086,7 +10086,8 @@ const NV_TEXTO_PADRAO = "🎉 {usuario} → **Lv. {nivel}** {cargos}";
 const NV_TEXTO_MAX = 500;
 function textoDeNivel(modelo, { id, nome, nivel, cargos = [] }) {
   const limpo = (t) => String(t || "").replace(/([*_`~|>\\])/g, "\\$1");
-  return String(modelo || NV_TEXTO_PADRAO).slice(0, NV_TEXTO_MAX)
+  /* O modelo de fabrica abre com a carinha feliz dela; o do ADM fica como ele escreveu. */
+  return String(modelo || NV_TEXTO_PADRAO.replace(/^🎉/, emojiDaCyron("amei", "🎉"))).slice(0, NV_TEXTO_MAX)
     .replace(/\{(usuario|usuário|user|mention)\}/gi, () => `<@${id}>`)
     .replace(/\{(nome|name)\}/gi, () => limpo(nome))
     .replace(/\{(nivel|nível|level)\}/gi, () => String(nivel))
@@ -10799,7 +10800,7 @@ async function encerrarSorteio(guild, s, deNovo = false) {
   if (msg) await msg.edit({ embeds: [cartaoDoSorteio(fechado)], components: botoesDoSorteio(fechado, ids.length) }).catch(() => {});
   await canal.send({
     content: vencedores.length
-      ? `${deNovo ? "🔁 " : ""}🎉 ${vencedores.map((v) => `<@${v}>`).join(" ")} · 🎁 **${String(s.premio).slice(0, 200)}**`
+      ? `${deNovo ? "🔁 " : ""}${emojiDaCyron("amei", "🎉")} ${vencedores.map((v) => `<@${v}>`).join(" ")} · 🎁 **${String(s.premio).slice(0, 200)}**`
       : `😶 🎁 **${String(s.premio).slice(0, 200)}** · 👥 0`,
     allowedMentions: { users: vencedores },
     ...(msg ? { reply: { messageReference: msg.id, failIfNotExists: false } } : {}),
@@ -12156,8 +12157,8 @@ function conversaAnimada(lista, agora = Date.now()) {
 
 function chamadaParaDuelo() {
   return {
-    content: "⚔️ **A CYRON desafia o chat!** Quem aceitar primeiro luta contra mim — e vale XP.\n" +
-      "_⚔️ **CYRON challenges the chat!** The first to accept fights me — and it's worth XP._\n" +
+    content: `${emojiDaCyron("estilo", "⚔️")} **A CYRON desafia o chat!** Quem aceitar primeiro luta contra mim — e vale XP.\n` +
+      `_${emojiDaCyron("estilo", "⚔️")} **CYRON challenges the chat!** The first to accept fights me — and it's worth XP._\n` +
       "-# Desafie alguém também · Challenge someone too: `/duelo`",
     components: [{ type: 1, components: [
       { type: 2, custom_id: "duelo:cyron:chat", style: 3, emoji: carinha("estilo", "⚔️"), label: "Aceitar · Accept" },
@@ -12783,8 +12784,8 @@ function retratoDoHeroi(p) {
 
 function cartaoDaAparicao(id, p, r) {
   return {
-    content: "✨ **Um herói apareceu no chat!** Quem tocar em Pegar primeiro leva a carta.\n" +
-      "_✨ **A hero appeared in the chat!** The first to tap Claim gets the card._",
+    content: `${emojiDaCyron("eita", "✨")} **Um herói apareceu no chat!** Quem tocar em Pegar primeiro leva a carta.\n` +
+      `_${emojiDaCyron("eita", "✨")} **A hero appeared in the chat!** The first to tap Claim gets the card._`,
     embeds: [{ color: r.cor, title: `${p.bandeira} ${p.nome}`.slice(0, 256),
       description: `${r.estrelas} **${r.pt}** · ${r.en}`,
       image: { url: `attachment://${p.id}.jpg` },
@@ -12939,8 +12940,8 @@ async function comandoDiario(inter, agora = Date.now(), sorte = Math.random) {
   /* <t:...:R> o Discord escreve na lingua de cada um ("em 5 horas"). */
   const volta = `<t:${Math.floor(proximoDiario(agora) / 1000)}:R>`;
   if (d.ja_pegou) {
-    return inter.editReply({ content: `⏳ Você já pegou a carta de hoje. A próxima chega ${volta}.\n` +
-      `_⏳ You already got today's card. The next one arrives ${volta}._` });
+    return inter.editReply({ content: `${emojiDaCyron("zzz", "⏳")} Você já pegou a carta de hoje. A próxima chega ${volta}.\n` +
+      `_${emojiDaCyron("zzz", "⏳")} You already got today's card. The next one arrives ${volta}._` });
   }
   const seq = Number(d.seq) || 1;
   const r = sortearRaridade(sorte(), chancesDoDiario(seq));
@@ -20465,6 +20466,15 @@ async function traduzirEmbedDoBot(embed, idioma, motor) {
        \p{L} cobre alfabeto nenhum em particular: arabe, japones e cirilico
        contam como letra do mesmo jeito que o "a". */
     if (!/\p{L}/u.test(t)) return t;
+    /* Emoji da CYRON no meio da frase (<:amei:123>) sai antes e volta
+       depois, como na conversa das salas. Pelo tradutor ele voltaria
+       quebrado -- e cada numero de emoji faria uma chave de cache nova. */
+    if (/<a?:\w+:\d+>/.test(t)) {
+      const { marcado, pecas } = protegerDoTradutor(t, []);
+      if (!/\p{L}/u.test(marcado.replace(/%%\d+%%/g, ""))) return t;
+      const saiu = await traduzirComCache(marcado.trim(), idioma, motor);
+      return saiu ? devolverPecas(saiu, pecas) : t;
+    }
     return (await traduzirComCache(t, idioma, motor)) || t;
   };
   const novo = { ...embed };
@@ -20620,7 +20630,7 @@ async function cliqueEscolherIdioma(inter) {
 
   await responder(inter, {
     color: COR_OK,
-    title: "🌐 Idioma salvo!",
+    title: `${emojiDaCyron("amei", "🌐")} Idioma salvo!`,
     description: `A partir de agora o servidor fala com você em **${nomeDoIdioma(idioma)}**. ` +
       "Sua categoria aparece em até um minuto.",
   }, { idioma });
@@ -20918,7 +20928,7 @@ function paginaDaAjuda(pagina, souAdmin) {
     return { id: p.id, title: "⚙️ Quem administra", footer: rodape, description:
       "Só quem administra o servidor vê estes comandos. O `/cyron` abre o painel com tudo: canais traduzidos, plano e limites." };
   }
-  return { id: "inicio", title: "🌐 CYRON — Ajuda", footer: rodape, description: [
+  return { id: "inicio", title: `${emojiDaCyron("aceno", "🌐")} CYRON — Ajuda`, footer: rodape, description: [
     "**1️⃣ Escolha a sua língua** no menu aqui embaixo.",
     "Pronto: os avisos e as salas do servidor aparecem para você já traduzidos.",
     "",
@@ -21987,7 +21997,7 @@ async function responderComIA(msg, texto, agora = Date.now()) {
   while (conversasDaIA.size > IA_CONVERSAS_MAX) conversasDaIA.delete(conversasDaIA.keys().next().value);
   /* O 🌐 e' a saida de quem so' queria traduzir uma frase com "?": a IA
      respondeu, mas a pessoa ainda pode pedir a traducao do que mandou. */
-  await falarNoPrivado(msg, { content: `${resposta}\n-# 🤖 CYRON AI`,
+  await falarNoPrivado(msg, { content: `${resposta}\n-# ${emojiDaCyron("piscadinha", "🤖")} CYRON AI`,
     components: [{ type: 1, components: [botaoDeSuporte(),
       { type: 2, style: 5, emoji: { name: "🗂️" }, label: "CYRON", url: `${SITE_DO_CYRON}recursos.html` },
       { type: 2, style: 2, custom_id: TRADUZIR_A_PERGUNTA, emoji: carinha("mundo", "🌐") }] }] });
@@ -22360,7 +22370,7 @@ async function comandoDeInteracao(inter) {
     }
     await inter.deferReply({ flags: 64 });
     await salvarIdiomaJogador(inter.user.id, novo);
-    return responder(inter, { color: COR_OK, title: "🌐 Idioma salvo!",
+    return responder(inter, { color: COR_OK, title: `${emojiDaCyron("amei", "🌐")} Idioma salvo!`,
       description: `A partir de agora tudo aparece em **${nomeDoIdioma(novo)}**.` }, { idioma: novo });
   }
 
@@ -22601,7 +22611,7 @@ client.on("interactionCreate", async (inter) => {
     console.error("interacao: falhou:", e?.message || e);
     /* Erro sem resposta vira "Esta interação falhou", que nao diz nada a
        ninguem. Uma frase honesta e' melhor que o aviso generico do Discord. */
-    const aviso = { content: "❌ Algo falhou aqui do meu lado. Tente de novo em instantes.", flags: 64 };
+    const aviso = { content: `${emojiDaCyron("chorando", "❌")} Algo falhou aqui do meu lado. Tente de novo em instantes.`, flags: 64 };
     /* Num clique de painel o defer foi deferUpdate: editReply ali apagaria o
        painel e poria o erro no lugar dele. O aviso vai por followUp. */
     if (inter.isMessageComponent?.() && inter.deferred) await inter.followUp(aviso).catch(() => {});

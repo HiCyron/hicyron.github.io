@@ -161,7 +161,7 @@ function carregar(nomes) {
    varias funcoes que os testes carregam sozinhas; ela fica no escopo de todos. */
 globalThis.AsyncLocalStorage = (await import("node:async_hooks")).AsyncLocalStorage;
 Object.assign(globalThis, carregar(["textoDoBot", "comoTextoDoBot", "ehTextoDoBot", "traducoesDoBot", "MAX_DO_BOT",
-  "guardarDoBot", "traduzirEmbedDoBot"]));
+  "guardarDoBot", "traduzirEmbedDoBot", "PEDACOS_INTOCAVEIS", "regraDosTermos", "protegerDoTradutor", "devolverPecas"]));
 /* O contador de uso de cada funcao tambem: muitas funcoes testadas sozinhas
    chamam contarUso() logo na primeira linha. */
 Object.assign(globalThis, carregar(["USO_DE_FUNCAO", "contarUso"]));
@@ -13241,6 +13241,66 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("toda carinha de botão é uma figurinha que existe", usadas.length > 15 &&
       usadas.every((n) => F2.FIGURINHAS.some((f) => f.id === n)));
   }
+}
+
+/* ====== AS CARINHAS DA CYRON NOS TEXTOS ======
+ *
+ * As frases dela passam pelo tradutor, e um <:amei:123> no meio voltaria
+ * quebrado. O emoji sai antes e volta depois, no lugar. */
+{
+  const antes = { traduzirComCache: globalThis.traduzirComCache, protegerDoTradutor: globalThis.protegerDoTradutor,
+    devolverPecas: globalThis.devolverPecas };
+  try {
+    /* As de verdade: um teste lá de cima deixou as duas trocadas por mentira. */
+    Object.assign(globalThis, carregar(["PEDACOS_INTOCAVEIS", "regraDosTermos", "protegerDoTradutor", "devolverPecas"]));
+    const pedidos = [];
+    let perde = false;
+    globalThis.traduzirComCache = async (t) => {
+      pedidos.push(t);
+      /* "Tradução" de mentira: põe EN na frente; às vezes some com o marcador. */
+      return perde ? `EN ${t.replace(/%%\d+%%/g, "")}` : `EN ${t}`;
+    };
+    const emb = await traduzirEmbedDoBot({ title: "<:amei:123> Idioma salvo!", description: "<:aceno:9>" }, "en", null);
+    verdade("o tradutor nunca vê o emoji dela", pedidos.length === 1 && !pedidos.some((p) => p.includes("<:")));
+    ok("e ele volta no lugar", emb.title, "EN <:amei:123> Idioma salvo!");
+    ok("só emoji, sem palavra: nem vai ao tradutor", emb.description, "<:aceno:9>");
+    perde = true;
+    const perdido = await traduzirEmbedDoBot({ title: "<:zzz:5> Volte amanhã" }, "en", null);
+    verdade("se o tradutor perde o marcador, o emoji vai para o fim, e não some", /<:zzz:5>$/.test(perdido.title));
+    perde = false;
+    pedidos.length = 0;
+    const comum = await traduzirEmbedDoBot({ title: "🌐 Idioma salvo!" }, "en", null);
+    verdade("frase sem emoji dela: o tradutor recebe como sempre", pedidos[0] === "🌐 Idioma salvo!" && comum.title === "EN 🌐 Idioma salvo!");
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+
+  /* Com os emojis carregados, a carinha; sem eles, o emoji de antes. */
+  const T = carregar(["NV_TEXTO_PADRAO", "NV_TEXTO_MAX", "textoDeNivel", "chamadaParaDuelo"]);
+  ok("nível, sem os emojis: o 🎉 de antes", T.textoDeNivel(null, { id: "1", nivel: 3 }), "🎉 <@1> → **Lv. 3**");
+  ok("duelo da CYRON, sem os emojis: o ⚔️ de antes", T.chamadaParaDuelo().content.slice(0, 2), "⚔️");
+  globalThis.EMOJIS_DA_CYRON.set("amei", { id: "7", name: "amei" });
+  globalThis.EMOJIS_DA_CYRON.set("estilo", { id: "8", name: "estilo" });
+  try {
+    ok("nível: a carinha feliz dela no modelo de fábrica", T.textoDeNivel(null, { id: "1", nivel: 3 }), "<:amei:7> <@1> → **Lv. 3**");
+    ok("o modelo do ADM fica como ele escreveu", T.textoDeNivel("🎉 {usuario} subiu!", { id: "1", nivel: 3 }), "🎉 <@1> subiu!");
+    verdade("duelo da CYRON: com a carinha dela nas duas línguas",
+      T.chamadaParaDuelo().content.startsWith("<:estilo:8> **A CYRON") && T.chamadaParaDuelo().content.includes("_<:estilo:8> **CYRON"));
+  } finally {
+    globalThis.EMOJIS_DA_CYRON.clear();
+  }
+
+  const limpo = semComentarios(fonte);
+  for (const [onde, regra] of [
+    ["herói apareceu", /\$\{emojiDaCyron\("eita", "✨"\)\} \*\*Um herói apareceu no chat!\*\*/],
+    ["quem ganhou o sorteio", /\$\{emojiDaCyron\("amei", "🎉"\)\} \$\{vencedores\.map/],
+    ["lembrete do evento no privado", /\$\{emojiDaCyron\("aceno", "👋"\)\} \*\*\$\{nome\}\*\*/],
+    ["erro do lado dela", /\$\{emojiDaCyron\("chorando", "❌"\)\} Algo falhou aqui do meu lado/],
+    ["carta do dia já pega", /\$\{emojiDaCyron\("zzz", "⏳"\)\} Você já pegou a carta de hoje/],
+    ["resposta da IA no privado", /-# \$\{emojiDaCyron\("piscadinha", "🤖"\)\} CYRON AI/],
+    ["idioma salvo", /title: `\$\{emojiDaCyron\("amei", "🌐"\)\} Idioma salvo!`/],
+    ["primeira página do /help", /title: `\$\{emojiDaCyron\("aceno", "🌐"\)\} CYRON — Ajuda`/],
+  ]) verdade(`${onde}: a carinha dela, com o emoji de antes de reserva`, regra.test(limpo));
 }
 
 function NA_CONTA_DO_FONTE() {
