@@ -488,6 +488,18 @@ export const RECURSOS = [
     prova: "nomesDaInteracao",
   },
   {
+    chave: "figurinhas",
+    categoria: "ferramentas",
+    plano: "gratis",
+    nome: { pt: "Figurinhas da CYRON", en: "CYRON stickers" },
+    como: { pt: "/figurinha", en: "/sticker" },
+    oque: {
+      pt: "48 figurinhas da própria CYRON: GG, KKKKK, BORA!, THANK YOU!, TRADUZ AÍ!, boa noite e muitas outras. Você procura na sua língua e ela manda no chat. Nas salas traduzidas, a figurinha sai com o seu nome e a sua foto e chega em todas as línguas. Com a CYRON instalada na sua conta, vale em qualquer servidor e no privado.",
+      en: "48 stickers of CYRON herself: GG, LOL, LET'S GO!, THANK YOU!, good night and many more. Search in your own language and she sends it to the chat. In translated rooms the sticker goes out with your name and photo and reaches every language. With CYRON installed on your account, it works in any server and in DMs.",
+    },
+    prova: "async function comandoFigurinha",
+  },
+  {
     chave: "duelo",
     categoria: "ferramentas",
     plano: "gratis",
