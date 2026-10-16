@@ -5,7 +5,7 @@ Bot de tradução para Discord, e o site dele: https://hicyron.github.io
 | Pasta | O que é |
 |---|---|
 | `discord-bot-gateway/` | o bot (Node, roda no Fly.io) e os testes (`node testes.js`) |
-| `cyron/` | o site, publicado aqui pelo `publicar.yml` e no Cloudflare Pages pelo `site-cloudflare.yml` |
+| `cyron/` | o site, publicado aqui pelo `publicar.yml` |
 | `supabase/migracoes/` | as migrações do banco, em ordem |
 | `supabase/functions/` | as funções da CYRON no Supabase: login do painel e pagamentos |
 
@@ -22,6 +22,5 @@ esta mudança continua lá.
 | `estado-do-bot.yml`, `ligar-o-bot.yml` | na mão | `FLY_API_TOKEN` |
 | `backup-do-banco.yml` | todo dia | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BACKUP_FRASE_SECRETA` |
 | `publicar.yml` | push na `main` em `cyron/` | — |
-| `site-cloudflare.yml` | push na `main` em `cyron/` | `CLOUDFLARE_API_TOKEN` |
 
 Segredo se cadastra em **Settings → Secrets and variables → Actions**, e nunca num chat ou commit.
