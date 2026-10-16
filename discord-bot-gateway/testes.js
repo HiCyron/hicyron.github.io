@@ -166,8 +166,9 @@ Object.assign(globalThis, carregar(["textoDoBot", "comoTextoDoBot", "ehTextoDoBo
    chamam contarUso() logo na primeira linha. */
 Object.assign(globalThis, carregar(["USO_DE_FUNCAO", "contarUso"]));
 /* Os emojis da CYRON tambem, vazios como antes de a subida terminar: quem os
-   usa (o duelo, o herói pego, a inscrição) sai com a reserva de sempre. */
-Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiDaCyron"]));
+   usa (o duelo, o herói pego, a inscrição, as carinhas dos botões) sai com a
+   reserva de sempre. */
+Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiDaCyron", "carinha"]));
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -13178,15 +13179,20 @@ function conferirCartao(onde, embed, componentes = []) {
       fetch: async () => new Map([["1", { id: "1", name: "gg" }], ["2", { id: "2", name: "outro" }]]),
       create: async ({ attachment, name }) => { criados.push([name, attachment]); return { id: `n${criados.length}`, name }; },
     } } };
-    const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "emojiDaCyron", "anexoDaFigurinha", "garantirEmojisDaCyron"];
+    const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "emojiDaCyron", "carinha", "anexoDaFigurinha",
+      "garantirEmojisDaCyron"];
     const E = carregar(nomesE);
     ok("antes de subir, a reserva", E.emojiDaCyron("gg", "🏆"), "🏆");
     ok("sem reserva, nada", E.emojiDaCyron("gg"), "");
+    ok("botão: antes de subir, o emoji comum", E.carinha("zzz", "🔕"), { name: "🔕" });
     await E.garantirEmojisDaCyron();
     verdade("o que já existe não sobe de novo", !criados.some(([n]) => n === "gg"));
     ok("sobe os que faltam", criados.length, F.FIGURINHAS.length - 1);
     verdade("cada um com a imagem da sua figurinha", criados.every(([n, a]) => a === `${pasta}${n}.png`));
     ok("e passa a usar o emoji", E.emojiDaCyron("gg", "🏆"), "<:gg:1>");
+    /* Os botões com a carinha dela, como os de figurinha do Mudae. */
+    verdade("botão: depois, a carinha dela (id e nome do emoji do aplicativo)",
+      /^n\d+$/.test(E.carinha("zzz", "🔕").id) && E.carinha("zzz", "🔕").name === "zzz");
     ok("os novos também", E.emojiDaCyron("obrigado"), `<:obrigado:n${criados.findIndex(([n]) => n === "obrigado") + 1}>`);
     criados.length = 0;
     await E.garantirEmojisDaCyron();
@@ -13220,6 +13226,21 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("a inscrição leva o THANK YOU! dela, depois da tradução",
     /const obrigado = entra \? emojiDaCyron\("obrigado"\) : "";/.test(limpo));
   verdade("e o nome não pode ser de comando do dono", /const NOMES_MEUS = new Set\(\[[^\]]*"figurinha", "sticker"/.test(limpo));
+  /* As carinhas nos botões: só em mensagem da própria CYRON. O 📝 e o 🎧 saem
+     pelo webhook das salas traduzidas, e um webhook que recusasse o emoji do
+     aplicativo levaria a mensagem inteira junto. */
+  verdade("o 📝 e o 🎧 das salas traduzidas continuam com o emoji comum",
+    !/carinha\(/.test(pedaco("botaoDeLerImagem")) && !/carinha\(/.test(pedaco("botaoDeOuvir")));
+  verdade("os botões principais ganham a carinha dela, com o emoji de antes de reserva",
+    /custom_id: "cyron:ajuda", style: 2, emoji: carinha\("pensando", "❓"\)/.test(limpo) &&
+    /custom_id: `heroi:pegar:\$\{id\}`, style: 3, emoji: carinha\("brilho", "✋"\)/.test(limpo) &&
+    /custom_id: `evento:vou:\$\{ev\.id\}`, style: 3, emoji: carinha\("amei", "🔔"\)/.test(limpo));
+  {
+    const F2 = await import("./figurinhas.js");
+    const usadas = [...limpo.matchAll(/carinha\("([a-z0-9_]+)", "[^"]+"\)/g)].map((m) => m[1]);
+    verdade("toda carinha de botão é uma figurinha que existe", usadas.length > 15 &&
+      usadas.every((n) => F2.FIGURINHAS.some((f) => f.id === n)));
+  }
 }
 
 function NA_CONTA_DO_FONTE() {

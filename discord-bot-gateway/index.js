@@ -6245,7 +6245,7 @@ function componentesDoConvite() {
     {
       type: 1,
       components: [
-        { type: 2, custom_id: "como-funciona", style: 2, emoji: { name: "❓" },
+        { type: 2, custom_id: "como-funciona", style: 2, emoji: carinha("pensando", "❓"),
           label: "Como funciona · How it works" },
       ],
     },
@@ -6909,10 +6909,10 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
          escolhe o motor, e o liga/desliga por mensagem ao lado. O nome passa a
          ser o mesmo do campo que ele mexe -- botão e campo com nomes
          diferentes obrigam a pessoa a descobrir a ligação sozinha. */
-      { type: 2, custom_id: "cyron:motor", style: 2, emoji: { name: "🌐" }, label: "Motor de tradução" },
+      { type: 2, custom_id: "cyron:motor", style: 2, emoji: carinha("mundo", "🌐"), label: "Motor de tradução" },
       /* "Palavras da casa" e "Remontar agora" não dizem o que fazem nem se
          desfazem algo. Verbo e objeto: dá para decidir sem clicar para ver. */
-      { type: 2, custom_id: "cyron:palavras", style: 2, emoji: { name: "📖" }, label: "Palavras que eu não traduzo" },
+      { type: 2, custom_id: "cyron:palavras", style: 2, emoji: carinha("nerd", "📖"), label: "Palavras que eu não traduzo" },
       { type: 2, custom_id: "cyron:remontar", style: 2, emoji: { name: "🔄" }, label: "Reconstruir os canais" },
     ],
   });
@@ -6963,7 +6963,7 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
       : [{ type: 2, custom_id: "cyron:codigo", style: 1, emoji: { name: "🎟️" }, label: "Ativar código" }]),
   ];
   const teste = podeTestar(servidor)
-    ? [{ type: 2, custom_id: "cyron:teste", style: 3, emoji: { name: "🎁" }, label: "Testar 7 dias grátis" }]
+    ? [{ type: 2, custom_id: "cyron:teste", style: 3, emoji: carinha("amei", "🎁"), label: "Testar 7 dias grátis" }]
     : [];
   /* Pro, Alianca, Pix e codigo sao quatro; o teste e' o quinto e ultimo que
      cabe. Os dois primeiros e o teste nunca aparecem juntos com o resto
@@ -6975,7 +6975,7 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
   /* Linha propria: a de cima ja' pode chegar a cinco. */
   if (aba === "plano") {
     linhas.push({ type: 1, components: [
-      { type: 2, custom_id: "cyron:indicar", style: 2, emoji: { name: "🤝" }, label: "Indique e ganhe" },
+      { type: 2, custom_id: "cyron:indicar", style: 2, emoji: carinha("coracao", "🤝"), label: "Indique e ganhe" },
     ] });
   }
 
@@ -6987,7 +6987,7 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
      aba no menu ja' abre o painel na lingua de quem escolheu, so' para ela. */
   if (aba === "resumo") {
     linhas.push({ type: 1, components: [
-      { type: 2, custom_id: "cyron:ajuda", style: 2, emoji: { name: "❓" }, label: "Ajuda" },
+      { type: 2, custom_id: "cyron:ajuda", style: 2, emoji: carinha("pensando", "❓"), label: "Ajuda" },
       botaoDeSuporte(),
       { type: 2, custom_id: "cyron:modo", style: 2, emoji: { name: "🔀" },
         label: modoDe(servidor) === "ferramentas" ? "Modo: só ferramentas" : modoDe(servidor) === "escolher" ? "Escolher o modo" : "Modo: traduzido" },
@@ -7987,12 +7987,12 @@ function botoesDoEvento(ev, agora = Date.now(), quantos = 0, rotulo = "Subscribe
   if (new Date(ev.quando).getTime() > agora) {
     /* Um botao so': tocar inscreve, tocar de novo sai. O numero de inscritos
        vai no proprio botao. */
-    linha.push({ type: 2, custom_id: `evento:vou:${ev.id}`, style: 3, emoji: { name: "🔔" },
+    linha.push({ type: 2, custom_id: `evento:vou:${ev.id}`, style: 3, emoji: carinha("amei", "🔔"),
       label: `${rotulo} · ${quantos}`.slice(0, 80) });
   }
   if (comIdioma) {
     linha.push({ type: 2, custom_id: `evento:idioma:${ev.id}`, style: 2,
-      emoji: { name: "🌐" }, label: "My language" });
+      emoji: carinha("mundo", "🌐"), label: "My language" });
   }
   return linha.length ? [{ type: 1, components: linha }] : [];
 }
@@ -8265,7 +8265,7 @@ async function cargaNaLingua(ev, presencas, idioma, motor, agora = Date.now()) {
      reconhece o proprio cartao na passada seguinte. */
   const passou = new Date(ev.quando).getTime() <= agora;
   const botoes = [{ type: 1, components: [{ type: 2, custom_id: `evento:vou:${ev.id}`, style: 3,
-    emoji: { name: "🔔" }, label: `${P.inscrever} · ${quantos}`.slice(0, 80), disabled: passou }] }];
+    emoji: carinha("amei", "🔔"), label: `${P.inscrever} · ${quantos}`.slice(0, 80), disabled: passou }] }];
   return { embeds: [cartao], components: botoes, allowedMentions: { parse: [] } };
 }
 
@@ -10709,7 +10709,7 @@ function cartaoDoSorteio(s, agora = Date.now()) {
 }
 
 function botoesDoSorteio(s, quantos = 0) {
-  const linha = [{ type: 2, custom_id: `sorteio:entrar:${s.id}`, style: s.encerrado ? 2 : 1, emoji: { name: "🎉" },
+  const linha = [{ type: 2, custom_id: `sorteio:entrar:${s.id}`, style: s.encerrado ? 2 : 1, emoji: carinha("amei", "🎉"),
     label: String(quantos), disabled: !!s.encerrado }];
   if (s.encerrado) linha.push({ type: 2, custom_id: `sorteio:refazer:${s.id}`, style: 2, emoji: { name: "🔁" } });
   return [{ type: 1, components: linha }];
@@ -11081,22 +11081,38 @@ async function comandoFigurinha(inter) {
 
    Quem usa passa sempre uma reserva: antes de a subida terminar, ou se ela
    falhar, sai o emoji comum de antes. Mensagem nenhuma depende disto. */
-const EMOJIS_DA_CYRON = new Map(); // id da figurinha -> "<:id:numero>"
+const EMOJIS_DA_CYRON = new Map(); // id da figurinha -> { id, name } do emoji do aplicativo
 
 function emojiDaCyron(nome, reserva = "") {
-  return EMOJIS_DA_CYRON.get(nome) || reserva;
+  const e = EMOJIS_DA_CYRON.get(nome);
+  return e ? `<:${e.name}:${e.id}>` : reserva;
+}
+
+/* A carinha dela num BOTAO, como os botoes de figurinha que o Mudae tem:
+   o nome do botao fica, e o emoji comum da' lugar a CYRON naquela
+   expressao. So' figurinha sem texto -- a 20 pixels, letra vira borrao --
+   e so' onde ha' sentimento: "Ajuda" pensando, "Testar gratis" feliz,
+   "Desligar" dormindo. Botao de funcao (➕ ✏️ 🗑️ ◀ ▶) continua com o
+   simbolo, que diz o que ele faz.
+
+   Nunca em botao que sai por webhook (o 📝 e o 🎧 das salas traduzidas):
+   emoji de aplicativo e' do bot, e um webhook que o recusasse levaria a
+   mensagem inteira junto. Sem o emoji carregado, a reserva de sempre. */
+function carinha(nome, reserva) {
+  const e = EMOJIS_DA_CYRON.get(nome);
+  return e ? { id: e.id, name: e.name } : { name: reserva };
 }
 
 async function garantirEmojisDaCyron() {
   if (!umaVezPorProcesso("emojis-da-cyron")) return;
   try {
     const publicados = await client.application.emojis.fetch();
-    for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, `<:${e.name}:${e.id}>`);
+    for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, { id: e.id, name: e.name });
     let novos = 0;
     for (const f of FIGURINHAS) {
       if (EMOJIS_DA_CYRON.has(f.id)) continue;
       const e = await client.application.emojis.create({ attachment: anexoDaFigurinha(f).attachment, name: f.id });
-      EMOJIS_DA_CYRON.set(f.id, `<:${e.name}:${e.id}>`);
+      EMOJIS_DA_CYRON.set(f.id, { id: e.id, name: e.name });
       novos++;
     }
     if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
@@ -11225,7 +11241,7 @@ async function comandoSuporte(inter) {
     components: [{ type: 1, components: [
       { type: 2, custom_id: "sa:cyron", style: 1, emoji: { name: "⚙️" }, label: "Painel da CYRON" },
       { type: 2, custom_id: "sa:niveis", style: 2, emoji: { name: "📈" }, label: "Níveis" },
-      { type: 2, custom_id: "sa:boas-vindas", style: 2, emoji: { name: "👋" }, label: "Boas-vindas" },
+      { type: 2, custom_id: "sa:boas-vindas", style: 2, emoji: carinha("aceno", "👋"), label: "Boas-vindas" },
     ] }], allowedMentions: { parse: [] } });
 }
 
@@ -11738,7 +11754,7 @@ function abasDoPainel(aba, idx, tx = TEXTOS_DO_PAINEL) {
   const aba1 = (id, emoji, label) => ({ type: 2, custom_id: `dp:aba:${id}:${idx}`, style: aba === id ? 1 : 2,
     emoji: { name: emoji }, label: String(label).slice(0, 80), disabled: aba === id });
   return { type: 1, components: [aba1("herois", "🦸", tx.herois), aba1("hab", "✨", tx.habilidades), aba1("ranking", "🏆", tx.ranking),
-    { type: 2, custom_id: `dp:duelar:${idx}`, style: 3, emoji: { name: "⚔️" }, label: String(tx.duelar).slice(0, 80) }] };
+    { type: 2, custom_id: `dp:duelar:${idx}`, style: 3, emoji: carinha("estilo", "⚔️"), label: String(tx.duelar).slice(0, 80) }] };
 }
 
 /* A tela inteira do painel. Monta o card certo e os botoes da aba. */
@@ -11960,8 +11976,8 @@ async function cliqueDoPainel(inter) {
      instalado so' pela pessoa), vai como resposta publica da interacao. */
   const conteudo = { content: `⚔️ <@${eu}> ${tx.querDuelar} ${heroi.bandeira} **${heroi.curto}**! ${tx.quemAceita}\n-# ${tx.abertoPor} ${tx.comSeuHeroi}`,
     components: [{ type: 1, components: [
-      { type: 2, custom_id: `duelo:aceitar:${estado.id}`, style: 3, emoji: { name: "⚔️" }, label: String(tx.aceitar).slice(0, 80) },
-      { type: 2, custom_id: `duelo:treino:${estado.id}`, style: 2, emoji: { name: "🤖" }, label: String(tx.treinar).slice(0, 80) },
+      { type: 2, custom_id: `duelo:aceitar:${estado.id}`, style: 3, emoji: carinha("estilo", "⚔️"), label: String(tx.aceitar).slice(0, 80) },
+      { type: 2, custom_id: `duelo:treino:${estado.id}`, style: 2, emoji: carinha("piscadinha", "🤖"), label: String(tx.treinar).slice(0, 80) },
     ] }], allowedMentions: { parse: [] } };
   const naMinha = desmarcarCarga(conteudo, await linguaDoDuelo(estado, estado.idioma).catch(() => null));
   estado.msg = await inter.channel?.send(naMinha).catch(() => null) ||
@@ -12043,7 +12059,7 @@ async function comandoDuelo(inter) {
   const titulo = `⚔️ <@${inter.user.id}> ${tx.desafiou} <@${alvo.id}> ${tx.paraDuelo}`;
   const convite = { content: `${titulo}\n<@${inter.user.id}> ${tx.vaiDe} ${meu.bandeira} **${meu.curto}**.\n-# <@${alvo.id}>, ${tx.aceiteOuEscolha}`,
     components: [{ type: 1, components: [
-      { type: 2, custom_id: `duelo:aceitar:${id}`, style: 3, emoji: { name: "⚔️" }, label: String(tx.aceitar).slice(0, 80) }] },
+      { type: 2, custom_id: `duelo:aceitar:${id}`, style: 3, emoji: carinha("estilo", "⚔️"), label: String(tx.aceitar).slice(0, 80) }] },
     ...escolhaDePersonagem(id, alvoMembro?.displayName || alvo.username, tx)],
     allowedMentions: { users: [alvo.id] } };
   const naMinha = desmarcarCarga(convite, await linguaDoDuelo(estado, estado.idioma).catch(() => null));
@@ -12144,8 +12160,8 @@ function chamadaParaDuelo() {
       "_⚔️ **CYRON challenges the chat!** The first to accept fights me — and it's worth XP._\n" +
       "-# Desafie alguém também · Challenge someone too: `/duelo`",
     components: [{ type: 1, components: [
-      { type: 2, custom_id: "duelo:cyron:chat", style: 3, emoji: { name: "⚔️" }, label: "Aceitar · Accept" },
-      { type: 2, custom_id: "duelo:chamada-off:chat", style: 2, emoji: { name: "🔕" }, label: "Desligar (ADM)" },
+      { type: 2, custom_id: "duelo:cyron:chat", style: 3, emoji: carinha("estilo", "⚔️"), label: "Aceitar · Accept" },
+      { type: 2, custom_id: "duelo:chamada-off:chat", style: 2, emoji: carinha("zzz", "🔕"), label: "Desligar (ADM)" },
     ] }],
     allowedMentions: { parse: [] },
   };
@@ -12775,8 +12791,8 @@ function cartaoDaAparicao(id, p, r) {
       footer: { text: `+${r.xp} XP · Vai embora em 3 min · Leaves in 3 min` } }],
     files: [retratoDoHeroi(p)],
     components: [{ type: 1, components: [
-      { type: 2, custom_id: `heroi:pegar:${id}`, style: 3, emoji: { name: "✋" }, label: "Pegar · Claim" },
-      { type: 2, custom_id: "heroi:off:x", style: 2, emoji: { name: "🔕" }, label: "Desligar (ADM)" },
+      { type: 2, custom_id: `heroi:pegar:${id}`, style: 3, emoji: carinha("brilho", "✋"), label: "Pegar · Claim" },
+      { type: 2, custom_id: "heroi:off:x", style: 2, emoji: carinha("zzz", "🔕"), label: "Desligar (ADM)" },
     ] }],
     allowedMentions: { parse: [] },
   };
@@ -14762,7 +14778,7 @@ function botoesDoRecibo() {
       /* O "Indique e ganhe" morava so' na aba Plano, onde ninguem vai sem
          motivo -- e nunca foi usado. Aqui ele aparece na semana em que o dono
          esta' olhando o que a CYRON fez por ele. */
-      { type: 2, custom_id: "cyron:indicar", style: 2, emoji: { name: "🤝" }, label: "Indique e ganhe" },
+      { type: 2, custom_id: "cyron:indicar", style: 2, emoji: carinha("coracao", "🤝"), label: "Indique e ganhe" },
     ],
   }];
 }
@@ -14805,7 +14821,7 @@ function cartaoDoMarco(guild, marco) {
       ].join("\n"),
     }],
     components: [{ type: 1, components: [
-      { type: 2, custom_id: "cyron:indicar", style: 1, emoji: { name: "🤝" }, label: "Indique e ganhe" },
+      { type: 2, custom_id: "cyron:indicar", style: 1, emoji: carinha("coracao", "🤝"), label: "Indique e ganhe" },
       { type: 2, custom_id: "cyron:publicar", style: 3, emoji: { name: "📣" }, label: "Publicar para o servidor" },
     ] }],
     allowedMentions: { parse: [] },
@@ -21110,7 +21126,7 @@ function botoesDaPergunta() {
   return {
     type: 1,
     components: [
-      { type: 2, style: 3, custom_id: PASSO.sim, emoji: { name: "✅" }, label: "Sim, quero" },
+      { type: 2, style: 3, custom_id: PASSO.sim, emoji: carinha("piscadinha", "✅"), label: "Sim, quero" },
       { type: 2, style: 2, custom_id: PASSO.nao, emoji: { name: "💬" }, label: "Ainda não" },
       { type: 2, style: 2, custom_id: `${PASSO.passo}:1`, emoji: { name: "🖼️" }, label: "Ver o passo a passo" },
     ],
@@ -21186,7 +21202,7 @@ function botoesDosPlanos() {
     botoesDeConvite(),
     { type: 1, components: [
       { type: 2, style: 1, custom_id: `${PASSO.passo}:1`, emoji: { name: "🖼️" }, label: "Ver o passo a passo" },
-      { type: 2, style: 2, custom_id: PASSO.nao, emoji: { name: "💬" }, label: "Tenho outra dúvida" },
+      { type: 2, style: 2, custom_id: PASSO.nao, emoji: carinha("pensando", "💬"), label: "Tenho outra dúvida" },
     ] },
   ];
 }
@@ -21974,7 +21990,7 @@ async function responderComIA(msg, texto, agora = Date.now()) {
   await falarNoPrivado(msg, { content: `${resposta}\n-# 🤖 CYRON AI`,
     components: [{ type: 1, components: [botaoDeSuporte(),
       { type: 2, style: 5, emoji: { name: "🗂️" }, label: "CYRON", url: `${SITE_DO_CYRON}recursos.html` },
-      { type: 2, style: 2, custom_id: TRADUZIR_A_PERGUNTA, emoji: { name: "🌐" } }] }] });
+      { type: 2, style: 2, custom_id: TRADUZIR_A_PERGUNTA, emoji: carinha("mundo", "🌐") }] }] });
   return "respondeu";
 }
 
