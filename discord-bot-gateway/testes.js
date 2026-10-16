@@ -168,7 +168,7 @@ Object.assign(globalThis, carregar(["USO_DE_FUNCAO", "contarUso"]));
 /* Os emojis da CYRON tambem, vazios como antes de a subida terminar: quem os
    usa (o duelo, o herói pego, a inscrição, as carinhas dos botões) sai com a
    reserva de sempre. */
-Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiDaCyron", "carinha"]));
+Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiPequeno", "emojiDaCyron", "carinha", "fotoDaCyron"]));
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -13074,6 +13074,15 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o id serve de nome de emoji do Discord (2 a 32 letras, números ou _)", ids.every((i) => /^[a-z0-9_]{2,32}$/.test(i)));
   verdade("toda imagem cabe no limite de emoji do Discord (256 KB)", arquivos.every((a) => statSync(pasta + a).size < 256 * 1024));
   verdade("toda imagem é PNG de verdade", arquivos.every((a) => readFileSync(pasta + a).subarray(0, 8).equals(PNG)));
+  {
+    const { ROSTOS_DA_CYRON } = carregar(["ROSTOS_DA_CYRON"]);
+    const deRosto = readdirSync(`${pasta}rostos/`).filter((a) => a.endsWith(".png")).sort();
+    ok("cada rosto tem o seu círculo, e não sobra círculo fora da lista", deRosto, ROSTOS_DA_CYRON.map((n) => `${n}.png`).sort());
+    verdade("todo rosto é de uma figurinha que existe", ROSTOS_DA_CYRON.every((n) => ids.includes(n)));
+    verdade("e cabe no limite de emoji (256 KB), em PNG", deRosto.every((a) => statSync(`${pasta}rostos/${a}`).size < 256 * 1024 &&
+      readFileSync(`${pasta}rostos/${a}`).subarray(0, 8).equals(PNG)));
+    verdade("o nome do emoji do rosto também vale no Discord", ROSTOS_DA_CYRON.every((n) => /^[a-z0-9_]{2,32}$/.test(`rosto_${n}`)));
+  }
   verdade("todas têm nome em português e em inglês, que cabem na lista do Discord, e palavras de busca",
     F.FIGURINHAS.every((f) => f.pt && f.en && f.pt.length <= 100 && f.en.length <= 100 && f.busca.length > 0));
 
@@ -13093,7 +13102,7 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("nada parecido: nada", F.acharFigurinha("xyzzy"), null);
   ok("vazio: nada", F.acharFigurinha(""), null);
 
-  const globais = ["client", "acharFigurinha", "FIGURINHAS", "PASTA_DAS_FIGURINHAS", "dormir", "clienteDoWebhook",
+  const globais = ["client", "acharFigurinha", "FIGURINHAS", "PASTA_DAS_FIGURINHAS", "PASTA_DOS_ROSTOS", "dormir", "clienteDoWebhook",
     "salasIrmas", "servidorDoGuild", "planoDe", "canaisEspelho", "replicasDoIdioma"];
   const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
   try {
@@ -13179,20 +13188,28 @@ function conferirCartao(onde, embed, componentes = []) {
       fetch: async () => new Map([["1", { id: "1", name: "gg" }], ["2", { id: "2", name: "outro" }]]),
       create: async ({ attachment, name }) => { criados.push([name, attachment]); return { id: `n${criados.length}`, name }; },
     } } };
-    const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "emojiDaCyron", "carinha", "anexoDaFigurinha",
-      "garantirEmojisDaCyron"];
+    globalThis.PASTA_DOS_ROSTOS = `${pasta}rostos/`;
+    const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "ROSTOS_DA_CYRON", "emojiPequeno", "emojiDaCyron",
+      "carinha", "fotoDaCyron", "anexoDaFigurinha", "garantirEmojisDaCyron"];
     const E = carregar(nomesE);
     ok("antes de subir, a reserva", E.emojiDaCyron("gg", "🏆"), "🏆");
+    ok("cartão sem os emojis: sai como antes, sem foto", E.fotoDaCyron("amei"), {});
     ok("sem reserva, nada", E.emojiDaCyron("gg"), "");
     ok("botão: antes de subir, o emoji comum", E.carinha("zzz", "🔕"), { name: "🔕" });
     await E.garantirEmojisDaCyron();
     verdade("o que já existe não sobe de novo", !criados.some(([n]) => n === "gg"));
-    ok("sobe os que faltam", criados.length, F.FIGURINHAS.length - 1);
-    verdade("cada um com a imagem da sua figurinha", criados.every(([n, a]) => a === `${pasta}${n}.png`));
+    ok("sobe os que faltam: as figurinhas e os rostos", criados.length, F.FIGURINHAS.length - 1 + E.ROSTOS_DA_CYRON.length);
+    verdade("cada figurinha com a sua imagem", criados.filter(([n]) => !n.startsWith("rosto_")).every(([n, a]) => a === `${pasta}${n}.png`));
+    verdade("cada rosto com o seu círculo", criados.filter(([n]) => n.startsWith("rosto_"))
+      .every(([n, a]) => a === `${pasta}rostos/${n.slice(6)}.png` && existsSync(a)));
     ok("e passa a usar o emoji", E.emojiDaCyron("gg", "🏆"), "<:gg:1>");
     /* Os botões com a carinha dela, como os de figurinha do Mudae. */
-    verdade("botão: depois, a carinha dela (id e nome do emoji do aplicativo)",
-      /^n\d+$/.test(E.carinha("zzz", "🔕").id) && E.carinha("zzz", "🔕").name === "zzz");
+    verdade("botão: depois, o ROSTO dela, que se vê a 20 px (id e nome do emoji do aplicativo)",
+      /^n\d+$/.test(E.carinha("zzz", "🔕").id) && E.carinha("zzz", "🔕").name === "rosto_zzz");
+    ok("no texto também é o rosto", E.emojiDaCyron("eita").startsWith("<:rosto_eita:"), true);
+    ok("figurinha sem rosto (o GG) sai inteira", E.emojiDaCyron("gg"), "<:gg:1>");
+    ok("no canto do cartão, a figurinha inteira e grande", E.fotoDaCyron("gg"),
+      { thumbnail: { url: "https://cdn.discordapp.com/emojis/1.png?size=160" } });
     ok("os novos também", E.emojiDaCyron("obrigado"), `<:obrigado:n${criados.findIndex(([n]) => n === "obrigado") + 1}>`);
     criados.length = 0;
     await E.garantirEmojisDaCyron();
@@ -13201,7 +13218,7 @@ function conferirCartao(onde, embed, componentes = []) {
     /* O herói pego leva o emoji dela; sem ele, o ✅ de sempre. */
     const { cartaoPego } = carregar(["cartaoPego"]);
     const p = { id: "x", nome: "Zumbi", bandeira: "🇧🇷" }, r = { estrelas: "⭐", xp: 5, cor: 1, pt: "Comum", en: "Common" };
-    verdade("herói pego: com o emoji de brilho dela", cartaoPego(p, r, "u1").content.startsWith("<:brilho:n"));
+    verdade("herói pego: com o rosto de brilho dela", cartaoPego(p, r, "u1").content.startsWith("<:rosto_brilho:n"));
 
     const E2 = carregar(nomesE);
     globalThis.client = { application: { emojis: { fetch: async () => { throw new Error("401: Unauthorized"); } } } };
@@ -13294,12 +13311,12 @@ function conferirCartao(onde, embed, componentes = []) {
   for (const [onde, regra] of [
     ["herói apareceu", /\$\{emojiDaCyron\("eita", "✨"\)\} \*\*Um herói apareceu no chat!\*\*/],
     ["quem ganhou o sorteio", /\$\{emojiDaCyron\("amei", "🎉"\)\} \$\{vencedores\.map/],
-    ["lembrete do evento no privado", /\$\{emojiDaCyron\("aceno", "👋"\)\} \*\*\$\{nome\}\*\*/],
+    ["lembrete do evento no privado (grande, no canto)", /\.\.\.fotoDaCyron\("aceno"\),\s*\.\.\.\(ev\.gif_url/],
     ["erro do lado dela", /\$\{emojiDaCyron\("chorando", "❌"\)\} Algo falhou aqui do meu lado/],
     ["carta do dia já pega", /\$\{emojiDaCyron\("zzz", "⏳"\)\} Você já pegou a carta de hoje/],
     ["resposta da IA no privado", /-# \$\{emojiDaCyron\("piscadinha", "🤖"\)\} CYRON AI/],
-    ["idioma salvo", /title: `\$\{emojiDaCyron\("amei", "🌐"\)\} Idioma salvo!`/],
-    ["primeira página do /help", /title: `\$\{emojiDaCyron\("aceno", "🌐"\)\} CYRON — Ajuda`/],
+    ["idioma salvo (grande, no canto)", /title: "🌐 Idioma salvo!", \.\.\.fotoDaCyron\("amei"\)/],
+    ["primeira página do /help (grande, no canto)", /title: "🌐 CYRON — Ajuda", \.\.\.fotoDaCyron\("aceno"\)/],
   ]) verdade(`${onde}: a carinha dela, com o emoji de antes de reserva`, regra.test(limpo));
 }
 

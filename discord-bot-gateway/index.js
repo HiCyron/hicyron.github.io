@@ -9455,7 +9455,8 @@ async function lembrarInscritos(guild, ev, inscritos) {
         embeds: [{
           color: COR,
           title: `🔔 ${String(ev.titulo).slice(0, 240)}`,
-          description: (nome ? `${emojiDaCyron("aceno", "👋")} **${nome}**\n` : "") + frases.get(idioma) + `\n\n🕒 <t:${s}:F> · ⏳ <t:${s}:R>`,
+          description: (nome ? `👋 **${nome}**\n` : "") + frases.get(idioma) + `\n\n🕒 <t:${s}:F> · ⏳ <t:${s}:R>`,
+          ...fotoDaCyron("aceno"),
           ...(ev.gif_url ? { image: { url: String(ev.gif_url) } } : {}),
           footer: { text: guild.name.slice(0, 100) },
         }],
@@ -11084,9 +11085,33 @@ async function comandoFigurinha(inter) {
    falhar, sai o emoji comum de antes. Mensagem nenhuma depende disto. */
 const EMOJIS_DA_CYRON = new Map(); // id da figurinha -> { id, name } do emoji do aplicativo
 
+/* O ROSTO dela, num circulo (img/figurinhas/rostos).
+
+   Emoji no texto e no botao fica com uns 20 pixels no Discord -- e isso nao
+   se muda. A figurinha inteira (corpo, braco, mundinho) virava um borrao
+   nesse tamanho; o rosto aproximado, num circulo como foto de perfil, deixa
+   ver a piscadinha, o sono, os oculos. Quem tem rosto usa o rosto; o resto,
+   a figurinha inteira. */
+const ROSTOS_DA_CYRON = ["pensando", "amei", "coracao", "mundo", "nerd", "estilo", "piscadinha", "brilho", "zzz",
+  "aceno", "eita", "chorando"];
+const PASTA_DOS_ROSTOS = fileURLToPath(new URL("./img/figurinhas/rostos/", import.meta.url));
+
+function emojiPequeno(nome) {
+  return EMOJIS_DA_CYRON.get(`rosto_${nome}`) || EMOJIS_DA_CYRON.get(nome);
+}
+
 function emojiDaCyron(nome, reserva = "") {
-  const e = EMOJIS_DA_CYRON.get(nome);
+  const e = emojiPequeno(nome);
   return e ? `<:${e.name}:${e.id}>` : reserva;
+}
+
+/* A CYRON GRANDE, no canto de um cartao (thumbnail, ~80 px): onde ha'
+   cartao, e' ali que ela aparece de verdade. A figurinha inteira, servida
+   pelo proprio Discord a partir do emoji do aplicativo. Sem o emoji
+   carregado, nada -- o cartao sai como antes. */
+function fotoDaCyron(nome) {
+  const e = EMOJIS_DA_CYRON.get(nome);
+  return e ? { thumbnail: { url: `https://cdn.discordapp.com/emojis/${e.id}.png?size=160` } } : {};
 }
 
 /* A carinha dela num BOTAO, como os botoes de figurinha que o Mudae tem:
@@ -11100,7 +11125,7 @@ function emojiDaCyron(nome, reserva = "") {
    emoji de aplicativo e' do bot, e um webhook que o recusasse levaria a
    mensagem inteira junto. Sem o emoji carregado, a reserva de sempre. */
 function carinha(nome, reserva) {
-  const e = EMOJIS_DA_CYRON.get(nome);
+  const e = emojiPequeno(nome);
   return e ? { id: e.id, name: e.name } : { name: reserva };
 }
 
@@ -11110,10 +11135,12 @@ async function garantirEmojisDaCyron() {
     const publicados = await client.application.emojis.fetch();
     for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, { id: e.id, name: e.name });
     let novos = 0;
-    for (const f of FIGURINHAS) {
-      if (EMOJIS_DA_CYRON.has(f.id)) continue;
-      const e = await client.application.emojis.create({ attachment: anexoDaFigurinha(f).attachment, name: f.id });
-      EMOJIS_DA_CYRON.set(f.id, { id: e.id, name: e.name });
+    const subir = [...FIGURINHAS.map((f) => [f.id, anexoDaFigurinha(f).attachment]),
+      ...ROSTOS_DA_CYRON.map((n) => [`rosto_${n}`, `${PASTA_DOS_ROSTOS}${n}.png`])];
+    for (const [nome, arquivo] of subir) {
+      if (EMOJIS_DA_CYRON.has(nome)) continue;
+      const e = await client.application.emojis.create({ attachment: arquivo, name: nome });
+      EMOJIS_DA_CYRON.set(nome, { id: e.id, name: e.name });
       novos++;
     }
     if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
@@ -20630,7 +20657,7 @@ async function cliqueEscolherIdioma(inter) {
 
   await responder(inter, {
     color: COR_OK,
-    title: `${emojiDaCyron("amei", "🌐")} Idioma salvo!`,
+    title: "🌐 Idioma salvo!", ...fotoDaCyron("amei"),
     description: `A partir de agora o servidor fala com você em **${nomeDoIdioma(idioma)}**. ` +
       "Sua categoria aparece em até um minuto.",
   }, { idioma });
@@ -20928,7 +20955,7 @@ function paginaDaAjuda(pagina, souAdmin) {
     return { id: p.id, title: "⚙️ Quem administra", footer: rodape, description:
       "Só quem administra o servidor vê estes comandos. O `/cyron` abre o painel com tudo: canais traduzidos, plano e limites." };
   }
-  return { id: "inicio", title: `${emojiDaCyron("aceno", "🌐")} CYRON — Ajuda`, footer: rodape, description: [
+  return { id: "inicio", title: "🌐 CYRON — Ajuda", ...fotoDaCyron("aceno"), footer: rodape, description: [
     "**1️⃣ Escolha a sua língua** no menu aqui embaixo.",
     "Pronto: os avisos e as salas do servidor aparecem para você já traduzidos.",
     "",
@@ -22370,7 +22397,7 @@ async function comandoDeInteracao(inter) {
     }
     await inter.deferReply({ flags: 64 });
     await salvarIdiomaJogador(inter.user.id, novo);
-    return responder(inter, { color: COR_OK, title: `${emojiDaCyron("amei", "🌐")} Idioma salvo!`,
+    return responder(inter, { color: COR_OK, title: "🌐 Idioma salvo!", ...fotoDaCyron("amei"),
       description: `A partir de agora tudo aparece em **${nomeDoIdioma(novo)}**.` }, { idioma: novo });
   }
 
