@@ -22,6 +22,7 @@ import { QUEM_SOU, REGRAS, DUVIDAS } from "./roteiro.js";
 import { LOCAIS_DO_DISCORD, DESCRICOES_DOS_COMANDOS, ESCOLHAS_DOS_COMANDOS, NOMES_DOS_MENUS, DESCRICOES_DE_FORA,
   DESCRICOES_DA_AJUDA } from "./comandos-linguas.js";
 import { PERSONAGENS, ESPACOS, EFEITOS, NIVEIS_DO_PERSONAGEM } from "./duelo-elenco.js";
+import { FIGURINHAS, sugestoesDeFigurinha, acharFigurinha } from "./figurinhas.js";
 /* O que e' so' da alianca [TOP]: fica fora daqui para nao se misturar com o
    produto. Ver o comentario no topo do alianca.js. */
 import { ligarAlianca, COMANDOS_DA_ALIANCA, comandoDaAlianca, boasVindasDaAlianca, reHospedar, MAX_MIDIA,
@@ -9344,7 +9345,11 @@ async function cliqueEvento(inter) {
       : "Inscrição cancelada. Você não recebe mais avisos deste evento.";
     const embed = await traduzirEmbed({ color: entra ? COR_OK : 0x9aa0a6, description: frase },
       idioma, await motorDoGuild(inter.guildId)).catch(() => ({ description: frase }));
-    return inter.editReply({ embeds: [{ ...embed, title: `${entra ? "🔔" : "🔕"} ${String(ev.titulo).slice(0, 200)}` }] });
+    /* Inscrito ganha o "THANK YOU!" dela, depois da traducao: o tradutor
+       nao precisa ver o <:obrigado:...>. */
+    const obrigado = entra ? emojiDaCyron("obrigado") : "";
+    return inter.editReply({ embeds: [{ ...embed, title: `${entra ? "🔔" : "🔕"} ${String(ev.titulo).slice(0, 200)}`,
+      ...(obrigado ? { description: `${obrigado} ${embed.description || ""}`.trim() } : {}) }] });
   }
 }
 
@@ -10994,6 +10999,112 @@ async function comandoInteracao(inter, chave) {
   }
 }
 
+/* ---------------- /figurinha e os emojis da CYRON ----------------
+
+   As figurinhas da propria CYRON: a lista em figurinhas.js, a arte em
+   img/figurinhas. O /figurinha vale em qualquer lugar -- no servidor com a
+   CYRON, no servidor sem ela (instalada na conta de quem usa) e no privado
+   --, e cada uma que sai num servidor alheio leva "CYRON" embaixo.
+
+   Nao gasta tradutor nem cota: figurinha com texto ("BORA!", "THANK YOU!")
+   e' a mesma em qualquer lingua, e quem procura escreve na sua, porque a
+   busca tem as palavras de varias. */
+const PASTA_DAS_FIGURINHAS = fileURLToPath(new URL("./img/figurinhas/", import.meta.url));
+
+function anexoDaFigurinha(f) {
+  return { attachment: `${PASTA_DAS_FIGURINHAS}${f.id}.png`, name: `${f.id}.png` };
+}
+
+/* A sala traduzida onde o comando foi usado, se ela tem webhook. E' por ele
+   que a fala da pessoa chega traduzida as irmas, e a figurinha sai por ele
+   tambem, com o nome e a foto dela: na sala, fica igual a uma fala. So' no
+   plano pago, o mesmo corte de salasIrmas -- no gratis a sala e' so' leitura. */
+async function salaTraduzidaComWebhook(guildId, canalId) {
+  const servidor = await servidorDoGuild(guildId).catch(() => null);
+  if (!servidor || planoDe(servidor) !== "pago") return null;
+  const salas = [...await canaisEspelho(servidor.id), ...await replicasDoIdioma(servidor.id)];
+  return salas.find((s) => s.canal_id === canalId && s.webhook) || null;
+}
+
+async function comandoFigurinha(inter) {
+  const f = acharFigurinha(inter.options.getString("nome"));
+  if (!f) {
+    return inter.reply({ flags: 64, content: "🤷 Não achei essa figurinha. Escolha na lista que aparece enquanto você digita.\n" +
+      "_I couldn't find that sticker. Pick one from the list that shows up as you type._" });
+  }
+  const quem = {
+    username: (inter.member?.displayName || inter.user.globalName || inter.user.username || "CYRON").slice(0, 80),
+    avatarURL: inter.user.displayAvatarURL({ extension: "png", size: 128 }),
+  };
+  /* Achar a sala gasta banco, e o Discord da' tres segundos para a resposta.
+     Banco lento: a figurinha sai como resposta comum, que sempre funciona. */
+  const sala = inter.guildId && !foraDaCyron(inter)
+    ? await Promise.race([salaTraduzidaComWebhook(inter.guildId, inter.channelId), dormir(1500).then(() => null)])
+      .catch(() => null)
+    : null;
+
+  if (sala) {
+    await inter.deferReply({ flags: 64 });
+    const foi = await clienteDoWebhook(sala.webhook)
+      .send({ ...quem, files: [anexoDaFigurinha(f)], allowedMentions: { parse: [] } })
+      .then(() => true)
+      .catch((e) => { console.error("figurinha: o webhook da sala recusou:", e?.message || e); return false; });
+    /* Webhook apagado por alguem: sai pela CYRON, com o nome de quem mandou
+       em cima, e nao some. */
+    if (!foi) {
+      const nome = quem.username.replace(/([*_`~|>\\])/g, "\\$1");
+      await inter.channel?.send({ content: `**${nome}**`, files: [anexoDaFigurinha(f)], allowedMentions: { parse: [] } })
+        .catch(() => {});
+    }
+    await inter.deleteReply().catch(() => {});
+  } else {
+    await inter.reply({ files: [anexoDaFigurinha(f)] });
+  }
+
+  /* E nas outras salas da conversa, como chega a fala de quem mandou. */
+  if (!inter.guildId || foraDaCyron(inter)) return;
+  const irmas = await salasIrmas(inter.guildId, inter.channelId).catch(() => []);
+  for (const irma of irmas) {
+    if (!irma.webhook) continue;
+    await clienteDoWebhook(irma.webhook)
+      .send({ ...quem, files: [anexoDaFigurinha(f)], allowedMentions: { parse: [] } })
+      .catch((e) => console.error("figurinha: nao levei a outra sala:", e?.message || e));
+  }
+}
+
+/* Os emojis da CYRON: as mesmas figurinhas, como emojis do APLICATIVO.
+
+   Emoji de aplicativo vale em todo servidor onde a CYRON fala (ate' 2.000
+   por bot) e nao ocupa vaga de emoji de servidor nenhum. Ao ligar, ela sobe
+   os que faltam -- uma vez por partida; o que ja' existe nao e' tocado -- e
+   guarda aqui o "<:nome:numero>" de cada um.
+
+   Quem usa passa sempre uma reserva: antes de a subida terminar, ou se ela
+   falhar, sai o emoji comum de antes. Mensagem nenhuma depende disto. */
+const EMOJIS_DA_CYRON = new Map(); // id da figurinha -> "<:id:numero>"
+
+function emojiDaCyron(nome, reserva = "") {
+  return EMOJIS_DA_CYRON.get(nome) || reserva;
+}
+
+async function garantirEmojisDaCyron() {
+  if (!umaVezPorProcesso("emojis-da-cyron")) return;
+  try {
+    const publicados = await client.application.emojis.fetch();
+    for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, `<:${e.name}:${e.id}>`);
+    let novos = 0;
+    for (const f of FIGURINHAS) {
+      if (EMOJIS_DA_CYRON.has(f.id)) continue;
+      const e = await client.application.emojis.create({ attachment: anexoDaFigurinha(f).attachment, name: f.id });
+      EMOJIS_DA_CYRON.set(f.id, `<:${e.name}:${e.id}>`);
+      novos++;
+    }
+    if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
+  } catch (e) {
+    console.error("emojis: não consegui publicar os emojis da CYRON:", e?.message || e);
+  }
+}
+
 /* ---------------- 🛠️ /suporte: acesso do dono da CYRON, COM permissao ----------------
 
    O dono da CYRON NAO configura servidor alheio por conta propria -- nem
@@ -11513,7 +11624,7 @@ function telaDoDuelo(estado, agora = Date.now()) {
     : [estadoDoLutador(a, tx), estadoDoLutador(b, tx), ""];
   if (fim) {
     const v = estado.lutadores[estado.vencedor];
-    linhas.push(`🏆 **${v.p.curto}** ${tx.venceu}${v.bot ? "" : ` · <@${v.userId}>`}${estado.motivo ? ` (${estado.motivo})` : ""}`,
+    linhas.push(`${emojiDaCyron("gg", "🏆")} **${v.p.curto}** ${tx.venceu}${v.bot ? "" : ` · <@${v.userId}>`}${estado.motivo ? ` (${estado.motivo})` : ""}`,
       ...(estado.extra || []));
   } else {
     /* Tudo o que aconteceu desde a ultima tela (a jogada e a resposta da
@@ -12672,9 +12783,10 @@ function cartaoDaAparicao(id, p, r) {
 }
 
 function cartaoPego(p, r, userId) {
+  const viva = emojiDaCyron("brilho", "✅");
   return {
-    content: `✅ <@${userId}> pegou **${p.nome}** ${r.estrelas}! +${r.xp} XP\n` +
-      `_✅ <@${userId}> claimed **${p.nome}** ${r.estrelas}! +${r.xp} XP_\n-# 🃏 /colecao · /diario`,
+    content: `${viva} <@${userId}> pegou **${p.nome}** ${r.estrelas}! +${r.xp} XP\n` +
+      `_${viva} <@${userId}> claimed **${p.nome}** ${r.estrelas}! +${r.xp} XP_\n-# 🃏 /colecao · /diario`,
     embeds: [{ color: r.cor, title: `${p.bandeira} ${p.nome}`.slice(0, 256),
       description: `${r.estrelas} **${r.pt}** · ${r.en}`, image: { url: `attachment://${p.id}.jpg` } }],
     components: [],
@@ -20711,7 +20823,8 @@ const PAGINAS_DA_AJUDA = [
 ];
 const COMANDOS_DA_AJUDA = {
   traducao: ["mylanguage", "Translate"],
-  diversao: ["duelo", "colecao", "diario", "presentear", "equipar", "codex", "perfil", "top", "abraco", "beijo", "tapa", "cafune"],
+  diversao: ["duelo", "colecao", "diario", "presentear", "equipar", "codex", "perfil", "top", "abraco", "beijo", "tapa", "cafune",
+    "figurinha"],
   ferramentas: ["hora", "evento", "Criar evento", "sorteio"],
   admin: ["cyron", "niveis", "xp", "boas-vindas", "cargos", "moderacao", "suporte"],
 };
@@ -22157,6 +22270,7 @@ async function comandoDeInteracao(inter) {
      conversa e nao quer sair dela pra ligar uma coisa. E' o mesmo desenho e o
      mesmo estado: mexer aqui atualiza o fixado tambem. */
   if (nome === "help") return comandoAjuda(inter);
+  if (nome === "figurinha") return comandoFigurinha(inter);
   if (nome === "admin") return comandoAdmin(inter);
   if (nome === "arena") return inter.reply({ flags: 64, content: ARENA_ENCERRADA });
   if (nome === "hora") return comandoHora(inter);
@@ -22431,6 +22545,11 @@ client.on("interactionCreate", async (inter) => {
     /* Autocompletar do nome do evento: sem isto o oficial teria que digitar
        "Urso (Bear Trap) 1" exatamente igual, acentos e parenteses inclusive. */
     if (inter.isAutocomplete()) {
+      /* A lista do /figurinha sai do catalogo, sem banco: na lingua do
+         aparelho, que e' a que a pessoa esta' lendo agora. */
+      if (inter.commandName === "figurinha") {
+        return inter.respond(sugestoesDeFigurinha(String(inter.options.getFocused() || ""), inter.locale)).catch(() => {});
+      }
       /* "membro" do /abraco, /beijo, /tapa, /cafune e /perfil, e o
          "oponente" do /duelo: o servidor inteiro, e nao so' quem enxerga a
          sala. */
@@ -22933,7 +23052,7 @@ client.on("messageReactionAdd", async (reacao, quem) => {
    servidores com alianca -- exatamente o contrario do que ele e'. */
 const COMANDOS_DE_TODOS = new Set(["mylanguage", "Translate", "cyron", "help", "admin", "arena", "evento", "Criar evento", "hora", "boas-vindas", "perfil", "top", "niveis", "xp",
   "sorteio", "abraco", "beijo", "tapa", "cafune", "duelo", "equipar", "codex", "suporte", "colecao", "diario", "presentear",
-  "cargos", "moderacao"]);
+  "cargos", "moderacao", "figurinha"]);
 
 async function separarComandos() {
   try {
@@ -23371,7 +23490,7 @@ const NOMES_MEUS = new Set([
   "sorteio", "giveaway", "abraco", "hug", "beijo", "kiss", "tapa", "slap", "cafune", "pat",
   "duelo", "duel", "equipar", "equip", "codex", "suporte", "support",
   "colecao", "collection", "coleccion", "diario", "daily", "presentear", "gift", "regalar",
-  "cargos", "roles", "moderacao", "moderation", "moderacion",
+  "cargos", "roles", "moderacao", "moderation", "moderacion", "figurinha", "sticker",
 ]);
 
 /* Uma linha do formulario que carrega duas respostas: "todos 60".
@@ -24267,6 +24386,15 @@ const GLOBAIS_DO_CYRON = soNoServidor(comLinguas([
     options: [OPCAO_DE_MEMBRO],
   },
   {
+    /* Sem dmPermission: este vale no privado e na conta (ver NA_CONTA). */
+    name: "figurinha",
+    nameLocalizations: { "en-US": "sticker", "en-GB": "sticker", "es-ES": "sticker" },
+    description: "Mandar uma figurinha da CYRON / Send a CYRON sticker",
+    options: [{ type: 3, name: "nome", required: true, autocomplete: true, max_length: 40,
+      nameLocalizations: { "en-US": "name", "en-GB": "name", "es-ES": "nombre" },
+      description: "Qual: gg, kkk, bora, obrigado, boa noite... / Which one" }],
+  },
+  {
     name: "perfil",
     nameLocalizations: { "en-US": "profile", "en-GB": "profile", "es-ES": "perfil" },
     description: "Seu cartão: nível, XP e posição / Your card: level, XP and rank",
@@ -24450,11 +24578,11 @@ async function adminNoSuporte(def, gidDoPainel) {
    veio -- e' o convite de todo mundo. */
 let contaLigada = false;
 
-/* Os dois que servem em qualquer lugar: o Traduzir e a escolha da lingua.
-   O resto depende de um servidor com a CYRON dentro (painel, niveis, duelo)
-   e fica so' no servidor -- comando que aparece e responde "so' funciona num
-   servidor" e' pior que comando nenhum. */
-const NA_CONTA = new Set(["Translate", "mylanguage"]);
+/* Os que servem em qualquer lugar: o Traduzir, a escolha da lingua e as
+   figurinhas. O resto depende de um servidor com a CYRON dentro (painel,
+   niveis, duelo) e fica so' no servidor -- comando que aparece e responde
+   "so' funciona num servidor" e' pior que comando nenhum. */
+const NA_CONTA = new Set(["Translate", "mylanguage", "figurinha"]);
 const TIPOS_NA_CONTA = [0, 1];       // instalada no servidor e na conta
 const LUGARES_NA_CONTA = [0, 1, 2];  // servidor, privado comigo, privado e grupo entre pessoas
 
@@ -24513,6 +24641,19 @@ function mesmaLista(a, b) {
    mostrando o /arena para sempre, porque publicar so' acrescenta. */
 const COMANDOS_APOSENTADOS = new Set(["arena"]);
 
+/* O que publicar por cima de um comando que ja' existe. Pura.
+
+   Um comando da lista do servidor que tambem vale na conta (o /figurinha)
+   leva ONDE VALE do que ja' esta' publicado: isso e' de comandosNaConta,
+   logo depois. Comparado com o "so' no servidor" da definicao, ele seria
+   devolvido ao servidor a cada partida e sumiria da conta de todo mundo ate'
+   a linha seguinte. Ainda sem lugar publicado, vai a definicao: nasce no
+   servidor, e comandosNaConta o leva para a conta. */
+function definicaoAPublicar(def, publicado) {
+  if (!NA_CONTA.has(def.name) || !publicado?.integrationTypes?.length) return def;
+  return { ...def, integrationTypes: publicado.integrationTypes, contexts: publicado.contexts ?? undefined };
+}
+
 async function garantirComandosGlobais() {
   if (!umaVezPorProcesso("comandos-globais")) return;
   try {
@@ -24527,8 +24668,9 @@ async function garantirComandosGlobais() {
          Discord: o codigo esperava a opcao e a lista mostrava a velha. */
       const publicado = [...globais.values()].find((c) => c.name === def.name);
       if (publicado) {
-        if (!publicado.equals(def)) {
-          await publicado.edit(def);
+        const alvo = definicaoAPublicar(def, publicado);
+        if (!publicado.equals(alvo)) {
+          await publicado.edit(alvo);
           console.log(`comandos: /${def.name} atualizado`);
         }
         continue;
@@ -24552,8 +24694,8 @@ async function garantirComandosGlobais() {
   }
 }
 
-/* O Translate e o /mylanguage tambem na conta -- so' com ela ligada, e so'
-   DEPOIS de garantirComandosGlobais ter marcado os outros como "so' no
+/* O Translate, o /mylanguage e o /figurinha tambem na conta -- so' com ela
+   ligada, e so' DEPOIS de garantirComandosGlobais ter marcado os outros como "so' no
    servidor". Edito so' os dois campos: o resto deles (nome nas linguas, a
    lista de idiomas) foi publicado fora daqui e esta' certo. */
 async function comandosNaConta() {
@@ -24870,6 +25012,7 @@ client.once("clientReady", () => {
   for (const [, g] of client.guilds.cache) {
     publicarComandosDoDono(g).catch(() => { /* ja' registrado no log */ });
   }
+  garantirEmojisDaCyron();
 
   /* Ao subir, a lista de bots recebe os comandos e o numero -- um minuto
      depois, quando os comandos ja' foram arrumados. */

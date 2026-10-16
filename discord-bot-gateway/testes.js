@@ -165,6 +165,9 @@ Object.assign(globalThis, carregar(["textoDoBot", "comoTextoDoBot", "ehTextoDoBo
 /* O contador de uso de cada funcao tambem: muitas funcoes testadas sozinhas
    chamam contarUso() logo na primeira linha. */
 Object.assign(globalThis, carregar(["USO_DE_FUNCAO", "contarUso"]));
+/* Os emojis da CYRON tambem, vazios como antes de a subida terminar: quem os
+   usa (o duelo, o herói pego, a inscrição) sai com a reserva de sempre. */
+Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiDaCyron"]));
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -5395,7 +5398,8 @@ function conferirCartao(onde, embed, componentes = []) {
   /* O defeito que este teste prende: o /evento ganhou campos e o Discord
      continuou mostrando os velhos, porque só se criava o que faltava. */
   const glob = f.slice(f.indexOf("async function garantirComandosGlobais"), f.indexOf("async function garantirComandosGlobais") + 1200);
-  verdade("comando já publicado e diferente é ATUALIZADO", /!publicado\.equals\(def\)[^]{0,40}publicado\.edit\(def\)/.test(glob));
+  verdade("comando já publicado e diferente é ATUALIZADO",
+    /const alvo = definicaoAPublicar\(def, publicado\);\s*if \(!publicado\.equals\(alvo\)\)\s*\{\s*await publicado\.edit\(alvo\)/.test(glob));
 }
 
 /* ============ o nome da agenda na língua da sala ============ */
@@ -12344,7 +12348,7 @@ function conferirCartao(onde, embed, componentes = []) {
     const C = carregar(["PERMISSOES_DO_CONVITE", "linkDeConvite", "linkDaConta", "COTA_DA_CONTA", "COTA_DAS_CONTAS",
       "gastoDasContas", "motorDaConta", "contaEstourou", "somarGastoDaConta", "tentarChavesDoDono", "NA_CONTA",
       "TIPOS_NA_CONTA", "LUGARES_NA_CONTA", "configComConta", "ligarNaConta", "mesmaLista", "comandosNaConta",
-      "foraDaCyron", "trazerParaOServidor", "OFERTA_DA_CONTA", "ofertasDaConta", "ofertaDaConta", "botaoDaConta",
+      "definicaoAPublicar", "foraDaCyron", "trazerParaOServidor", "OFERTA_DA_CONTA", "ofertasDaConta", "ofertaDaConta", "botaoDaConta",
       "traduzirPelaConta", "NOMES_DAS_FUNCOES"]);
 
     /* ---- os links ---- */
@@ -12412,7 +12416,20 @@ function conferirCartao(onde, embed, componentes = []) {
       soServidor.length > 10 && soServidor.every((c) => JSON.stringify(c.integrationTypes) === "[0]"));
     verdade("o /admin fica sem o campo: ele também é criado como comando de servidor",
       !("integrationTypes" in GLOBAIS_DO_CYRON.find((c) => c.name === "admin")));
-    verdade("nenhum dos de servidor é um dos da conta", soServidor.every((c) => !C.NA_CONTA.has(c.name)));
+    /* O /figurinha é o único da lista do servidor que também vale na conta:
+       ele nasce no servidor e o comandosNaConta o leva. Por cima dele já
+       publicado, a lista não pode devolvê-lo ao servidor a cada partida. */
+    ok("da lista do servidor, só o /figurinha vale também na conta",
+      soServidor.filter((c) => C.NA_CONTA.has(c.name)).map((c) => c.name), ["figurinha"]);
+    const fig = GLOBAIS_DO_CYRON.find((c) => c.name === "figurinha");
+    ok("figurinha já na conta: a lista republica com o lugar de lá",
+      C.definicaoAPublicar(fig, { integrationTypes: [0, 1], contexts: [0, 1, 2] }),
+      { ...fig, integrationTypes: [0, 1], contexts: [0, 1, 2] });
+    ok("figurinha ainda sem lugar publicado: nasce no servidor", C.definicaoAPublicar(fig, { integrationTypes: null }), fig);
+    const duelo = GLOBAIS_DO_CYRON.find((c) => c.name === "duelo");
+    ok("os outros seguem só a definição, mesmo se alguém os pôs na conta",
+      C.definicaoAPublicar(duelo, { integrationTypes: [0, 1], contexts: [0, 1, 2] }), duelo);
+    verdade("o /figurinha não leva dmPermission: vale no privado", !("dmPermission" in fig));
 
     /* ---- onde a CYRON não está ---- */
     verdade("servidor com a CYRON: é dela", !C.foraDaCyron({ guildId: "g-cyron" }));
@@ -13035,6 +13052,178 @@ function conferirCartao(onde, embed, componentes = []) {
   const limpo = semComentarios(fonte);
   verdade("o menu de páginas tem rota, antes dos outros menus", /if \(inter\.customId === "ajuda:pagina"\) return await cliqueAjuda\(inter\);\s*if \(inter\.customId === "escolher-idioma"\)/.test(limpo));
   verdade("o /help abre na primeira página", /telaDoHelp\("inicio"/.test(pedaco("comandoAjuda")));
+}
+
+/* ====== AS FIGURINHAS DA CYRON ======
+ *
+ * O /figurinha e os emojis do aplicativo saem das mesmas 48 imagens. A lista
+ * mora no figurinhas.js, a arte em img/figurinhas: um id sem imagem quebraria
+ * o comando na hora do envio, e uma imagem fora da lista seria peso morto
+ * dentro do bot. */
+{
+  const F = await import("./figurinhas.js");
+  const { readdirSync, statSync } = await import("node:fs");
+  const pasta = `${aqui}/img/figurinhas/`;
+  const arquivos = readdirSync(pasta).filter((a) => a.endsWith(".png")).sort();
+  const ids = F.FIGURINHAS.map((f) => f.id);
+  const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  ok("cada figurinha tem a sua imagem, e não sobra imagem fora da lista", arquivos, ids.map((i) => `${i}.png`).sort());
+  ok("nenhum id repetido", new Set(ids).size, ids.length);
+  verdade("o id serve de nome de emoji do Discord (2 a 32 letras, números ou _)", ids.every((i) => /^[a-z0-9_]{2,32}$/.test(i)));
+  verdade("toda imagem cabe no limite de emoji do Discord (256 KB)", arquivos.every((a) => statSync(pasta + a).size < 256 * 1024));
+  verdade("toda imagem é PNG de verdade", arquivos.every((a) => readFileSync(pasta + a).subarray(0, 8).equals(PNG)));
+  verdade("todas têm nome em português e em inglês, que cabem na lista do Discord, e palavras de busca",
+    F.FIGURINHAS.every((f) => f.pt && f.en && f.pt.length <= 100 && f.en.length <= 100 && f.busca.length > 0));
+
+  /* A busca: cada um procura na sua língua. */
+  ok("nada digitado: as 25 primeiras, na ordem do catálogo",
+    F.sugestoesDeFigurinha("", "pt-BR").map((s) => s.value), ids.slice(0, 25));
+  ok("cada um procura obrigado na sua língua",
+    ["obrigado", "valeu", "thanks", "gracias", "merci", "arigato"].map((t) => F.sugestoesDeFigurinha(t, "en-US")[0]?.value),
+    Array(6).fill("obrigado"));
+  ok("sem acento e sem pontuação também acha", F.sugestoesDeFigurinha("Boa Noite!", "pt-BR")[0]?.value, "boa_noite");
+  ok("no Discord em português, o nome em português", F.sugestoesDeFigurinha("obrigado", "pt-BR")[0].name, "Obrigado! (THANK YOU!)");
+  ok("nos outros, em inglês", F.sugestoesDeFigurinha("obrigado", "ja")[0].name, "Thank you!");
+  ok("quem casa igual vem antes de quem só começa com", F.sugestoesDeFigurinha("kkk", "pt-BR")[0].value, "kkk");
+  ok("nada parecido: lista vazia", F.sugestoesDeFigurinha("xyzzy", "pt-BR"), []);
+  ok("pelo id que veio da lista", F.acharFigurinha("traduz_ai")?.id, "traduz_ai");
+  ok("pelo texto digitado sem escolher da lista", F.acharFigurinha("Valeu!")?.id, "obrigado");
+  ok("nada parecido: nada", F.acharFigurinha("xyzzy"), null);
+  ok("vazio: nada", F.acharFigurinha(""), null);
+
+  const globais = ["client", "acharFigurinha", "FIGURINHAS", "PASTA_DAS_FIGURINHAS", "dormir", "clienteDoWebhook",
+    "salasIrmas", "servidorDoGuild", "planoDe", "canaisEspelho", "replicasDoIdioma"];
+  const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
+  try {
+    globalThis.acharFigurinha = F.acharFigurinha;
+    globalThis.FIGURINHAS = F.FIGURINHAS;
+    globalThis.PASTA_DAS_FIGURINHAS = pasta;
+    globalThis.client = { guilds: { cache: new Map([["g-cyron", {}]]) } };
+    const G = carregar(["anexoDaFigurinha", "foraDaCyron", "salaTraduzidaComWebhook", "comandoFigurinha"]);
+
+    const postados = [];
+    let recusa = false, plano = "pago", banco = 0, lento = false;
+    globalThis.clienteDoWebhook = (url) => ({ send: async (c) => {
+      if (recusa && url === "wh-pt") throw new Error("Unknown Webhook");
+      postados.push({ url, ...c });
+    } });
+    /* Curto, mas de verdade: o banco de mentira responde antes dele. */
+    globalThis.dormir = () => new Promise((r) => setTimeout(r, 25));
+    globalThis.servidorDoGuild = async () => { banco++; return lento ? new Promise(() => {}) : { id: "s1" }; };
+    globalThis.planoDe = () => plano;
+    globalThis.canaisEspelho = async () => [{ canal_id: "c-pt", webhook: "wh-pt" }, { canal_id: "c-en", webhook: "wh-en" }];
+    globalThis.replicasDoIdioma = async () => [];
+    globalThis.salasIrmas = async (g, c) => (plano === "pago" && c === "c-pt" ? [{ canal_id: "c-en", webhook: "wh-en" }] : []);
+
+    let chamadas = [];
+    const inter = (valor, guildId = "g-cyron", channelId = "c-pt") => ({
+      guildId, channelId, context: guildId ? 0 : 1,
+      user: { id: "u1", username: "tiago", globalName: "Tiago", displayAvatarURL: () => "https://cdn/a.png" },
+      member: guildId ? { displayName: "Tiago*" } : null,
+      options: { getString: () => valor },
+      channel: { send: async (c) => { chamadas.push(["canal", c]); } },
+      reply: async (c) => { chamadas.push(["resposta", c]); },
+      deferReply: async (c) => { chamadas.push(["espera", c]); },
+      deleteReply: async () => { chamadas.push(["apagou"]); },
+    });
+
+    /* Na sala traduzida: pelo webhook dela, com o nome e a foto, e nas irmãs. */
+    await G.comandoFigurinha(inter("gg"));
+    ok("na sala traduzida, sai pelo webhook dela e a resposta do comando some",
+      chamadas.map((c) => c[0]), ["espera", "apagou"]);
+    ok("a espera é só de quem mandou", chamadas[0][1].flags, 64);
+    ok("e chega nas outras salas da conversa", postados.map((p) => p.url), ["wh-pt", "wh-en"]);
+    verdade("com o nome e a foto de quem mandou", postados.every((p) => p.username === "Tiago*" && p.avatarURL === "https://cdn/a.png"));
+    verdade("levando a imagem da figurinha, que existe", postados.every((p) => p.files[0].name === "gg.png" &&
+      p.files[0].attachment === `${pasta}gg.png` && existsSync(p.files[0].attachment)));
+    verdade("sem marcar ninguém", postados.every((p) => p.allowedMentions.parse.length === 0));
+
+    /* Webhook apagado: sai pela CYRON, com o nome em cima. */
+    chamadas = []; postados.length = 0; recusa = true;
+    await G.comandoFigurinha(inter("kkk"));
+    ok("webhook recusado: sai pela CYRON no canal, e a espera some", chamadas.map((c) => c[0]), ["espera", "canal", "apagou"]);
+    ok("com o nome de quem mandou em cima, sem virar formatação", chamadas[1][1].content, "**Tiago\\***");
+    ok("as irmãs recebem do mesmo jeito", postados.map((p) => p.url), ["wh-en"]);
+    recusa = false;
+
+    /* Fora de sala traduzida: a resposta do comando, pública. */
+    for (const [onde, plano_, guild, canal] of [["plano grátis", "gratis", "g-cyron", "c-pt"], ["canal comum", "pago", "g-cyron", "geral"],
+      ["servidor sem a CYRON", "pago", "g-alheio", "x"], ["privado", "pago", null, "dm"]]) {
+      chamadas = []; postados.length = 0; plano = plano_;
+      await G.comandoFigurinha(inter("bora", guild, canal));
+      verdade(`${onde}: sai como resposta do comando, para todos`, chamadas.length === 1 && chamadas[0][0] === "resposta" &&
+        !chamadas[0][1].flags && chamadas[0][1].files[0].name === "bora.png");
+      ok(`${onde}: nenhum webhook`, postados, []);
+    }
+    plano = "pago";
+    banco = 0;
+    await G.comandoFigurinha(inter("bora", "g-alheio", "x"));
+    ok("servidor sem a CYRON nem pergunta ao banco", banco, 0);
+
+    /* Banco lento não pode custar a figurinha. */
+    chamadas = []; lento = true;
+    await G.comandoFigurinha(inter("gg"));
+    verdade("banco lento: sai como resposta comum, sem esperar", chamadas[0]?.[0] === "resposta" && !chamadas[0][1].flags);
+    lento = false;
+
+    chamadas = [];
+    await G.comandoFigurinha(inter("xyzzy"));
+    verdade("figurinha que não existe: aviso só para quem pediu",
+      chamadas.length === 1 && chamadas[0][1].flags === 64 && /Não achei/.test(chamadas[0][1].content));
+
+    /* Os emojis do aplicativo: sobe o que falta, uma vez por partida. */
+    const criados = [];
+    globalThis.client = { application: { emojis: {
+      fetch: async () => new Map([["1", { id: "1", name: "gg" }], ["2", { id: "2", name: "outro" }]]),
+      create: async ({ attachment, name }) => { criados.push([name, attachment]); return { id: `n${criados.length}`, name }; },
+    } } };
+    const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "emojiDaCyron", "anexoDaFigurinha", "garantirEmojisDaCyron"];
+    const E = carregar(nomesE);
+    ok("antes de subir, a reserva", E.emojiDaCyron("gg", "🏆"), "🏆");
+    ok("sem reserva, nada", E.emojiDaCyron("gg"), "");
+    await E.garantirEmojisDaCyron();
+    verdade("o que já existe não sobe de novo", !criados.some(([n]) => n === "gg"));
+    ok("sobe os que faltam", criados.length, F.FIGURINHAS.length - 1);
+    verdade("cada um com a imagem da sua figurinha", criados.every(([n, a]) => a === `${pasta}${n}.png`));
+    ok("e passa a usar o emoji", E.emojiDaCyron("gg", "🏆"), "<:gg:1>");
+    ok("os novos também", E.emojiDaCyron("obrigado"), `<:obrigado:n${criados.findIndex(([n]) => n === "obrigado") + 1}>`);
+    criados.length = 0;
+    await E.garantirEmojisDaCyron();
+    ok("uma vez por partida", criados.length, 0);
+
+    /* O herói pego leva o emoji dela; sem ele, o ✅ de sempre. */
+    const { cartaoPego } = carregar(["cartaoPego"]);
+    const p = { id: "x", nome: "Zumbi", bandeira: "🇧🇷" }, r = { estrelas: "⭐", xp: 5, cor: 1, pt: "Comum", en: "Common" };
+    verdade("herói pego: com o emoji de brilho dela", cartaoPego(p, r, "u1").content.startsWith("<:brilho:n"));
+
+    const E2 = carregar(nomesE);
+    globalThis.client = { application: { emojis: { fetch: async () => { throw new Error("401: Unauthorized"); } } } };
+    await E2.garantirEmojisDaCyron();
+    ok("se o Discord recusa, fica a reserva, sem derrubar nada", E2.emojiDaCyron("gg", "🏆"), "🏆");
+    verdade("herói pego sem emoji: o ✅ de sempre", cartaoPego(p, r, "u1").content.startsWith("✅ <@u1>"));
+  } finally {
+    Object.assign(globalThis, antes);
+    globalThis.EMOJIS_DA_CYRON?.clear();
+  }
+
+  /* A costura. */
+  const limpo = semComentarios(fonte);
+  verdade("o comando tem rota", /if \(nome === "figurinha"\) return comandoFigurinha\(inter\);/.test(limpo));
+  verdade("a lista do comando sai do catálogo, antes das outras",
+    /if \(inter\.isAutocomplete\(\)\) \{\s*if \(inter\.commandName === "figurinha"\) \{\s*return inter\.respond\(sugestoesDeFigurinha\(/.test(limpo));
+  verdade("/figurinha em inglês e espanhol é /sticker",
+    /name: "figurinha",\s*nameLocalizations: \{ "en-US": "sticker", "en-GB": "sticker", "es-ES": "sticker" \}/.test(limpo));
+  verdade("vale na conta", NA_CONTA_DO_FONTE().has("figurinha"));
+  verdade("os emojis sobem quando o bot liga", /publicarComandosDoDono\(g\)[^]{0,120}\}\s*garantirEmojisDaCyron\(\);/.test(limpo));
+  verdade("o duelo vencido leva o GG dela", /linhas\.push\(`\$\{emojiDaCyron\("gg", "🏆"\)\} \*\*\$\{v\.p\.curto\}\*\*/.test(limpo));
+  verdade("a inscrição leva o THANK YOU! dela, depois da tradução",
+    /const obrigado = entra \? emojiDaCyron\("obrigado"\) : "";/.test(limpo));
+  verdade("e o nome não pode ser de comando do dono", /const NOMES_MEUS = new Set\(\[[^\]]*"figurinha", "sticker"/.test(limpo));
+}
+
+function NA_CONTA_DO_FONTE() {
+  return carregar(["NA_CONTA"]).NA_CONTA;
 }
 
 let resumiu = false;
