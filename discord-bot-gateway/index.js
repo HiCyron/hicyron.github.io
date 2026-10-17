@@ -6550,6 +6550,43 @@ function cartaoDoModo(servidor) {
   };
 }
 
+/* A pergunta do modo, depois de respondida, sai sozinha em 30 minutos.
+
+   Ela fica na sala de configuracao, embaixo do painel, e depois da escolha
+   so' repete o que o botao "Modo" do painel ja' mostra -- o dono pediu que a
+   sala ficasse so' com o painel. Antes de respondida ela fica: o titulo e'
+   outro ("Como voces querem usar a CYRON aqui?"), e e' isso que separa uma
+   da outra. Os 30 minutos contam da escolha (a edicao), e nao de quando a
+   pergunta nasceu. */
+const MODO_SOME_EM = 30 * 60 * 1000;
+
+function cartaoDoModoVencido(m, euId, agora = Date.now()) {
+  if (!m || !euId || m.author?.id !== euId) return false;
+  if (!String(m.embeds?.[0]?.title || "").startsWith("🔀 Modo da CYRON")) return false;
+  return agora - (m.editedTimestamp || m.createdTimestamp || agora) >= MODO_SOME_EM;
+}
+
+async function limparCartaoDoModo(guild, servidor, agora = Date.now()) {
+  if (modoDe(servidor) === "escolher" || !servidor?.canal_config) return 0;
+  const canal = guild.channels.cache.get(String(servidor.canal_config));
+  if (!canal?.messages?.fetch) return 0;
+  const msgs = await canal.messages.fetch({ limit: 50 }).catch(() => null);
+  let foram = 0;
+  for (const m of msgs?.values?.() || []) {
+    if (cartaoDoModoVencido(m, client.user?.id, agora) && await m.delete().then(() => true).catch(() => false)) foram++;
+  }
+  return foram;
+}
+
+/* De hora em hora, em todo servidor: pega o que o relogio de 30 minutos
+   perdeu num reinicio, e os cartoes de antes desta regra. */
+async function limparCartoesDoModo() {
+  for (const [, guild] of client.guilds.cache) {
+    const servidor = await servidorDoGuild(guild.id).catch(() => null);
+    if (servidor) await limparCartaoDoModo(guild, servidor).catch(() => {});
+  }
+}
+
 async function perguntarModo(guild, servidor) {
   const fresco = (await sb(`cyron_servidor?id=eq.${servidor.id}&select=canal_config`).catch(() => null))?.[0];
   const canal = fresco?.canal_config && await guild.channels.fetch(fresco.canal_config).catch(() => null);
@@ -6566,6 +6603,11 @@ async function escolherModo(inter, servidor, modo) {
   /* O cartao da pergunta passa a mostrar a escolha, para ninguem clicar de
      novo achando que nao pegou. */
   await inter.message?.edit?.(cartaoDoModo({ ...servidor, modo })).catch(() => {});
+  /* E sai em 30 minutos -- a pergunta publica; a efemera some sozinha. */
+  const pergunta = inter.message;
+  if (pergunta?.id && !pergunta.flags?.has?.(64)) {
+    setTimeout(() => pergunta.delete().catch(() => {}), MODO_SOME_EM).unref?.();
+  }
   if (modo === "traducao") {
     await instalarServidor(inter.guild);
     await garantirConvites().catch(() => {});
@@ -15634,18 +15676,17 @@ function quemTemIdioma(membros, cargos, escolhidos) {
 /* Em ingles, e so' em ingles: o quadro e' UMA mensagem para gente de vinte
    linguas, e duas linguas lado a lado dobravam o tamanho sem servir a mais
    ninguem. Os nomes das linguas vao na propria lingua, e o resto e' numero. */
-/* Quem falta vai no TEXTO da mensagem, e nao dentro do cartao -- igual ao
-   aviso da agenda. Mencao no texto chega com o nome de cada pessoa junto e
-   aparece sempre como @nome; dentro do cartao ela so' virava nome para quem
-   ja' tinha a pessoa carregada, e no TOP apareceu <@1487...>. E no texto ela
-   NOTIFICA quando o quadro e' postado (editar nao notifica de novo). */
-const MENCOES_NO_QUADRO = 40;
+/* O quadro diz QUANTOS faltam; quem marca as pessoas e' o lembrete do dia,
+   logo abaixo dele.
 
+   O quadro tambem marcava a lista inteira, e na sala ficava a mesma gente
+   duas vezes, uma em cima da outra -- no quadro e no lembrete --, cada um com
+   o seu menu (print do dono, na 🌐-idioma-language do TOP). O lembrete ja'
+   tem o freio certo (3 dias, 20 por dia); o quadro marcava todo mundo de
+   novo a cada vez que nascia. */
 function textoDeQuemFalta(sem) {
   if (!sem.length) return "✅ **Everyone has picked a language!**";
-  return `❓ **Still without a language — ${sem.length}**\n` +
-    sem.slice(0, MENCOES_NO_QUADRO).map((id) => `<@${id}>`).join(" ") +
-    (sem.length > MENCOES_NO_QUADRO ? ` _and ${sem.length - MENCOES_NO_QUADRO} more_` : "");
+  return `❓ **Still without a language — ${sem.length}**`;
 }
 
 function cartaoDosIdiomas(porIdioma, sem, desligado = false) {
@@ -15782,7 +15823,7 @@ async function quadroDeIdiomas(guild, servidor, { forcar = false, agora = Date.n
     content: textoDeQuemFalta(sem),
     embeds: [cartaoDosIdiomas(porIdioma, sem, desligado)],
     components: botaoDoLembrete(desligado),
-    allowedMentions: { users: sem.slice(0, MENCOES_NO_QUADRO) },
+    allowedMentions: { parse: [] },
   };
   const chaveQuadro = `idioma_quadro:${servidor.id}`;
   const guardado = lerGuardado(marcas[chaveQuadro]);
@@ -15817,10 +15858,11 @@ async function quadroDeIdiomas(guild, servidor, { forcar = false, agora = Date.n
   const { hojeVao, registro } = quemLembrarHoje(sem, antes.marcados || {}, hoje);
   let msg = null;
   if (hojeVao.length) {
+    /* Sem menu proprio: o do quadro esta' logo acima. Eram dois menus iguais
+       seguidos na sala. */
     msg = await canal.send({
       content: `👋 ${hojeVao.map((id) => `<@${id}>`).join(" ")}\n` +
-        "**Pick your language below** to read this server in your own language. 🌐",
-      components: menuIdioma(),
+        "**Pick your language in the menu above** ⬆️ to read this server in your own language. 🌐",
       allowedMentions: { users: hojeVao },
     }).catch(() => null);
   }
@@ -24813,6 +24855,7 @@ async function deHoraEmHora() {
   await olharAsCotas().catch((e) => console.error("cota: passada falhou:", e?.message || e));
   await vigiarRecursos().catch((e) => console.log("recurso: vigia falhou:", e?.message || e));
   await talvezOCartaoDoDia().catch((e) => console.error("diário: cartão falhou:", e?.message || e));
+  await limparCartoesDoModo().catch((e) => console.log("modo: limpeza falhou:", e?.message || e));
   await publicarAnalitico().catch((e) => console.error("analitico: falhou:", e?.message || e));
   /* console.log, e nao console.error: falhar aqui viraria um erro sobre o
      canal de erros, que tentaria se anotar nele mesmo. */
