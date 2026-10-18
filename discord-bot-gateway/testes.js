@@ -5438,8 +5438,9 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("servidor sem nenhuma: nada", m.canalDaAgenda(guild([sala("4", "geral")])), null);
 
   const f = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
-  verdade("a instalação não cria uma segunda sala quando a antiga existe",
-    /if \(!canalDaAgenda\(guild\)\) await canalPorNomeOuCria\(guild, CANAL_EVENTOS/.test(f));
+  /* Quem cria a agenda agora é o primeiro /evento (a instalação não cria mais). */
+  verdade("o /evento não cria uma segunda sala quando a antiga existe",
+    /if \(!canalDaAgenda\(inter\.guild\)\) \{\s*await canalPorNomeOuCria\(inter\.guild, CANAL_EVENTOS/.test(f));
   verdade("ninguém mais procura a sala pelo nome cru", !/c\.name === CANAL_EVENTOS\)/.test(f.replace(/function canalDaAgenda[^]*?\n}\n/, "")));
 }
 
@@ -11604,6 +11605,16 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o quadro de idiomas (que cria a sala de idioma) só em servidor traduzido",
     /servidor && criaSalasDeTraducao\(servidor\)\) await quadroDeIdiomas/.test(idx));
   verdade("a agenda nasce no primeiro /evento", /async function criarEvento[^]*?if \(!canalDaAgenda\(inter\.guild\)\)[^]*?canalPorNomeOuCria\(inter\.guild, CANAL_EVENTOS/.test(idx));
+  /* Nem no modo traduzido: a instalação criava 📢-anuncios e 📆-agenda (e a
+     cópia de cada um em cada língua) num servidor que nunca pediu, e como ela
+     roda de novo a cada passada, quem apagasse a agenda a via voltar. */
+  const instalarTodo = idx.slice(idx.indexOf("async function instalarServidor"), idx.indexOf("async function repararInstalacoes"));
+  verdade("a instalação não cria a agenda, em modo nenhum", !/CANAL_EVENTOS/.test(instalarTodo));
+  verdade("nem o canal de anúncios", !/📢-anuncios|discord_fonte_replica/.test(instalarTodo));
+  verdade("a sala de idioma continua nascendo na instalação", /canalPorNomeOuCria\(guild, CANAL_PORTA/.test(instalarTodo));
+  verdade("a agenda criada no /evento vira origem das salas de idioma sozinha", /await agendaComoOrigem\(servidor\.id, canal\)/.test(idx));
+  verdade("o modo traduzido explica onde nascem agenda e anúncios",
+    /A 📆 agenda nasce no primeiro \/evento/.test(M.cartaoDoModo({ modo: "traducao" }).embeds[0].description));
   verdade("ao entrar, pergunta o modo", /if \(modoDe\(servidor\) === "escolher"\) await perguntarModo\(guild, servidor\)/.test(idx));
   verdade("os botões do modo têm rota (depois da checagem de Gerenciar Servidor)",
     idx.indexOf('acao.startsWith("modo:")') > idx.indexOf("podeAdministrar(inter)", idx.indexOf("async function cliquePainel")));
