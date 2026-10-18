@@ -5832,12 +5832,14 @@ async function sincronizarUmGuild(guild) {
 
       const vivos = await idsVivos(guild);
 
-      /* Fonte apagada na mao: sem ela nao ha o que replicar, entao a linha sai
-         e o reparo da instalacao recria o canal. */
+      /* Fonte apagada na mao: sem ela nao ha o que replicar, entao a linha
+         sai. Nada a recria (a instalacao nao cria mais anuncios nem agenda);
+         as copias dela em cada lingua viram "copias sem origem", e o painel
+         oferece apagar. A agenda volta no proximo /evento. */
       for (const fonte of (await sb(`discord_fonte_replica?servidor_id=eq.${servidorId}&select=canal_id`)) || []) {
         if (vivos.has(fonte.canal_id)) continue;
         await sbDel(`discord_fonte_replica?canal_id=eq.${encodeURIComponent(fonte.canal_id)}`);
-        console.log(`idioma: canal-fonte ${fonte.canal_id} sumiu, linha removida pra ser refeita`);
+        console.log(`idioma: canal-fonte ${fonte.canal_id} sumiu, linha removida`);
       }
 
       const salas = await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&select=id,canal_id,idioma,webhook,role_id,categoria_id`) || [];
@@ -6402,7 +6404,6 @@ const CANAL_CONFIG = "⚙️-cyron";
    continua sendo o caminho. */
 const LINK_PAGAMENTO = process.env.STRIPE_LINK || "";
 const CANAL_PORTA = "🌐-idioma-language";
-const CANAL_FONTE = "📢-anuncios";
 
 const TEXTO_PORTA = [
   "🌐 **Selecione seu idioma / Select your language**",
@@ -6529,8 +6530,8 @@ function cartaoDoModo(servidor) {
       title: atual === "escolher" ? "👋 Como vocês querem usar a CYRON aqui?" : "🔀 Modo da CYRON neste servidor",
       description: [
         `**🌐 Servidor traduzido**${atual === "traducao" ? " · _atual_" : ""}`,
-        "Eu crio a sala onde cada pessoa escolhe o idioma, um canal de anúncios e a 📆 agenda. " +
-          "No plano pago, cada língua ganha a sua ala, com as salas copiadas e traduzidas.",
+        "Eu crio a sala onde cada pessoa escolhe o idioma. A 📆 agenda nasce no primeiro /evento, e os anúncios " +
+          "saem do canal que você marcar no painel. No plano pago, cada língua ganha a sua ala, com as salas copiadas e traduzidas.",
         "",
         `**🧰 Só as ferramentas**${atual === "ferramentas" ? " · _atual_" : ""}`,
         "Eu não crio sala nenhuma. Ficam a agenda de eventos (/evento, que cria a 📆 agenda na primeira vez), " +
@@ -6612,8 +6613,9 @@ async function escolherModo(inter, servidor, modo) {
     await instalarServidor(inter.guild);
     await garantirConvites().catch(() => {});
     await sincronizarAgora(inter.guild);
-    return inter.editReply("🌐 **Servidor traduzido.** Criei a sala de idioma, os anúncios e a agenda. " +
-      "Agora é cada pessoa escolher a língua dela na 🌐-idioma-language.");
+    return inter.editReply("🌐 **Servidor traduzido.** Criei a sala de idioma: agora é cada pessoa escolher a língua dela " +
+      "na 🌐-idioma-language. A 📆 agenda nasce no primeiro **/evento**, e os anúncios saem do canal que você marcar " +
+      "em **Canais que eu traduzo**, no painel.");
   }
   return inter.editReply("🧰 **Só as ferramentas.** Não vou criar sala nenhuma. Use **/evento** para a agenda " +
     "(a 📆 agenda nasce no primeiro evento), e a tradução por bandeira e pelo **Translate** já funcionam.");
@@ -6664,29 +6666,20 @@ async function instalarServidor(guild) {
     console.log(`instalar: porta de entrada em #${porta.name}`);
   }
 
-  /* A fonte. */
-  const jaFonte = await sb(`discord_fonte_replica?servidor_id=eq.${servidor.id}&select=canal_id`);
-  if (!jaFonte?.length) {
-    const fonte = await canalPorNomeOuCria(guild, CANAL_FONTE,
-      "Escreva aqui. A CYRON leva traduzido para a réplica de cada idioma.");
-    await sbPost("discord_fonte_replica", {
-      servidor_id: servidor.id, canal_id: fonte.id, tipo: "evento",
-    });
-    console.log(`instalar: canal-fonte em #${fonte.name}`);
-  }
+  /* Anuncios e agenda NAO nascem aqui.
 
-  /* A arena.
+     A instalacao criava o 📢-anuncios e a 📆-agenda logo de cara -- e com eles
+     a copia de cada um em cada lingua (anuncios-pt, agenda-pt, schedule-en...).
+     Servidor que nunca marcou evento nem quis canal de anuncio ganhava seis
+     salas vazias; e esta funcao roda de novo a cada passada (repararInstalacoes),
+     entao quem apagasse a agenda via ela voltar em dez minutos.
 
-     Nasce junto porque uma sala vazia que ninguem sabe que existe nao convida
-     ninguem -- e o placar e' o convite. Se a tabela do jogo ainda nao estiver
-     no banco, o desenho falha sozinho e sobra um canal com uma frase; o bot
-     continua traduzindo, que e' o que ele veio fazer. */
-  /* A sala antiga, se existir, e' renomeada -- nao nasce outra ao lado. */
-  if (!canalDaAgenda(guild)) await canalPorNomeOuCria(guild, CANAL_EVENTOS,
-    "Eventos com hora. O horário aparece no fuso de cada um. / " +
-    "Events with a time. Everyone sees it in their own clock.")
-    .catch((e) => console.error("instalar: nao consegui criar os eventos:", e?.message || e));
-
+     Agora, como no modo So' as ferramentas, cada uma nasce quando e' usada:
+     - a agenda, no primeiro /evento (criarEvento), e vira origem das salas de
+       idioma sozinha (agendaComoOrigem) -- as copias vem junto;
+     - os anuncios saem do canal que o ADM marcar em "Canais que eu traduzo",
+       no painel. O "Publicar para o servidor" ja' pede isso quando falta.
+     Servidor de antes desta regra fica com o que tem. */
   cacheServidor.delete(guild.id); // a proxima mensagem ja enxerga o servidor novo
   return servidor;
 }
@@ -8943,8 +8936,10 @@ async function criarEvento(inter) {
 
   const servidor = await servidorDoGuild(inter.guildId);
   if (!servidor) return inter.editReply({ content: (await nalingua(idioma, inter.guildId, "Ainda não terminei de me instalar aqui."))[0] });
-  /* No modo "so' ferramentas" a agenda nao nasce na instalacao: nasce aqui,
-     no primeiro evento, que e' quando alguem de fato a quer. */
+  /* A agenda nao nasce na instalacao, em modo nenhum: nasce aqui, no
+     primeiro evento, que e' quando alguem de fato a quer. Em servidor
+     traduzido, a passada seguinte a liga as salas de idioma
+     (agendaComoOrigem) e as copias por lingua aparecem sozinhas. */
   if (!canalDaAgenda(inter.guild)) {
     await canalPorNomeOuCria(inter.guild, CANAL_EVENTOS,
       "Eventos com hora. O horário aparece no fuso de cada um. / Events with a time. Everyone sees it in their own clock.")
