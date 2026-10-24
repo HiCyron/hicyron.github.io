@@ -156,8 +156,20 @@ function comPrazo(extra = {}) {
    por fora do bot. */
 function esquecerCacheDe(caminho) {
   const tabela = String(caminho).split("?")[0];
+  escritasNaTabela.set(tabela, (escritasNaTabela.get(tabela) || 0) + 1);
   if (typeof CACHE_DA_TABELA === "undefined") return;
   CACHE_DA_TABELA[tabela]?.clear();
+}
+
+/* Quantas escritas a tabela ja' viu (o comeco E o fim de cada uma contam).
+
+   Esquecer antes de gravar nao basta quando a memoria segura por muito tempo:
+   uma leitura que saiu antes de a escrita chegar ao banco volta com o retrato
+   velho e o guardaria por meia hora. Quem le anota o numero ao sair e so'
+   guarda se ele nao mudou -- se mudou, alguem gravou no meio do caminho. */
+const escritasNaTabela = new Map();
+function escritasDe(tabela) {
+  return escritasNaTabela.get(tabela) || 0;
 }
 
 async function sb(caminho) {
@@ -180,7 +192,7 @@ async function sbPost(caminho, corpo, prefer = "") {
       Prefer: ["return=representation", prefer].filter(Boolean).join(","),
     },
     body: JSON.stringify(corpo),
-  }));
+  })).finally(() => esquecerCacheDe(caminho));
   /* Com o motivo junto. "supabase 400" sozinho me custou meia hora caçando
      uma instalacao que parava no meio: a resposta dizia exatamente qual
      coluna estava reclamando, e eu estava jogando isso fora. */
@@ -213,7 +225,7 @@ async function sbDel(caminho) {
   const r = await fetch(`${SB_URL}/rest/v1/${caminho}`, comPrazo({
     method: "DELETE",
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Prefer: "return=minimal" },
-  }));
+  })).finally(() => esquecerCacheDe(caminho));
   if (!r.ok) throw new Error(`supabase ${r.status} ao apagar ${caminho}: ${(await r.text()).slice(0, 200)}`);
 }
 
@@ -254,7 +266,7 @@ async function sbPatch(caminho, corpo) {
       "Content-Type": "application/json", Prefer: "return=minimal",
     },
     body: JSON.stringify(corpo),
-  }));
+  })).finally(() => esquecerCacheDe(caminho));
   if (!r.ok) throw new Error(`supabase ${r.status} em ${caminho}: ${(await r.text()).slice(0, 300)}`);
 }
 
@@ -8084,17 +8096,40 @@ function fechouHaMuito(e, agora = Date.now()) {
 /* Tudo abaixo e' tolerante a tabela que ainda nao existe: leitura que falha
    devolve vazio, e a agenda simplesmente nao aparece. O bot segue traduzindo,
    que e' o que ele veio fazer -- mesma regra da arena. */
+/* A agenda na memoria.
+
+   O cronometro redesenha os cartoes de minuto em minuto, e cada desenho lia
+   do banco os eventos (duas vezes: a sala e as copias) e as inscricoes de
+   cada evento (duas vezes tambem). Num dia com um servidor de agenda cheia
+   isso deu 6 mil leituras de inscricao e 5 mil de evento -- de uma agenda que
+   muda algumas vezes por dia.
+
+   Quem escreve nessas tabelas e' so' o bot, e toda escrita dele passa por
+   esquecerCacheDe: entao a memoria pode segurar por meia hora sem mentir. O
+   prazo e' so' a rede embaixo. Leitura que falhou nao e' guardada: a
+   proxima tenta de novo, como antes. */
+const cacheEventos = new Map();   // servidorId -> { v, t }
+const cachePresencas = new Map(); // eventoId -> { v, t }
+
 async function eventosDoServidor(servidorId, agora = Date.now()) {
-  /* O prazo conta de quando o evento FECHA: um evento de 5d nao pode sumir
-     da agenda seis horas depois de comecar. A busca vai mais para tras, e o
-     corte fino e' aqui embaixo. */
-  const desde = new Date(agora - EVENTO_SOBREVIVE - DURACAO_MAX * 1000).toISOString();
-  const todos = await sb(`cyron_evento?servidor_id=eq.${servidorId}&quando=gte.${desde}` +
-    /* Tudo, e nao uma lista de colunas: a agenda ganhou colunas novas, e uma
-       lista que cite uma delas antes da migracao faria a leitura falhar -- e
-       a agenda inteira sumir da sala. */
-    "&select=*&order=quando.asc")
-    .catch(() => null) || [];
+  const achado = cacheEventos.get(String(servidorId));
+  let todos = achado && agora - achado.t < CONFIG_NA_MEMORIA ? achado.v : null;
+  if (!todos) {
+    /* O prazo conta de quando o evento FECHA: um evento de 5d nao pode sumir
+       da agenda seis horas depois de comecar. A busca vai mais para tras, e o
+       corte fino e' aqui embaixo -- com o `agora` de quem pergunta, para a
+       copia guardada envelhecer certo. */
+    const desde = new Date(agora - EVENTO_SOBREVIVE - DURACAO_MAX * 1000).toISOString();
+    const escritas = escritasDe("cyron_evento");
+    todos = await sb(`cyron_evento?servidor_id=eq.${servidorId}&quando=gte.${desde}` +
+      /* Tudo, e nao uma lista de colunas: a agenda ganhou colunas novas, e uma
+         lista que cite uma delas antes da migracao faria a leitura falhar -- e
+         a agenda inteira sumir da sala. */
+      "&select=*&order=quando.asc")
+      .catch(() => null);
+    if (!todos) return [];
+    if (escritasDe("cyron_evento") === escritas) cacheEventos.set(String(servidorId), { v: todos, t: agora });
+  }
   return todos.filter((e) => !fechouHaMuito(e, agora));
 }
 
@@ -8115,9 +8150,17 @@ async function presencasComNomes(id, guild) {
   return fora;
 }
 
-async function presencasDoEvento(id) {
-  return await sb(`cyron_evento_presenca?evento_id=eq.${id}&select=discord_user_id,vai`)
-    .catch(() => null) || [];
+async function presencasDoEvento(id, agora = Date.now()) {
+  const achado = cachePresencas.get(String(id));
+  if (achado && agora - achado.t < CONFIG_NA_MEMORIA) return achado.v;
+  const escritas = escritasDe("cyron_evento_presenca");
+  const v = await sb(`cyron_evento_presenca?evento_id=eq.${id}&select=discord_user_id,vai`)
+    .catch(() => null);
+  if (!v) return [];
+  if (escritasDe("cyron_evento_presenca") === escritas) cachePresencas.set(String(id), { v, t: agora });
+  /* Evento que acabou nao e' mais perguntado; a memoria nao cresce sem fim. */
+  while (cachePresencas.size > 500) cachePresencas.delete(cachePresencas.keys().next().value);
+  return v;
 }
 
 /* Um evento, uma mensagem, editada no lugar.
@@ -8239,6 +8282,9 @@ function avisoDeInicio(ev, aviso, P = PALAVRAS_DO_CARTAO, titulo = ev.titulo, an
   };
 }
 
+const FAXINA_DA_AGENDA = 30 * 60 * 1000;
+const faxinaDaAgenda = new Map(); // servidorId -> quando apagou os velhos
+
 async function desenharEventos(guild, servidor) {
   const canal = canalDaAgenda(guild);
   if (!canal) return;
@@ -8259,16 +8305,22 @@ async function desenharEventos(guild, servidor) {
   /* O que repete nunca "passou": ele anda para a proxima data na ronda da
      agenda. Apagar aqui um que o bot nao conseguiu andar (fora do ar na hora)
      jogaria fora a agenda e as inscricoes de todo mundo. */
-  const velhos = await sb(`cyron_evento?servidor_id=eq.${servidor.id}` +
-    `&quando=lt.${new Date(Date.now() - EVENTO_SOBREVIVE).toISOString()}` +
-    "&or=(repetir_min.is.null,repetir_min.eq.0)&select=*")
-    .catch(() => null) || [];
-  for (const v of velhos.filter((e) => fechouHaMuito(e))) {
-    if (v.msg_id) {
-      const m = await canal.messages.fetch(v.msg_id).catch(() => null);
-      if (m) await m.delete().catch(() => {});
+  /* De meia em meia hora por servidor, e nao a cada redesenho: o cronometro
+     redesenha de minuto em minuto, e o prazo aqui e' de seis horas. O cartao
+     de quem passou ja' sai da sala na hora (pintarSala so' deixa os vivos). */
+  if (Date.now() - (faxinaDaAgenda.get(servidor.id) || 0) >= FAXINA_DA_AGENDA) {
+    faxinaDaAgenda.set(servidor.id, Date.now());
+    const velhos = await sb(`cyron_evento?servidor_id=eq.${servidor.id}` +
+      `&quando=lt.${new Date(Date.now() - EVENTO_SOBREVIVE).toISOString()}` +
+      "&or=(repetir_min.is.null,repetir_min.eq.0)&select=*")
+      .catch(() => null) || [];
+    for (const v of velhos.filter((e) => fechouHaMuito(e))) {
+      if (v.msg_id) {
+        const m = await canal.messages.fetch(v.msg_id).catch(() => null);
+        if (m) await m.delete().catch(() => {});
+      }
+      await sbDel(`cyron_evento?id=eq.${v.id}`).catch(() => {});
     }
-    await sbDel(`cyron_evento?id=eq.${v.id}`).catch(() => {});
   }
 
   await agendaComoOrigem(servidor.id, canal).catch(() => {});
@@ -17828,6 +17880,59 @@ async function garantirWebhookDePagamentos(guild) {
   }
 }
 
+/* A vigia que mora no banco precisa de uma boca no canal de erros.
+
+   Quem confere se a batida parou nao pode ser o bot: morto nao avisa que
+   morreu. A esteira do GitHub devia olhar de 15 em 15 minutos e, na pratica,
+   olha de quatro em quatro horas. O Supabase tem relogio proprio (pg_cron) e
+   sabe fazer POST (pg_net) -- so' falta para onde mandar. Igual ao de
+   pagamentos: o bot cria o webhook, guarda a URL nos ajustes (que so' a chave
+   de servico le) e o banco faz o resto (supabase/migracoes/023).
+
+   Diferente do de pagamentos, eu confiro se o webhook guardado ainda existe,
+   uma vez por processo: se alguem apagar o webhook no Discord, a vigia
+   passaria a gritar para o nada justamente no dia em que precisasse. */
+const NOME_DA_VIGIA = "CYRON vigia";
+let vigiaConferida = false;
+
+/* {id, token} de uma URL de webhook do Discord, ou null. Pura. */
+function pedacosDoWebhook(url) {
+  const m = String(url || "").match(/^https:\/\/(?:discord|discordapp)\.com\/api\/webhooks\/(\d{5,25})\/([\w-]{20,})$/);
+  return m ? { id: m[1], token: m[2] } : null;
+}
+
+async function garantirWebhookDaVigia(guild) {
+  if (vigiaConferida) return;
+  try {
+    const canal = guild.channels.cache.find(
+      (c) => c.type === ChannelType.GuildText && c.name === CANAL_ERROS);
+    if (!canal) return;
+    const a = await ajustes();
+    if (a.falhou) return;   // sem saber o que esta' guardado, nao crio outro
+
+    const guardado = pedacosDoWebhook(a.webhook_vigia);
+    if (guardado) {
+      /* 10015 e' "esse webhook nao existe": so' ai' eu troco. Qualquer outra
+         falha (rede, limite) deixa para a proxima volta do relogio. */
+      const vivo = await client.fetchWebhook(guardado.id, guardado.token)
+        .then(() => true, (e) => (e?.code === 10015 ? false : null));
+      if (vivo === null) return;
+      if (vivo) { vigiaConferida = true; return; }
+    }
+
+    const existentes = await canal.fetchWebhooks().catch(() => null);
+    const meu = existentes?.find((w) => w.owner?.id === client.user.id && w.name === NOME_DA_VIGIA && w.token);
+    const w = meu || await canal.createWebhook({
+      name: NOME_DA_VIGIA, reason: "o banco avisa aqui quando a batida do bot para",
+    });
+    await porAjuste("webhook_vigia", w.url);
+    vigiaConferida = true;
+    console.log("painel: webhook da vigia pronto");
+  } catch (e) {
+    console.error("painel: nao consegui preparar o webhook da vigia:", e?.message || e);
+  }
+}
+
 /* Acha o topico do cliente, ou abre um.
 
    Guardo o id, nunca procuro pelo nome: servidor muda de nome, e busca por
@@ -18012,6 +18117,7 @@ async function montarPainelDoDonoAgora() {
   if (!sala) return;
 
   await garantirWebhookDePagamentos(guild);
+  await garantirWebhookDaVigia(guild);
 
   const todos = await sb("cyron_servidor?select=*&order=criado_em.asc") || [];
   for (const servidor of todos) {
@@ -23286,6 +23392,8 @@ const CACHE_DA_TABELA = {
   discord_fonte_replica: cacheFontes,
   discord_canal_idioma: cacheReplicas,
   cyron_comando: cacheComandos,
+  cyron_evento: cacheEventos,
+  cyron_evento_presenca: cachePresencas,
 };
 async function comandosDoDono(guildId) {
   const achado = cacheComandos.get(guildId);
@@ -24861,6 +24969,26 @@ async function comandosNaConta() {
   }
 }
 
+/* A parte pesada da volta, de meia em meia hora.
+
+   Reparo, montagem, portaria, quadros e cartoes custavam uns 250 pedidos ao
+   banco a cada dez minutos (nove servidores, ~28 leituras cada) -- 36 mil por
+   dia, mais da metade de tudo, para conferir coisa que quase nunca mudou. E
+   saiam todos juntos, no mesmo minuto: e' nesse minuto que aparecia o
+   "supabase: prazo" de quem estava traduzindo.
+
+   Nada que a pessoa faz espera por ela: o clique em botao, a instalacao e o
+   idioma escolhido montam na hora (sincronizarAgora e a passada curta). O que
+   sobra para a varredura e' a rede embaixo -- o canal apagado na mao, a porta
+   que alguem mexeu --, e para isso meia hora basta. Ao subir, roda ja'. */
+const VARREDURA_COMPLETA = 30 * 60 * 1000;
+let ultimaVarreduraCompleta = 0;
+function vezDaVarreduraCompleta(agora = Date.now()) {
+  if (agora - ultimaVarreduraCompleta < VARREDURA_COMPLETA) return false;
+  ultimaVarreduraCompleta = agora;
+  return true;
+}
+
 /* Uma volta completa: reparo, montagem, portaria e painel.
 
    A ordem importa e nao e' arbitraria. Reparo primeiro porque sem porta e sem
@@ -24877,11 +25005,13 @@ async function comandosNaConta() {
 async function umaPassada() {
   const comecou = Date.now();
   await recarregarAjustes().catch((e) => console.error("ajustes: nao consegui recarregar:", e?.message || e));
-  await repararInstalacoes().catch((e) => console.error("instalar: reparo falhou:", e?.message || e));
-  await sincronizarSalas().catch((e) => console.error("espelho: sincronia falhou:", e?.message || e));
-  await garantirConvites().catch((e) => console.error("portaria: passada falhou:", e?.message || e));
-  await quadrosDeIdioma().catch((e) => console.log("idiomas: quadro falhou:", e?.message || e));
-  await atualizarCartoes().catch((e) => console.error("config: cartões falharam:", e?.message || e));
+  if (vezDaVarreduraCompleta(comecou)) {
+    await repararInstalacoes().catch((e) => console.error("instalar: reparo falhou:", e?.message || e));
+    await sincronizarSalas().catch((e) => console.error("espelho: sincronia falhou:", e?.message || e));
+    await garantirConvites().catch((e) => console.error("portaria: passada falhou:", e?.message || e));
+    await quadrosDeIdioma().catch((e) => console.log("idiomas: quadro falhou:", e?.message || e));
+    await atualizarCartoes().catch((e) => console.error("config: cartões falharam:", e?.message || e));
+  }
   await aposentarArenas().catch((e) => console.log("arena: aposentar falhou:", e?.message || e));
   await atualizarEventos().catch((e) => console.error("eventos: passada falhou:", e?.message || e));
   await montarPainelDoDono().catch((e) => console.error("painel: montagem falhou:", e?.message || e));
