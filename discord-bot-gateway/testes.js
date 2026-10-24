@@ -4398,7 +4398,7 @@ function conferirCartao(onde, embed, componentes = []) {
   /* ---- a configuração na memória: quem escreve, esquece ---- */
   {
     const M = carregar(["CONFIG_NA_MEMORIA", "cacheEspelho", "cacheFontes", "cacheReplicas", "cacheComandos",
-      "CACHE_DA_TABELA", "esquecerCacheDe"]);
+      "cacheEventos", "cachePresencas", "escritasNaTabela", "escritasDe", "CACHE_DA_TABELA", "esquecerCacheDe"]);
     M.cacheEspelho.set("s1", { v: [1], t: Date.now() });
     M.cacheReplicas.set("s1", { v: [2], t: Date.now() });
     M.esquecerCacheDe("discord_chat_espelho?id=eq.9");
@@ -13431,6 +13431,141 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("e ninguém precisa fazer nada", regra && regra.precisaDeVoce === false);
     verdade("e não rouba a queda de conexão comum", !E.EXPLICA_ERRO.find((r) => r.titulo === "O Discord ficou fora do ar por um instante")
       .quando.test("gateway: surdo há 90s"));
+  }
+}
+
+/* ====== A VIGIA QUE MORA NO BANCO ======
+ *
+ * Quem confere se a batida parou não pode ser o bot. O banco confere de 2 em
+ * 2 minutos e avisa por um webhook que o bot cria no 🐛-erros. */
+{
+  const W = carregar(["pedacosDoWebhook"]);
+  ok("a URL do discord.js vira id e token",
+    W.pedacosDoWebhook("https://discord.com/api/webhooks/1234567890/abcDEF_123-xyzabcdefghij"),
+    { id: "1234567890", token: "abcDEF_123-xyzabcdefghij" });
+  ok("link que não é de webhook não serve", W.pedacosDoWebhook("https://example.com/api/webhooks/1/2"), null);
+  ok("vazio não serve", W.pedacosDoWebhook(undefined), null);
+
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("o painel garante o webhook da vigia", /await garantirWebhookDaVigia\(guild\);/.test(idx));
+  verdade("e guarda nos ajustes, que só a chave de serviço lê", /porAjuste\("webhook_vigia", w\.url\)/.test(idx));
+  verdade("só troca o webhook quando o Discord diz que ele não existe (10015)",
+    /e\?\.code === 10015 \? false : null/.test(idx));
+
+  const sql = readFileSync(`${aqui}/../supabase/migracoes/023-vigia-da-batida.sql`, "utf8");
+  verdade("o relógio do banco confere de 2 em 2 minutos",
+    /cron\.schedule\('vigia_da_batida', '\*\/2 \* \* \* \*', 'select public\.cyron_vigiar_batida\(\)'\)/.test(sql));
+  verdade("e só grita com 10 minutos sem batida (uma publicação não conta)", /v_parado > interval '10 minutes'/.test(sql));
+  verdade("grita uma vez por queda, e não a cada volta", /v_avisou is not distinct from v_visto::text then return 'ja avisei'/.test(sql));
+  verdade("e avisa quando a batida volta", /A CYRON voltou a bater/.test(sql));
+  verdade("a função não fica aberta para a chave pública",
+    /revoke all on function public\.cyron_vigiar_batida\(boolean\) from public, anon, authenticated/.test(sql));
+  const formato = sql.match(/v_gancho, ''\) !~ '([^']+)'/)?.[1];
+  verdade("o banco aceita a URL que o bot guarda",
+    !!formato && new RegExp(formato).test("https://discord.com/api/webhooks/1234567890/abcDEF_123-xyzabcdefghij"));
+  verdade("a batida que a vigia lê é a que o bot grava", /porAjuste\("visto", String\(Date\.now\(\)\)\)/.test(idx) &&
+    /where chave = 'visto'/.test(sql));
+
+  const limpa = readFileSync(`${aqui}/../supabase/migracoes/021-limpeza-do-cron.sql`, "utf8");
+  verdade("o diário do relógio é limpo todo dia, guardando 7 dias",
+    /cron\.schedule\(\s*'limpar_historico_do_cron',\s*'20 4 \* \* \*',\s*\$\$delete from cron\.job_run_details where end_time < now\(\) - interval '7 days'\$\$/.test(limpa));
+}
+
+/* ====== A AGENDA NA MEMÓRIA ======
+ *
+ * O cronômetro redesenha de minuto em minuto, e cada desenho relia eventos e
+ * inscrições do banco: 6 mil leituras de inscrição e 5 mil de evento num dia,
+ * de uma agenda que muda poucas vezes. */
+{
+  const antes = { sb: globalThis.sb };
+  try {
+    const A = carregar(["CONFIG_NA_MEMORIA", "EVENTO_SOBREVIVE", "DURACAO_MAX", "fechouHaMuito",
+      "cacheEspelho", "cacheFontes", "cacheReplicas", "cacheComandos", "cacheEventos", "cachePresencas",
+      "escritasNaTabela", "escritasDe", "CACHE_DA_TABELA", "esquecerCacheDe", "eventosDoServidor", "presencasDoEvento"]);
+    const t0 = Date.parse("2026-10-24T12:00:00Z");
+    let pedidos = 0, falhar = false, noMeio = null;
+    const eventos = [
+      { id: 1, quando: new Date(t0 + 3600000).toISOString(), duracao_seg: 0 },
+      /* fecha o prazo de 6 horas cinco minutos depois de t0 */
+      { id: 2, quando: new Date(t0 - A.EVENTO_SOBREVIVE + 5 * 60000).toISOString(), duracao_seg: 0 },
+    ];
+    globalThis.sb = async (caminho) => {
+      pedidos++;
+      if (falhar) throw new Error("supabase: prazo");
+      if (noMeio) { const f = noMeio; noMeio = null; f(); }
+      return caminho.startsWith("cyron_evento_presenca") ? [{ discord_user_id: "1", vai: true }] : eventos;
+    };
+
+    ok("a primeira leitura vai ao banco", (await A.eventosDoServidor("s1", t0)).length, 2);
+    await A.eventosDoServidor("s1", t0 + 60000);
+    await A.eventosDoServidor("s1", t0 + 120000);
+    ok("os redesenhos seguintes saem da memória", pedidos, 1);
+    ok("e o prazo de 6 horas anda com o relógio, mesmo na cópia guardada",
+      (await A.eventosDoServidor("s1", t0 + 10 * 60000)).map((e) => e.id), [1]);
+    ok("(sem ir ao banco para isso)", pedidos, 1);
+
+    A.esquecerCacheDe("cyron_evento?id=eq.1");
+    await A.eventosDoServidor("s1", t0 + 180000);
+    ok("gravar um evento esquece a agenda guardada", pedidos, 2);
+
+    await A.eventosDoServidor("s1", t0 + 180000 + A.CONFIG_NA_MEMORIA);
+    ok("meia hora depois relê de qualquer jeito (mudança feita por fora)", pedidos, 3);
+
+    A.cacheEventos.clear(); pedidos = 0; falhar = true;
+    ok("banco fora: agenda vazia, como antes", await A.eventosDoServidor("s2", t0), []);
+    falhar = false;
+    await A.eventosDoServidor("s2", t0);
+    ok("e a falha não fica guardada", pedidos, 2);
+
+    /* A inscrição chega ENQUANTO o cronômetro está lendo: o retrato que volta
+       é de antes dela, e não pode ficar meia hora na memória. */
+    pedidos = 0;
+    noMeio = () => A.esquecerCacheDe("cyron_evento_presenca");
+    await A.presencasDoEvento(7, t0);
+    await A.presencasDoEvento(7, t0 + 1000);
+    ok("leitura que cruzou com uma inscrição não é guardada", pedidos, 2);
+    await A.presencasDoEvento(7, t0 + 2000);
+    ok("a seguinte, limpa, é", pedidos, 2);
+    A.esquecerCacheDe("cyron_evento_presenca");
+    await A.presencasDoEvento(7, t0 + 3000);
+    ok("e se inscrever esquece as inscrições guardadas", pedidos, 3);
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  for (const f of ["sbPost", "sbPatch", "sbDel"]) {
+    verdade(`${f} conta a escrita também quando ela termina`,
+      new RegExp(`async function ${f}\\([^]*?\\}\\)\\)\\.finally\\(\\(\\) => esquecerCacheDe\\(caminho\\)\\);`).test(idx));
+  }
+  const des = idx.slice(idx.indexOf("async function desenharEventos"), idx.indexOf("async function atualizarEventos"));
+  verdade("a faxina dos eventos velhos não roda a cada minuto",
+    /if \(Date\.now\(\) - \(faxinaDaAgenda\.get\(servidor\.id\) \|\| 0\) >= FAXINA_DA_AGENDA\) \{[^]*?quando=lt\./.test(des));
+}
+
+/* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======
+ *
+ * Reparo, montagem, portaria, quadros e cartões eram ~250 pedidos a cada dez
+ * minutos, todos no mesmo minuto. O clique e a escolha de idioma montam na
+ * hora; a varredura é a rede embaixo. */
+{
+  globalThis.ultimaVarreduraCompleta = 0;   // `let` no index: começa zerado, como ao subir
+  const V = carregar(["VARREDURA_COMPLETA", "vezDaVarreduraCompleta"]);
+  const t0 = Date.parse("2026-10-24T12:00:00Z");
+  verdade("ao subir, roda já", V.vezDaVarreduraCompleta(t0));
+  verdade("dez minutos depois, não", !V.vezDaVarreduraCompleta(t0 + 10 * 60000));
+  verdade("vinte, também não", !V.vezDaVarreduraCompleta(t0 + 20 * 60000));
+  verdade("meia hora depois, sim", V.vezDaVarreduraCompleta(t0 + 30 * 60000));
+
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  const u = idx.indexOf("async function umaPassada");
+  const passada = idx.slice(u, idx.indexOf("ultimaPassada = Date.now()", u));
+  const portao = passada.match(/if \(vezDaVarreduraCompleta\(comecou\)\) \{([^]*?)\n  \}/)?.[1] || "";
+  for (const f of ["repararInstalacoes", "sincronizarSalas", "garantirConvites", "quadrosDeIdioma", "atualizarCartoes"]) {
+    verdade(`${f} fica na parte de meia em meia hora`, portao.includes(`await ${f}()`));
+  }
+  for (const f of ["atualizarEventos", "montarPainelDoDono", "rodarComandosAgendados", "soltarAsInteracoes", "deHoraEmHora"]) {
+    verdade(`${f} continua de dez em dez minutos`, passada.includes(`await ${f}()`) && !portao.includes(f));
   }
 }
 
