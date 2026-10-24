@@ -66,12 +66,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Conferir se os segredos existem
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      # O ENDEREÇO E A CHAVE DO BANCO VÊM DO COFRE DO FLY.
+      #
+      # Eram três segredos para o dono criar aqui no GitHub, e nenhum foi
+      # criado: o backup reprovou todo santo dia desde que o repositório nasceu
+      # (e no portal, antes, também). Dois deles o bot JÁ tem, na máquina dele:
+      # SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY. Pedir de novo ao dono era
+      # pedir para copiar uma chave secreta de um lugar para outro pelo
+      # celular -- o tipo de passo que não acontece.
+      #
+      # Só a FRASE fica com ele, de propósito: ela é a chave do pacote, e quem
+      # restaura precisa sabê-la. Os segredos daqui continuam valendo, se um
+      # dia existirem; o cofre do Fly é o caminho de quando faltam.
+      #
+      # A chave é escondida dos registros ANTES de qualquer outra coisa: este
+      # repositório é público, e os registros também.
+      - name: Conferir os segredos (o banco vem do Fly)
         env:
           SB_URL: ${{ secrets.SUPABASE_URL }}
           SB_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           FRASE: ${{ secrets.BACKUP_FRASE_SECRETA }}
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
+          set +x
+          ler() {
+            flyctl ssh console -a top-best-discord-bot -C "printenv $1" 2>/dev/null | tr -d '\r\n ' || true
+          }
+          if [ -n "$FLY_API_TOKEN" ]; then
+            [ -z "$SB_KEY" ] && SB_KEY=$(ler SUPABASE_SERVICE_ROLE_KEY)
+            [ -z "$SB_URL" ] && SB_URL=$(ler SUPABASE_URL)
+          fi
+          [ -n "$SB_KEY" ] && echo "::add-mask::$SB_KEY"
+          case "$SB_URL" in https://*) ;; *) SB_URL="" ;; esac
+
           faltam=""
           [ -z "$SB_URL" ] && faltam="$faltam SUPABASE_URL"
           [ -z "$SB_KEY" ] && faltam="$faltam SUPABASE_SERVICE_ROLE_KEY"
@@ -80,26 +109,34 @@ jobs:
             echo "::error::Sem backup nenhum: faltam os segredos$faltam"
             echo ""
             echo "Enquanto faltar qualquer um deles, ESTE ARQUIVO NÃO PROTEGE NADA."
-            echo "Para ligar, em Settings -> Secrets and variables -> Actions -> New secret:"
-            echo "  SUPABASE_URL                 https://<ref>.supabase.co"
-            echo "  SUPABASE_SERVICE_ROLE_KEY    Supabase -> Project Settings -> API -> service_role"
-            echo "  BACKUP_FRASE_SECRETA         uma frase longa, guardada FORA do GitHub"
+            if [ "$faltam" = " BACKUP_FRASE_SECRETA" ]; then
+              echo "Falta só UM, e é você quem inventa: a frase que tranca o pacote."
+              echo "  https://github.com/HiCyron/hicyron.github.io/settings/secrets/actions/new"
+              echo "  Name: BACKUP_FRASE_SECRETA    Secret: uma frase longa que só você saiba"
+            else
+              echo "O endereço e a chave do banco vêm da máquina do bot (cofre do Fly);"
+              echo "se ela estiver parada ou o FLY_API_TOKEN faltar, crie-os aqui:"
+              echo "  SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY e BACKUP_FRASE_SECRETA"
+            fi
             echo ""
             echo "A frase é a única chave do pacote. Perdida a frase, o backup vira lixo:"
             echo "guarde-a onde você guardaria a senha do banco, e NUNCA num chat."
             exit 1
           fi
-          echo "Os três segredos estão no lugar."
+          {
+            echo "SB_URL=$SB_URL"
+            echo "SB_KEY=$SB_KEY"
+          } >> "$GITHUB_ENV"
+          echo "Banco e frase no lugar."
 
       # O python vai para um ARQUIVO, por heredoc. Nunca dentro de aspas
       # simples: o estilo de comentário desta casa é "e'", "ja'", "so'", e um
       # apóstrofo desses FECHA a aspa do shell -- foi assim que a vigia morreu
       # calada na primeira execução de verdade. Heredoc com 'PY' entre aspas
       # não interpreta apóstrofo, cifrão nem crase.
+      # SB_URL e SB_KEY chegam pelo GITHUB_ENV do passo de cima -- sem `env:`
+      # aqui, que os trocaria pelos segredos vazios do GitHub.
       - name: Buscar as tabelas
-        env:
-          SB_URL: ${{ secrets.SUPABASE_URL }}
-          SB_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           cat > /tmp/copiar.py <<'PY'
           import json, os, shutil, sys, urllib.request, pathlib

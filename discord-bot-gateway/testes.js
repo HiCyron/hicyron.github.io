@@ -10369,6 +10369,16 @@ function conferirCartao(onde, embed, componentes = []) {
   /* Sem os segredos ele tem que REPROVAR, e não passar verde sem fazer nada:
      backup que falha calado é a pior das três opções. */
   verdade("sem segredo, reprova em vez de passar", /::error::Sem backup nenhum/.test(codigo));
+  /* O banco vem do cofre do Fly: o dono só cria a FRASE. A chave é escondida
+     dos registros antes de seguir para os passos seguintes. */
+  verdade("o endereço e a chave do banco vêm da máquina do bot quando faltam aqui",
+    /printenv \$1/.test(codigo) && /ler SUPABASE_SERVICE_ROLE_KEY/.test(codigo) && /ler SUPABASE_URL/.test(codigo));
+  verdade("a chave é escondida dos registros antes de ir para os passos seguintes",
+    codigo.indexOf("::add-mask::$SB_KEY") > -1 && codigo.indexOf("::add-mask::$SB_KEY") < codigo.indexOf('>> "$GITHUB_ENV"'));
+  verdade("o passo da cópia não troca a chave do Fly pelos segredos vazios do GitHub",
+    !/name: Buscar as tabelas\s*\n\s*env:/.test(yml));
+  verdade("faltando só a frase, o aviso diz isso e dá o link", /Falta só UM/.test(codigo) &&
+    /settings\/secrets\/actions\/new/.test(codigo));
 
   /* ---- e agora o passo de cópia, EXECUTADO contra um Supabase falso ---- */
   const linhas = yml.split("\n");
@@ -13363,6 +13373,65 @@ function conferirCartao(onde, embed, componentes = []) {
     ["idioma salvo (grande, no canto)", /title: "🌐 Idioma salvo!", \.\.\.fotoDaCyron\("amei"\)/],
     ["primeira página do /help (grande, no canto)", /title: "🌐 CYRON — Ajuda", \.\.\.fotoDaCyron\("aceno"\)/],
   ]) verdade(`${onde}: a carinha dela, com o emoji de antes de reserva`, regra.test(limpo));
+}
+
+/* ====== A PASSADA CURTA, SEM PEDIR À TOA ======
+ *
+ * Ela perguntava ao banco "quem escolheu idioma agora" uma vez por servidor,
+ * a cada minuto -- um terço de todos os pedidos do bot, quase sempre para
+ * ouvir "ninguém". E quem escolhia uma língua que o servidor não comporta
+ * fazia o TOP inteiro ser remontado a cada 2 minutos: 46 cortes por prazo em
+ * duas semanas, todos lá. */
+{
+  const globais = ["client", "servidorDoGuild", "sb", "sincronizarAgora"];
+  const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
+  try {
+    const R = carregar(["JANELA_RECENTE", "ESPERA_REMONTAR", "ultimaMontagem", "ESPERA_IDIOMA_SEM_SALA",
+      "remontouPorIdioma", "naoEstaNoServidor", "tentouHaPouco", "membroRecente", "sincronizarRecentes"]);
+    let pedidos = [], remontou = 0, fetches = 0, recentes = [];
+    globalThis.sb = async (caminho) => {
+      pedidos.push(caminho.split("?")[0]);
+      if (caminho.startsWith("discord_idioma_jogador")) return recentes;
+      if (caminho.startsWith("discord_chat_espelho")) return [{ idioma: "pt", role_id: "r-pt" }];
+      return [];
+    };
+    globalThis.servidorDoGuild = async (id) => ({ id: `s-${id}` });
+    globalThis.sincronizarAgora = async () => { remontou++; };
+    const membro = (id) => ({ id, user: { bot: false }, roles: { cache: new Map() } });
+    const guild = (id, quem) => ({ id, name: id, members: {
+      cache: new Map(quem.map((q) => [q, membro(q)])),
+      fetch: async () => { fetches++; throw new Error("Unknown Member"); } } });
+    globalThis.client = { guilds: { cache: new Map([["g1", guild("g1", ["ana"])], ["g2", guild("g2", [])], ["g3", guild("g3", [])]]) } };
+    const t0 = Date.parse("2026-10-24T12:00:00Z");
+
+    await R.sincronizarRecentes(t0);
+    ok("ninguém escolheu agora: UM pedido ao banco, e não um por servidor", pedidos, ["discord_idioma_jogador"]);
+
+    /* A Ana, do g1, escolheu japonês, que o g1 não tem (e não comporta). */
+    recentes = [{ discord_user_id: "ana", idioma: "ja" }];
+    pedidos = [];
+    await R.sincronizarRecentes(t0 + 60000);
+    ok("língua nova de quem é do servidor: remonta", remontou, 1);
+    ok("a lista de quem escolheu, uma vez só por passada", pedidos.filter((p) => p === "discord_idioma_jogador").length, 1);
+    const fetchesDepoisDaPrimeira = fetches;
+    await R.sincronizarRecentes(t0 + 5 * 60000);
+    ok("cinco minutos depois, a mesma língua sem sala NÃO remonta de novo", remontou, 1);
+    ok("e quem não está no servidor não é procurado de novo a cada minuto", fetches, fetchesDepoisDaPrimeira);
+    await R.sincronizarRecentes(t0 + 62 * 60000);
+    ok("passada uma hora, tenta outra vez", remontou, 2);
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+
+  /* O Discord fora do ar não é erro meu, e o canal diz isso. */
+  {
+    const E = carregar(["EXPLICA_ERRO"]);
+    const regra = E.EXPLICA_ERRO.find((r) => r.quando.test("gateway: erro no shard 0: Unexpected server response: 503"));
+    ok("o 503 do Discord tem explicação", regra?.titulo, "O Discord ficou fora do ar por um instante");
+    verdade("e ninguém precisa fazer nada", regra && regra.precisaDeVoce === false);
+    verdade("e não rouba a queda de conexão comum", !E.EXPLICA_ERRO.find((r) => r.titulo === "O Discord ficou fora do ar por um instante")
+      .quando.test("gateway: surdo há 90s"));
+  }
 }
 
 function NA_CONTA_DO_FONTE() {
