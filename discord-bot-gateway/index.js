@@ -4753,8 +4753,51 @@ const JANELA_RECENTE = 15 * 60 * 1000;
 const ESPERA_REMONTAR = 2 * 60 * 1000;
 const ultimaMontagem = new Map(); // guildId -> quando
 
-async function sincronizarRecentes() {
-  const desde = new Date(Date.now() - JANELA_RECENTE).toISOString();
+/* Lingua escolhida que nao virou sala depois de uma remontagem (o plano nao
+   tem vaga para mais uma lingua, por exemplo): uma hora sem tentar de novo.
+
+   Sem isto, quem escolhia uma lingua que o servidor nao comporta fazia a
+   CYRON remontar o servidor INTEIRO a cada dois minutos, pelos quinze
+   minutos em que a escolha conta como recente -- e remontar o TOP e' listar
+   todo mundo e conferir cada sala. Era sempre la' que a passada estourava o
+   prazo: 46 vezes em duas semanas, todas em [ TOP ] BEST. */
+const ESPERA_IDIOMA_SEM_SALA = 60 * 60 * 1000;
+const remontouPorIdioma = new Map(); // `${guildId}|${idioma}` -> quando
+
+/* Quem ja' se sabe que nao e' deste servidor, pelos mesmos quinze minutos:
+   a lista de quem escolheu e' do bot inteiro, e perguntar ao Discord a cada
+   minuto, em cada servidor, por quem nem esta' nele so' gasta limite. */
+const naoEstaNoServidor = new Map(); // `${guildId}|${userId}` -> quando
+
+function tentouHaPouco(mapa, chave, espera, agora) {
+  const quando = mapa.get(chave);
+  if (quando && agora - quando < espera) return true;
+  if (quando) mapa.delete(chave);
+  return false;
+}
+
+async function membroRecente(guild, userId, agora) {
+  const chave = `${guild.id}|${userId}`;
+  if (tentouHaPouco(naoEstaNoServidor, chave, JANELA_RECENTE, agora)) return null;
+  const membro = guild.members.cache.get(String(userId)) ||
+    await guild.members.fetch(String(userId)).catch(() => null);
+  if (!membro) naoEstaNoServidor.set(chave, agora);
+  return membro;
+}
+
+async function sincronizarRecentes(agora = Date.now()) {
+  const desde = new Date(agora - JANELA_RECENTE).toISOString();
+  /* UMA pergunta ao banco por passada, e nao uma por servidor.
+
+     A lista de quem escolheu idioma agora e' a mesma para todos os
+     servidores -- e ela era pedida dentro do laco, junto com as salas de
+     cada um, de minuto em minuto: perto de 30 mil pedidos por dia, um terco
+     de tudo o que o bot pede ao banco, quase todos para ouvir "ninguem".
+     Cada pedido a mais e' mais uma chance de cair num engasgo do banco e
+     estourar o prazo. Agora: sem ninguem recente, a passada acaba aqui. */
+  const recentes = await sb(
+    `discord_idioma_jogador?atualizado_em=gte.${encodeURIComponent(desde)}&select=discord_user_id,idioma`);
+  if (!recentes?.length) return;
   for (const [, guild] of client.guilds.cache) {
     try {
       const servidor = await servidorDoGuild(guild.id);
@@ -4766,10 +4809,6 @@ async function sincronizarRecentes() {
          esperar. */
       const salas = await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&select=idioma,role_id`) || [];
 
-      const recentes = await sb(
-        `discord_idioma_jogador?atualizado_em=gte.${encodeURIComponent(desde)}&select=discord_user_id,idioma`);
-      if (!recentes?.length) continue;
-
       /* Idioma escolhido agora e que ainda nao existe aqui: nao da' pra so
          distribuir cargo, porque nao ha cargo. Chama a varredura completa
          DESTE servidor -- e' cara (lista os membros todos), mas so roda quando
@@ -4779,7 +4818,8 @@ async function sincronizarRecentes() {
          concluia que o bot nao funciona. Foi o que aconteceu no primeiro teste
          com gente de verdade. */
       const jaTem = new Set(salas.map((s) => s.idioma));
-      const candidatos = recentes.filter((e) => !jaTem.has(e.idioma));
+      const candidatos = recentes.filter((e) => !jaTem.has(e.idioma) &&
+        !tentouHaPouco(remontouPorIdioma, `${guild.id}|${e.idioma}`, ESPERA_IDIOMA_SEM_SALA, agora));
 
       /* Pergunta por UMA pessoa de cada vez, nao pela lista inteira.
 
@@ -4792,10 +4832,10 @@ async function sincronizarRecentes() {
 
          Buscar um membro pelo id vai por REST, que tem outro limite e e'
          barato. Sao um ou dois candidatos por vez, quase sempre. */
-      let novidade = false;
+      let novidade = null;
       for (const escolha of candidatos) {
-        const membro = await guild.members.fetch(String(escolha.discord_user_id)).catch(() => null);
-        if (membro && !membro.user.bot) { novidade = true; break; }
+        const membro = await membroRecente(guild, escolha.discord_user_id, agora);
+        if (membro && !membro.user.bot) { novidade = escolha.idioma; break; }
       }
 
       /* E mesmo havendo novidade, nao remonta o servidor inteiro toda hora.
@@ -4803,14 +4843,19 @@ async function sincronizarRecentes() {
          A varredura completa lista os membros todos -- se ela falhar (e falhou,
          por limite), o idioma continua faltando e o minuto seguinte tentaria de
          novo. A espera transforma insistencia em tentativa espaçada. */
-      const agora = Date.now();
-      if (novidade && agora - (ultimaMontagem.get(guild.id) || 0) < ESPERA_REMONTAR) novidade = false;
+      if (novidade && agora - (ultimaMontagem.get(guild.id) || 0) < ESPERA_REMONTAR) novidade = null;
 
       if (novidade) {
         ultimaMontagem.set(guild.id, agora);
+        /* Se depois disto a lingua ainda nao tiver sala, e' porque nao cabe:
+           a proxima tentativa por ela, so' daqui a uma hora. */
+        remontouPorIdioma.set(`${guild.id}|${novidade}`, agora);
         console.log(`idioma: ${guild.name} tem idioma novo escolhido agora; montando sem esperar`);
         await sincronizarAgora(guild);
-        return;
+        /* `continue`, e nao `return`: o return encerrava a passada inteira, e
+           os servidores seguintes ficavam aquele minuto sem os cargos de
+           quem acabou de escolher. */
+        continue;
       }
 
       const porIdioma = new Map(salas.map((s) => [s.idioma, s.role_id]).filter(([, r]) => r));
@@ -4821,7 +4866,7 @@ async function sincronizarRecentes() {
         /* Idioma sem sala ainda: quem cria e' a varredura completa, que sabe
            montar canal e webhook. Aqui so distribuo cargo. */
         if (!querido) continue;
-        const membro = await guild.members.fetch(String(escolha.discord_user_id)).catch(() => null);
+        const membro = await membroRecente(guild, escolha.discord_user_id, agora);
         if (!membro || membro.user.bot) continue;
         for (const cargo of cargosDeSala) {
           const tem = membro.roles.cache.has(cargo);
@@ -17239,6 +17284,20 @@ const EXPLICA_ERRO = [
     fazer: "Se repetir, apague na mão: Portal do Desenvolvedor → o aplicativo → **General Information** → " +
       "esvazie **Interactions Endpoint URL** e salve. É o mesmo lugar da política de privacidade " +
       "e dos termos — quem salvar aquela página com o campo preenchido derruba tudo de novo.",
+  },
+  {
+    /* O Discord recusou a ligacao com um 5xx: e' o Discord fora do ar, nao eu.
+
+       Apareceu cru, "gateway: erro no shard 0: Unexpected server response:
+       503", quatro vezes no mesmo minuto de 23/10 -- o Discord caiu e a
+       biblioteca tentou de novo ate' ele voltar. Sem linha aqui, o canal
+       pedia ao dono que me ensinasse uma frase que e' minha. */
+    quando: /gateway.{0,60}erro no shard \d+.{0,40}Unexpected server response: 5\d\d/i,
+    titulo: "O Discord ficou fora do ar por um instante",
+    precisaDeVoce: false,
+    oque: "Tentei me ligar ao Discord e ele respondeu que estava fora do ar (erro 5xx do lado " +
+      "dele). A biblioteca tenta de novo sozinha até ele voltar.",
+    fazer: "Nada. Se durar, o status fica em discordstatus.com — não é configuração de ninguém.",
   },
   {
     /* A FRASE E' MINHA, E MESMO ASSIM EU NAO A RECONHECIA.
