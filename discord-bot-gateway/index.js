@@ -247,10 +247,31 @@ async function sbPost(caminho, corpo, prefer = "") {
    Buscar um por um confunde "canal apagado" com "a rede falhou agora", e
    apagar linha por causa de falha de rede criaria canal duplicado ao lado do
    que ainda existe. A lista inteira nao tem esse meio-termo: ou ela veio, ou a
-   passada nem comeca. */
+   passada nem comeca.
+
+   ESCONDIDO DE MIM NAO E' APAGADO. A partir de 16/11/2026 essa lista deixa de
+   trazer os canais que eu nao consigo ver (o Discord chama de "obfuscation").
+   Uma sala da CYRON da qual um admin me tirou a vista sumiria da lista, eu
+   apagaria a linha, e a passada criaria OUTRA sala igual ao lado da que
+   continua la'. O gateway ainda me conta desses canais -- com o nome
+   "___hidden___" e a flag CHANNEL_OBFUSCATED --, entao o que esta' na memoria
+   do gateway, fora da lista e sem vista para mim, conta como vivo. Apagado de
+   verdade sai da memoria pelo CHANNEL_DELETE, e esse continua se curando. */
+const CANAL_ESCONDIDO = 1 << 17;
+function escondidoDeMim(canal, eu) {
+  if (canal?.flags?.has?.(CANAL_ESCONDIDO)) return true;
+  const pode = eu && canal?.permissionsFor?.(eu);
+  return !!pode && !pode.has(PermissionFlagsBits.ViewChannel);
+}
+
 async function idsVivos(guild) {
   const todos = await guild.channels.fetch();
-  return new Set([...todos.filter(Boolean).keys()]);
+  const vivos = new Set([...todos.filter(Boolean).keys()]);
+  const eu = guild.members?.me;
+  for (const [id, canal] of guild.channels.cache) {
+    if (!vivos.has(id) && escondidoDeMim(canal, eu)) vivos.add(id);
+  }
+  return vivos;
 }
 
 async function sbDel(caminho) {
@@ -7249,8 +7270,13 @@ async function canaisElegiveis(guild, servidor, fontes) {
   const escolhidos = new Set(fontes.map((f) => f.canal_id));
   const comOutroPapel = await fontesDeOutroPapel(servidor);
 
+  /* So' o que eu enxergo: canal escondido de mim nao tem o que eu traduzir --
+     e, desde que o Discord passou a esconder o nome, ele apareceria no menu
+     como "#___hidden___". */
+  const eu = guild.members?.me;
   const candidatos = [...guild.channels.cache.values()]
-    .filter((c) => c.type === ChannelType.GuildText && !proprios.has(c.id) && !comOutroPapel.has(c.id))
+    .filter((c) => c.type === ChannelType.GuildText && !proprios.has(c.id) && !comOutroPapel.has(c.id) &&
+      !escondidoDeMim(c, eu))
     .sort((a, b) => a.rawPosition - b.rawPosition);
 
   if (candidatos.length <= 25) return candidatos;

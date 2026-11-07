@@ -13872,6 +13872,49 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("e o aviso de limite", /async function avisarDoTeto[^]*?const lingua = await linguaDaSalaCyron\(guild\);/.test(idx));
 }
 
+/* ====== ESCONDIDO DE MIM NÃO É APAGADO (16/11/2026) ======
+ *
+ * O Discord passa a omitir da lista de canais os que o bot não vê. A cura de
+ * "canal apagado na mão" usava essa lista: uma sala escondida do bot viraria
+ * uma sala nova, duplicada, ao lado da que continua lá. */
+{
+  const antes = { PermissionFlagsBits: globalThis.PermissionFlagsBits, ChannelType: globalThis.ChannelType };
+  try {
+    globalThis.PermissionFlagsBits = { ViewChannel: 1n << 10n };
+    globalThis.ChannelType = { GuildText: 0 };
+    const E = carregar(["CANAL_ESCONDIDO", "escondidoDeMim", "idsVivos"]);
+    const canal = (id, { escondido = false, vejo = true, tipo = 0 } = {}) => ({ id, type: tipo, name: escondido ? "___hidden___" : id,
+      rawPosition: Number(id.replace(/\D/g, "")) || 0,
+      flags: { has: (b) => escondido && b === E.CANAL_ESCONDIDO },
+      permissionsFor: () => ({ has: () => vejo && !escondido }) });
+    /* O fetch do discord.js devolve uma Collection: um Map com filter. */
+    const lista = Object.assign(new Map([["c1", canal("c1")]]),
+      { filter(fn) { return new Map([...this].filter(([, v]) => fn(v))); } });
+    const memoria = new Map([["c1", canal("c1")], ["c2", canal("c2", { escondido: true })],
+      ["c3", canal("c3")], ["c4", canal("c4", { vejo: false })]]);
+    const guild = { members: { me: {} }, channels: { fetch: async () => lista, cache: memoria } };
+    const vivos = await E.idsVivos(guild);
+    verdade("o que a lista trouxe está vivo", vivos.has("c1"));
+    verdade("o canal escondido (___hidden___) que a lista omitiu continua vivo", vivos.has("c2"));
+    verdade("e o que eu perdi a vista também (antes da flag chegar)", vivos.has("c4"));
+    verdade("mas o apagado de verdade, que eu ainda via, se cura como antes", !vivos.has("c3"));
+
+    const globais2 = ["canaisMeus", "fontesDeOutroPapel"];
+    const antes2 = Object.fromEntries(globais2.map((n) => [n, globalThis[n]]));
+    try {
+      globalThis.canaisMeus = async () => new Set();
+      globalThis.fontesDeOutroPapel = async () => new Set();
+      const { canaisElegiveis } = carregar(["canaisElegiveis"]);
+      const menu = await canaisElegiveis(guild, { id: "s1" }, []);
+      ok("o menu de canais só oferece o que eu enxergo", menu.map((c) => c.id), ["c1", "c3"]);
+    } finally {
+      Object.assign(globalThis, antes2);
+    }
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+}
+
 /* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======
  *
  * Reparo, montagem, portaria, quadros e cartões eram ~250 pedidos a cada dez
