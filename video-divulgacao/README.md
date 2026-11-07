@@ -18,6 +18,12 @@ com as telas do Discord mostrando cada função funcionando — escolher a líng
 conversa espelhada, resposta traduzida, figurinha e emoji, reação com bandeira, menu de tradução nos
 avisos, evento com lembrete e o painel de funções. O roteiro diz qual cena usar (`"cena"`); os mesmos
 passos 2 a 6 servem: `python3 narrar.py roteiro-pt-demo.json saida-pt` e assim por diante.
+
+**A CYRON em uso** (`roteiro-pt-uso.json` + `cena-uso.html`, ~2 min, em português): a versão fluida,
+como uma gravação de tela — a lista de canais desliza, o teclado sobe e digita, aparece "fulano está
+digitando…", os menus abrem de baixo, a notificação chega e é tocada, e cada toque do dedo acontece
+na palavra em que a narração fala dele (a cena lê o tempo de cada palavra no `tempos.json`).
+Prévia em instantes escolhidos: `node gravar.mjs roteiro-pt-uso.json saida-uso previa 17.3,36.7,81.1`.
 Vozes: `python3 -m edge_tts --list-voices` (ex.: `id-ID-GadisNeural`, `zh-CN-XiaoxiaoNeural`, `th-TH-PremwadeeNeural`).
 
 No ambiente da nuvem, o `narrar.py` usa sozinho o certificado do proxy (`/root/.ccr/ca-bundle.crt`).
