@@ -23,6 +23,7 @@ import { LOCAIS_DO_DISCORD, DESCRICOES_DOS_COMANDOS, ESCOLHAS_DOS_COMANDOS, NOME
   DESCRICOES_DA_AJUDA } from "./comandos-linguas.js";
 import { PERSONAGENS, ESPACOS, EFEITOS, NIVEIS_DO_PERSONAGEM } from "./duelo-elenco.js";
 import { FIGURINHAS, sugestoesDeFigurinha, acharFigurinha } from "./figurinhas.js";
+import { FIGURINHAS_DO_DISCORD } from "./figurinhas-do-discord.js";
 /* O que e' so' da alianca [TOP]: fica fora daqui para nao se misturar com o
    produto. Ver o comentario no topo do alianca.js. */
 import { ligarAlianca, COMANDOS_DA_ALIANCA, comandoDaAlianca, boasVindasDaAlianca, reHospedar, MAX_MIDIA,
@@ -1924,9 +1925,19 @@ function clienteDoWebhook(url) {
   return c;
 }
 
-/* O limite do Discord pra quem nao tem Nitro. Acima disso nao adianta tentar
-   reenviar; vai o link mesmo, com a validade curta que ele tem. */
-const MAX_ANEXO = 8 * 1024 * 1024;
+/* O limite do Discord para bot e webhook: 20 MiB por mensagem desde
+   03/09/2026 (eram 10; antes, 8 para quem nao tinha Nitro). Acima disso nao
+   adianta tentar reenviar: vai o endereco da fala original.
+
+   A soma dos anexos de uma fala conta junto: tres videos de 15 MB numa
+   mensagem so' nao cabem numa copia, e a copia inteira seria recusada.
+
+   E arquivo pesado so' e' baixado com memoria folgada. A maquina tem 256 MB,
+   e um video de 20 MB vira 20 MB na memoria enquanto atravessa as salas --
+   com o bot ja' perto do teto, isso e' o que derruba o processo. Sem folga,
+   ele atravessa como link para a fala original, igual aos grandes demais. */
+const MAX_ANEXO = 20 * 1024 * 1024;
+const ANEXO_PESADO = 8 * 1024 * 1024;
 
 /* Baixa uma vez e reenvia pra todas as salas.
 
@@ -1948,6 +1959,7 @@ function enderecoDaFala(msg) {
 async function baixarAnexos(msg) {
   const arquivos = [];
   const links = [];
+  let soma = 0;
   for (const a of msg.attachments.values()) {
     /* GRANDE DEMAIS PARA COPIAR -- e aqui morava o defeito que o comentario
        acima ja' descrevia.
@@ -1964,7 +1976,8 @@ async function baixarAnexos(msg) {
        Agora aponta para a fala original, que nao caduca. Nao toca dentro do
        Discord -- nada com esse tamanho toca --, mas leva a pessoa ao video de
        verdade em vez de a um erro. */
-    if (a.size > MAX_ANEXO) {
+    const semFolga = a.size > ANEXO_PESADO && process.memoryUsage().rss > MEMORIA_PARA_DESENHAR;
+    if (a.size > MAX_ANEXO || soma + a.size > MAX_ANEXO || semFolga) {
       const eVideo = /^video\//i.test(a.contentType || "") || /\.(mp4|webm|mov|mkv)$/i.test(a.name || "");
       const onde = enderecoDaFala(msg);
       const mb = Math.round(a.size / (1024 * 1024));
@@ -1981,6 +1994,7 @@ async function baixarAnexos(msg) {
          ignora a chave a mais no envio. */
       arquivos.push({ attachment: Buffer.from(await r.arrayBuffer()), name: a.name || "arquivo",
                       contentType: a.contentType || "" });
+      soma += Number(a.size) || 0;
     } catch (e) {
       console.error("espelho: nao consegui baixar o anexo:", e?.message || e);
       /* Mesma regra da linha de cima, e pelo mesmo motivo: o endereco da fala
@@ -2788,14 +2802,21 @@ function termosDoServidor(servidor) {
    servidor de jogo isso e' metade da conversa, e o buraco era invisivel dos
    dois lados -- quem mandou viu a figurinha na sala dele.
 
-   As de formato LOTTIE (as do proprio Discord) ficam de fora da imagem: a URL
-   delas e' um .json de animacao, que o embed nao desenha. Sobra o nome, que e'
-   pouco e e' honesto -- melhor "🎨 wumpus" do que um quadrado quebrado. */
+   As de formato LOTTIE (as padrao do proprio Discord: Wumpus e os pacotes
+   oficiais) nao existem como imagem -- o Discord so' entrega um .json de
+   animacao, que o embed nao desenha, e webhook nao manda figurinha. Entao
+   cada uma delas foi desenhada UMA vez, fora do bot, num GIF que mora no site
+   (figurinhas-do-discord.js diz quais). O bot so' aponta: custo zero aqui.
+   Figurinha que o Discord lancar depois disso fica com o nome, como antes --
+   melhor "🎨 wumpus" do que um quadrado quebrado. */
+const PASTA_DAS_FIGURINHAS_DO_DISCORD = "figurinhas-discord";
 function figurinhaDe(msg) {
   const f = msg?.stickers?.first?.();
   if (!f) return null;
-  const desenhavel = f.format !== 3; // 3 = LOTTIE, animacao em JSON
-  return { nome: String(f.name || "").slice(0, 80), url: desenhavel ? (f.url || "") : "" };
+  const nome = String(f.name || "").slice(0, 80);
+  if (f.format !== 3) return { nome, url: f.url || "" };   // 3 = LOTTIE, animacao em JSON
+  const desenhada = FIGURINHAS_DO_DISCORD.has(String(f.id || ""));
+  return { nome, url: desenhada ? `${SITE_DO_CYRON}${PASTA_DAS_FIGURINHAS_DO_DISCORD}/${f.id}.gif` : "" };
 }
 
 /* GIF colado como LINK atravessava como link cru, e nao como GIF.

@@ -18,7 +18,7 @@
  * publicar.sh recusa. E' o comportamento certo: teste que sumiu em silencio
  * quando a funcao mudou de nome e' pior do que nenhum.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 
@@ -7307,7 +7307,10 @@ function conferirCartao(onde, embed, componentes = []) {
    é metade da conversa, e o buraco era invisível dos dois lados — quem mandou
    viu a figurinha na sala dele e foi embora. */
 {
-  const { figurinhaDe, textoDaEnquete } = carregar(["figurinhaDe", "textoDaEnquete"]);
+  /* As figurinhas padrão do Discord desenhadas em GIF no site: aqui, uma só. */
+  globalThis.FIGURINHAS_DO_DISCORD = new Set(["749054660769218631"]);
+  globalThis.SITE_DO_CYRON = globalThis.SITE_DO_CYRON || "https://hicyron.github.io/";
+  const { figurinhaDe, textoDaEnquete } = carregar(["PASTA_DAS_FIGURINHAS_DO_DISCORD", "figurinhaDe", "textoDaEnquete"]);
 
   /* ---- figurinha ---- */
   const comFigurinha = (f) => ({ stickers: { first: () => f } });
@@ -7316,12 +7319,16 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("figurinha PNG vira nome e imagem",
     figurinhaDe(comFigurinha({ name: "kek", format: 1, url: "http://f/kek.png" })),
     { nome: "kek", url: "http://f/kek.png" });
-  /* Formato 3 é LOTTIE — as figurinhas do próprio Discord. A URL delas é um
-     .json de animação, que o embed não desenha: pendurar isso como imagem
-     daria um quadrado quebrado, que é pior do que só o nome. */
-  ok("figurinha do Discord (LOTTIE) fica só com o nome",
-    figurinhaDe(comFigurinha({ name: "wumpus", format: 3, url: "http://f/w.json" })),
-    { nome: "wumpus", url: "" });
+  /* Formato 3 é LOTTIE — as figurinhas padrão do próprio Discord. A URL
+     delas é um .json de animação, que o embed não desenha, e webhook não
+     manda figurinha. Cada uma foi desenhada uma vez em GIF, no site. */
+  ok("figurinha padrão do Discord (LOTTIE) vai como o GIF do site",
+    figurinhaDe(comFigurinha({ id: "749054660769218631", name: "wumpus", format: 3, url: "http://f/w.json" })),
+    { nome: "wumpus", url: "https://hicyron.github.io/figurinhas-discord/749054660769218631.gif" });
+  /* Pendurar o .json como imagem daria um quadrado quebrado, pior que o nome. */
+  ok("figurinha LOTTIE que ainda não foi desenhada fica só com o nome",
+    figurinhaDe(comFigurinha({ id: "1", name: "nova", format: 3, url: "http://f/n.json" })),
+    { nome: "nova", url: "" });
   ok("nome gigante é cortado",
     figurinhaDe(comFigurinha({ name: "x".repeat(200), format: 1, url: "u" })).nome.length, 80);
 
@@ -9473,7 +9480,8 @@ function conferirCartao(onde, embed, componentes = []) {
  * em que alguém olha. */
 {
   const { baixarAnexos, enderecoDaFala, MAX_ANEXO } =
-    carregar(["MAX_ANEXO", "enderecoDaFala", "baixarAnexos"]);
+    carregar(["MAX_ANEXO", "ANEXO_PESADO", "MEMORIA_PARA_DESENHAR", "enderecoDaFala", "baixarAnexos"]);
+  ok("o teto é o do Discord para bots desde setembro de 2026: 20 MiB", MAX_ANEXO, 20 * 1024 * 1024);
 
   const msgCom = (anexos) => ({
     id: "999", channelId: "77", guild: { id: "11" }, guildId: "11",
@@ -9498,6 +9506,31 @@ function conferirCartao(onde, embed, componentes = []) {
     /* Quem lê precisa saber que existe um vídeo do outro lado, e por que ele
        não está ali. Um link pelado não conta nenhuma das duas coisas. */
     verdade("e diz que é vídeo e quanto pesa", /🎬/.test(links[0]) && /MB/.test(links[0]));
+  }
+
+  /* 20 MB de soma por fala, e arquivo pesado só com memória folgada. */
+  {
+    const antesF = globalThis.fetch;
+    let baixados = 0;
+    globalThis.fetch = async () => { baixados++; return { ok: true, arrayBuffer: async () => new ArrayBuffer(4) }; };
+    try {
+      const mb = 1024 * 1024;
+      const video = (n, tam) => ({ size: tam, name: `v${n}.mp4`, contentType: "video/mp4", url: `https://cdn/x${n}?ex=CADUCA` });
+      /* A bateria de testes ocupa mais memoria que o bot: aqui ela finge folga. */
+      const memReal = process.memoryUsage;
+      process.memoryUsage = () => ({ rss: 100 * mb });
+      const r = await baixarAnexos(msgCom([video(1, 12 * mb), video(2, 7 * mb), video(3, 5 * mb)]));
+      process.memoryUsage = memReal;
+      ok("cabem juntos até 20 MB: os dois primeiros vão como arquivo", r.arquivos.map((a) => a.name), ["v1.mp4", "v2.mp4"]);
+      verdade("o que passaria da soma vai como link para a fala original", r.links.length === 1 && /v3\.mp4/.test(r.links[0]));
+      ok("e não é baixado à toa", baixados, 2);
+      const antesMem = process.memoryUsage;
+      process.memoryUsage = () => ({ rss: 250 * mb });
+      try {
+        const apertado = await baixarAnexos(msgCom([video(4, 15 * mb), { size: 2 * mb, name: "foto.png", contentType: "image/png", url: "https://cdn/f" }]));
+        ok("memória apertada: o vídeo pesado vira link, a foto leve passa", apertado.arquivos.map((a) => a.name), ["foto.png"]);
+      } finally { process.memoryUsage = antesMem; }
+    } finally { globalThis.fetch = antesF; }
   }
 
   /* O download pode falhar mesmo cabendo. A saída de emergência tinha o mesmo
@@ -13913,6 +13946,26 @@ function conferirCartao(onde, embed, componentes = []) {
   } finally {
     Object.assign(globalThis, antes);
   }
+}
+
+/* ====== AS FIGURINHAS PADRÃO DO DISCORD, DESENHADAS EM GIF ======
+ *
+ * Webhook não manda figurinha, e as padrão do Discord (Wumpus, os pacotes
+ * oficiais) só existem como animação .json. Cada uma foi desenhada uma vez em
+ * GIF, no site; o bot só aponta. Um id na lista sem o GIF publicaria um
+ * quadrado quebrado em todas as salas. */
+{
+  const { FIGURINHAS_DO_DISCORD } = await import("./figurinhas-do-discord.js");
+  const pasta = `${aqui}/../cyron/figurinhas-discord`;
+  const gifs = new Set(readdirSync(pasta).filter((f) => f.endsWith(".gif")).map((f) => f.slice(0, -4)));
+  verdade("a lista tem as figurinhas desenhadas", FIGURINHAS_DO_DISCORD.size >= 200);
+  ok("todo id da lista tem o seu GIF no site", [...FIGURINHAS_DO_DISCORD].filter((id) => !gifs.has(id)), []);
+  ok("e todo GIF do site está na lista", [...gifs].filter((id) => !FIGURINHAS_DO_DISCORD.has(id)), []);
+  verdade("os ids são números do Discord", [...FIGURINHAS_DO_DISCORD].every((id) => /^\d{17,20}$/.test(id)));
+  const pesados = [...gifs].filter((id) => statSync(`${pasta}/${id}.gif`).size > 400 * 1024);
+  ok("nenhum GIF passa de 400 KB (o cartão carrega rápido no celular)", pesados, []);
+  const idx = readFileSync(`${aqui}/index.js`, "utf8");
+  verdade("o bot lê a lista do arquivo gerado", /import \{ FIGURINHAS_DO_DISCORD \} from "\.\/figurinhas-do-discord\.js";/.test(idx));
 }
 
 /* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======
