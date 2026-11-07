@@ -172,6 +172,39 @@ function escritasDe(tabela) {
   return escritasNaTabela.get(tabela) || 0;
 }
 
+/* Leitura com memoria -- e leitura que FALHOU nao vira verdade.
+
+   Toda memoria daqui fazia a mesma coisa quando o banco nao respondia: o
+   `catch` dizia "tenta de novo na proxima mensagem" e, logo embaixo, guardava
+   o vazio como se fosse a resposta. Com a configuracao segurando meia hora,
+   um soluco de oito segundos do Supabase virava MEIA HORA de servidor sem
+   salas: o espelho calado, os anuncios sem copia, os comandos do dono
+   sumidos -- e nenhum erro, porque para o bot a lista estava mesmo vazia.
+
+   Agora a falha devolve o ultimo retrato bom (velho e' melhor que vazio:
+   sala que existia ha' meia hora quase certamente ainda existe) e tenta de
+   novo em trinta segundos -- nao na mensagem seguinte, para um banco fora do
+   ar nao ser martelado por cada fala de cada servidor. Sem retrato nenhum, o
+   vazio, como antes.
+
+   `tabela` liga a guarda das escritas (escritasDe): leitura que cruzou com
+   uma escrita volta, mas nao fica guardada. */
+const ESPERA_APOS_FALHA = 30 * 1000;
+async function lerComMemoria(cache, chave, prazo, ler, { vazio = null, tabela = null, agora = Date.now() } = {}) {
+  const achado = cache.get(chave);
+  if (achado && agora - achado.t < (achado.falhou ? ESPERA_APOS_FALHA : prazo)) return achado.v;
+  const escritas = tabela ? escritasDe(tabela) : 0;
+  try {
+    const v = await ler();
+    if (!tabela || escritasDe(tabela) === escritas) cache.set(chave, { v, t: agora });
+    return v;
+  } catch {
+    const v = achado ? achado.v : vazio;
+    cache.set(chave, { v, t: agora, falhou: true });
+    return v;
+  }
+}
+
 async function sb(caminho) {
   const r = await fetch(`${SB_URL}/rest/v1/${caminho}`, comPrazo({
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
@@ -288,10 +321,7 @@ async function sbPatch(caminho, corpo) {
 
 const cacheServidor = new Map(); // guildId -> { v, t }
 async function servidorDoGuild(guildId) {
-  const achado = cacheServidor.get(guildId);
-  if (achado && Date.now() - achado.t < 5 * 60 * 1000) return achado.v;
-  let v = null;
-  try {
+  return lerComMemoria(cacheServidor, guildId, 5 * 60 * 1000, async () => {
     /* Le a linha INTEIRA, de proposito.
 
        Aqui havia uma lista de colunas escrita a mao, e ela envelheceu em
@@ -307,10 +337,8 @@ async function servidorDoGuild(guildId) {
        Um select=* custa alguns bytes por servidor a cada cinco minutos.
        Descobrir isto de novo custou uma hora. */
     const r = await sb(`cyron_servidor?guild_id=eq.${encodeURIComponent(guildId)}&select=*`);
-    v = r?.[0] ?? null;
-  } catch { /* tenta de novo na proxima mensagem */ }
-  cacheServidor.set(guildId, { v, t: Date.now() });
-  return v;
+    return r?.[0] ?? null;
+  }, { tabela: "cyron_servidor" });
 }
 
 
@@ -735,10 +763,18 @@ async function traduzirEResponder(msg, texto) {
     components: menuTraduzir(id),
   };
 
-  const podeTopico = typeof msg.startThread === "function" && !msg.hasThread && !msg.channel?.isThread?.();
+  /* Topico so' nasce em canal de texto ou de anuncio. No chat de um canal de
+     voz o discord.js recusa antes de perguntar ao Discord ("The message was
+     not sent in a guild text or news channel"), e isso ia pro canal de erros
+     como se fosse defeito -- ali o seletor vai como resposta, e pronto. */
+  const podeTopico = typeof msg.startThread === "function" && !msg.hasThread && !msg.channel?.isThread?.() &&
+    [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(msg.channel?.type);
   if (podeTopico) {
     const topico = await msg.startThread({ name: NOME_TOPICO, autoArchiveDuration: 60 })
-      .catch((e) => { console.error("traducao: nao consegui criar o topico:", e?.message || e); return null; });
+      .catch((e) => {
+        if (!mensagemSumiu(e)) console.error("traducao: nao consegui criar o topico:", e?.message || e);
+        return null;
+      });
 
     if (topico) {
       const postou = await topico.send({ ...corpo, allowedMentions: { parse: [] } })
@@ -755,7 +791,19 @@ async function traduzirEResponder(msg, texto) {
   }
 
   await msg.reply({ ...corpo, allowedMentions: { parse: [], repliedUser: false } })
-    .catch((e) => console.error("traducao: nao consegui mandar o seletor:", e?.message || e));
+    .catch((e) => {
+      if (!mensagemSumiu(e)) console.error("traducao: nao consegui mandar o seletor:", e?.message || e);
+    });
+}
+
+/* A mensagem foi apagada antes de o seletor chegar.
+
+   Dezessete vezes num mes o canal de erros ganhou "Unknown message" daqui, e
+   nenhuma era defeito: alguem escreveu e apagou (ou outro bot apagou) no
+   segundo que a traducao levou. Seletor de uma mensagem que nao existe mais
+   nao serve a ninguem -- calar e' a resposta certa. Pura. */
+function mensagemSumiu(e) {
+  return e?.code === 10008 || /MESSAGE_REFERENCE_UNKNOWN_MESSAGE|Unknown Message/i.test(String(e?.message || ""));
 }
 
 /* Rede de seguranca da barra lateral: topico de traducao que voltar a abrir
@@ -802,18 +850,13 @@ client.on("threadUpdate", async (antes, depois) => {
 const CONFIG_NA_MEMORIA = 30 * 60 * 1000;
 const cacheEspelho = new Map(); // servidorId -> { v, t }
 async function canaisEspelho(servidorId) {
-  const achado = cacheEspelho.get(servidorId);
-  if (achado && Date.now() - achado.t < CONFIG_NA_MEMORIA) return achado.v;
-  let v = [];
-  try {
+  return lerComMemoria(cacheEspelho, servidorId, CONFIG_NA_MEMORIA, async () =>
     /* So idioma que TEM sala de conversa entra aqui. Depois que a linha passou
        a significar "este idioma existe" em vez de "esta sala existe", uma
        linha sem canal virou possivel -- e ela chegaria no espelharMensagem
        como um destino de webhook nulo. */
-    v = await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&canal_id=not.is.null&select=canal_id,idioma,webhook,categoria_id`) || [];
-  } catch { /* tenta de novo na proxima mensagem */ }
-  cacheEspelho.set(servidorId, { v, t: Date.now() });
-  return v;
+    await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&canal_id=not.is.null&select=canal_id,idioma,webhook,categoria_id`) || [],
+  { vazio: [], tabela: "discord_chat_espelho" });
 }
 
 /* Google barra o endpoint classico quando a chamada sai do Supabase, mas o
@@ -5001,31 +5044,23 @@ function nomeDaReplica(modelo, rotulo, idioma) {
 
 const cacheFontes = new Map(); // servidorId -> { v: Map(canal_id -> tipo), t }
 async function fontesReplica(servidorId) {
-  const achado = cacheFontes.get(servidorId);
-  if (achado && Date.now() - achado.t < CONFIG_NA_MEMORIA) return achado.v;
-  let v = new Map();
-  try {
+  const vazio = Object.assign(new Map(), { geraReplica: new Set() });
+  return lerComMemoria(cacheFontes, servidorId, CONFIG_NA_MEMORIA, async () => {
     const r = await sb(`discord_fonte_replica?servidor_id=eq.${servidorId}&select=canal_id,tipo,gera_replica&order=criado_em.asc`) || [];
-    v = new Map(r.map((f) => [f.canal_id, f.tipo]));
+    const v = new Map(r.map((f) => [f.canal_id, f.tipo]));
     /* Quais fontes viram canal. A do chat entra na lista so pra emprestar o
        nome do canal original pra sala de conversa -- o espelho ja leva a fala
        de sala em sala, entao ela nao pode gerar replica tambem. */
     v.geraReplica = new Set(r.filter((f) => f.gera_replica).map((f) => f.canal_id));
-  } catch { /* tenta de novo na proxima mensagem */ }
-  cacheFontes.set(servidorId, { v, t: Date.now() });
-  return v;
+    return v;
+  }, { vazio, tabela: "discord_fonte_replica" });
 }
 
 const cacheReplicas = new Map(); // servidorId -> { v, t }
 async function replicasDoIdioma(servidorId) {
-  const achado = cacheReplicas.get(servidorId);
-  if (achado && Date.now() - achado.t < CONFIG_NA_MEMORIA) return achado.v;
-  let v = [];
-  try {
-    v = await sb(`discord_canal_idioma?servidor_id=eq.${servidorId}&select=canal_id,idioma,tipo,webhook`) || [];
-  } catch { /* tenta de novo na proxima mensagem */ }
-  cacheReplicas.set(servidorId, { v, t: Date.now() });
-  return v;
+  return lerComMemoria(cacheReplicas, servidorId, CONFIG_NA_MEMORIA, async () =>
+    await sb(`discord_canal_idioma?servidor_id=eq.${servidorId}&select=canal_id,idioma,tipo,webhook`) || [],
+  { vazio: [], tabela: "discord_canal_idioma" });
 }
 
 /* Negar "mandar mensagem" nao basta pra fazer um canal de so-leitura.
@@ -8106,30 +8141,25 @@ function fechouHaMuito(e, agora = Date.now()) {
 
    Quem escreve nessas tabelas e' so' o bot, e toda escrita dele passa por
    esquecerCacheDe: entao a memoria pode segurar por meia hora sem mentir. O
-   prazo e' so' a rede embaixo. Leitura que falhou nao e' guardada: a
-   proxima tenta de novo, como antes. */
+   prazo e' so' a rede embaixo. Leitura que falhou segue a regra de toda
+   memoria daqui (lerComMemoria): o ultimo retrato bom, e outra tentativa em
+   trinta segundos. */
 const cacheEventos = new Map();   // servidorId -> { v, t }
 const cachePresencas = new Map(); // eventoId -> { v, t }
 
 async function eventosDoServidor(servidorId, agora = Date.now()) {
-  const achado = cacheEventos.get(String(servidorId));
-  let todos = achado && agora - achado.t < CONFIG_NA_MEMORIA ? achado.v : null;
-  if (!todos) {
-    /* O prazo conta de quando o evento FECHA: um evento de 5d nao pode sumir
-       da agenda seis horas depois de comecar. A busca vai mais para tras, e o
-       corte fino e' aqui embaixo -- com o `agora` de quem pergunta, para a
-       copia guardada envelhecer certo. */
+  /* O prazo conta de quando o evento FECHA: um evento de 5d nao pode sumir
+     da agenda seis horas depois de comecar. A busca vai mais para tras, e o
+     corte fino e' aqui embaixo -- com o `agora` de quem pergunta, para a
+     copia guardada envelhecer certo. */
+  const todos = await lerComMemoria(cacheEventos, String(servidorId), CONFIG_NA_MEMORIA, async () => {
     const desde = new Date(agora - EVENTO_SOBREVIVE - DURACAO_MAX * 1000).toISOString();
-    const escritas = escritasDe("cyron_evento");
-    todos = await sb(`cyron_evento?servidor_id=eq.${servidorId}&quando=gte.${desde}` +
+    return await sb(`cyron_evento?servidor_id=eq.${servidorId}&quando=gte.${desde}` +
       /* Tudo, e nao uma lista de colunas: a agenda ganhou colunas novas, e uma
          lista que cite uma delas antes da migracao faria a leitura falhar -- e
          a agenda inteira sumir da sala. */
-      "&select=*&order=quando.asc")
-      .catch(() => null);
-    if (!todos) return [];
-    if (escritasDe("cyron_evento") === escritas) cacheEventos.set(String(servidorId), { v: todos, t: agora });
-  }
+      "&select=*&order=quando.asc") || [];
+  }, { vazio: [], tabela: "cyron_evento", agora });
   return todos.filter((e) => !fechouHaMuito(e, agora));
 }
 
@@ -8151,13 +8181,9 @@ async function presencasComNomes(id, guild) {
 }
 
 async function presencasDoEvento(id, agora = Date.now()) {
-  const achado = cachePresencas.get(String(id));
-  if (achado && agora - achado.t < CONFIG_NA_MEMORIA) return achado.v;
-  const escritas = escritasDe("cyron_evento_presenca");
-  const v = await sb(`cyron_evento_presenca?evento_id=eq.${id}&select=discord_user_id,vai`)
-    .catch(() => null);
-  if (!v) return [];
-  if (escritasDe("cyron_evento_presenca") === escritas) cachePresencas.set(String(id), { v, t: agora });
+  const v = await lerComMemoria(cachePresencas, String(id), CONFIG_NA_MEMORIA, async () =>
+    await sb(`cyron_evento_presenca?evento_id=eq.${id}&select=discord_user_id,vai`) || [],
+  { vazio: [], tabela: "cyron_evento_presenca", agora });
   /* Evento que acabou nao e' mais perguntado; a memoria nao cresce sem fim. */
   while (cachePresencas.size > 500) cachePresencas.delete(cachePresencas.keys().next().value);
   return v;
@@ -8424,7 +8450,12 @@ async function agendaComoOrigem(servidorId, canalAgenda) {
   await sbPost("discord_fonte_replica", {
     servidor_id: servidorId, canal_id: canalAgenda.id, tipo: TIPO_AGENDA, gera_replica: true,
   }).then(() => console.log(`eventos: a agenda virou origem das salas de idioma (${canalAgenda.id})`))
-    .catch((e) => console.error("eventos: nao consegui ligar a agenda as salas de idioma:", e?.message || e));
+    .catch((e) => {
+      /* 23505: a linha ja' existe -- a memoria das fontes estava atrasada
+         (ou a leitura tinha falhado). O que eu queria ja' esta' feito. */
+      if (/\b23505\b/.test(String(e?.message || ""))) return;
+      console.error("eventos: nao consegui ligar a agenda as salas de idioma:", e?.message || e);
+    });
   cacheFontes.delete(servidorId);
 }
 
@@ -23396,19 +23427,14 @@ const CACHE_DA_TABELA = {
   cyron_evento_presenca: cachePresencas,
 };
 async function comandosDoDono(guildId) {
-  const achado = cacheComandos.get(guildId);
-  if (achado && Date.now() - achado.t < CONFIG_NA_MEMORIA) return achado.v;
-  let v = [];
-  try {
+  return lerComMemoria(cacheComandos, guildId, CONFIG_NA_MEMORIA, async () =>
     /* `select=*` de proposito. Nomear as colunas parecia mais caprichado ate'
        eu quase publicar isto: se o banco ainda nao tiver a coluna nova, o
        PostgREST recusa a consulta INTEIRA com 400, o catch aqui embaixo devolve
        lista vazia -- e todo comando do dono desaparece do servidor sem uma
        linha de erro. A linha e' pequena; o risco de nomear nao vale. */
-    v = await sb(`cyron_comando?guild_id=eq.${encodeURIComponent(guildId)}&ativo=is.true&select=*`) || [];
-  } catch { /* tenta de novo na proxima */ }
-  cacheComandos.set(guildId, { v, t: Date.now() });
-  return v;
+    await sb(`cyron_comando?guild_id=eq.${encodeURIComponent(guildId)}&ativo=is.true&select=*`) || [],
+  { vazio: [], tabela: "cyron_comando" });
 }
 
 /* Registra um por um, e nao com um `set` da lista inteira.
@@ -23420,6 +23446,10 @@ async function comandosDoDono(guildId) {
 async function publicarComandosDoDono(guild) {
   try {
     const querem = await comandosDoDono(guild.id);
+    /* Sem saber o que o dono quer, nao publico nem apago nada: com a leitura
+       falhada a lista vem vazia, e o laco de baixo tiraria do Discord todo
+       comando que ele criou. */
+    if (cacheComandos.get(guild.id)?.falhou) return;
     const jaLa = await guild.commands.fetch();
 
     /* Quem e' meu se decide pelo ID gravado, nunca pelo nome.
@@ -25005,7 +25035,8 @@ function vezDaVarreduraCompleta(agora = Date.now()) {
 async function umaPassada() {
   const comecou = Date.now();
   await recarregarAjustes().catch((e) => console.error("ajustes: nao consegui recarregar:", e?.message || e));
-  if (vezDaVarreduraCompleta(comecou)) {
+  const varreduraCompletaAgora = vezDaVarreduraCompleta(comecou);
+  if (varreduraCompletaAgora) {
     await repararInstalacoes().catch((e) => console.error("instalar: reparo falhou:", e?.message || e));
     await sincronizarSalas().catch((e) => console.error("espelho: sincronia falhou:", e?.message || e));
     await garantirConvites().catch((e) => console.error("portaria: passada falhou:", e?.message || e));
@@ -25014,7 +25045,13 @@ async function umaPassada() {
   }
   await aposentarArenas().catch((e) => console.log("arena: aposentar falhou:", e?.message || e));
   await atualizarEventos().catch((e) => console.error("eventos: passada falhou:", e?.message || e));
-  await montarPainelDoDono().catch((e) => console.error("painel: montagem falhou:", e?.message || e));
+  /* O painel do dono sai junto com a parte pesada: e' ele que mostra o que
+     ela decidiu, e redesenhar a ficha de cada cliente a cada dez minutos era
+     o maior pedaco do que sobrou (uns 11 mil pedidos por dia, 17 fichas com
+     quatro leituras cada). O botao Remontar continua desenhando na hora. */
+  if (varreduraCompletaAgora) {
+    await montarPainelDoDono().catch((e) => console.error("painel: montagem falhou:", e?.message || e));
+  }
   await rodarComandosAgendados().catch((e) => console.error("agendado: passada falhou:", e?.message || e));
   /* A trava de HTTP sai do relogio da hora e passa pra ca'.
      Ela se agenda sozinha (hora em hora quando da' certo, dez minutos quando
@@ -25068,6 +25105,29 @@ async function deHoraEmHora() {
    semana; um a cada dez minutos faz o canal gritar, que é exatamente o que se
    quer quando o bot está morrendo em silêncio. */
 const BATIDA = 2 * 60 * 1000;
+
+/* Falha solta de tarefa que se repete sozinha nao e' defeito.
+
+   A passada curta roda todo minuto e a batida a cada dois. Quando o banco
+   soluca (oito segundos sem resposta, umas vezes por semana), cada uma
+   deixava um cartao no 🐛-erros: 47 da passada curta num mes, todos de
+   minutos que se resolveram no minuto seguinte. Cartao que se resolve sozinho
+   ensina a ignorar o canal -- o preco que ERRO_DO_CLIENTE ja' descreve.
+
+   A primeira e a segunda falha seguidas vao pro log comum. Da terceira em
+   diante (tres minutos de passada, seis de batida) vira erro, porque ai' nao
+   e' mais soluco. Um acerto zera a conta. */
+const FALHAS_TOLERADAS = 2;
+const falhasSeguidas = new Map(); // tarefa -> quantas seguidas
+function falhouDeNovo(tarefa, prefixo, e) {
+  const n = (falhasSeguidas.get(tarefa) || 0) + 1;
+  falhasSeguidas.set(tarefa, n);
+  (n > FALHAS_TOLERADAS ? console.error : console.log)(prefixo, e?.message || e);
+  return n;
+}
+function deuCerto(tarefa) {
+  falhasSeguidas.delete(tarefa);
+}
 
 /* A frase sobre a memoria, dita a partir do que foi MEDIDO.
  *
@@ -25276,10 +25336,14 @@ client.once("clientReady", () => {
           await Promise.all([
             porAjuste("visto", String(Date.now())),
             porAjuste("visto_mb", String(Math.round(process.memoryUsage().rss / 1048576))),
-          ]).catch((e) => console.error("batida: nao consegui bater:", e?.message || e));
+          ]).then(() => deuCerto("batida"), (e) => falhouDeNovo("batida", "batida: nao consegui bater:", e));
           return;
         }
-        console.error(`gateway: surdo há ${Math.round(v.ha / 1000)}s (${motivoDaSurdez}) — não bato enquanto não ouvir.`);
+        /* A batida que cai no meio de uma reconexao de rotina nao e' alarme:
+           "surdo há 1s" chegou ao canal de erros como "a conexão caiu e
+           demorou a voltar". Antes de SILENCIO_ANTES_DE_GRITAR, so' o log. */
+        (v.ha >= SILENCIO_ANTES_DE_GRITAR ? console.error : console.log)(
+          `gateway: surdo há ${Math.round(v.ha / 1000)}s (${motivoDaSurdez}) — não bato enquanto não ouvir.`);
         if (v.morrer) await morrerPorSurdez(v.ha);
       };
       bater();
@@ -25412,7 +25476,8 @@ client.once("clientReady", () => {
       60 * 60 * 1000);
   }, 3 * 60 * 1000);
   setInterval(() => {
-    sincronizarRecentes().catch((e) => console.error("espelho: passada curta falhou:", e?.message || e));
+    sincronizarRecentes().then(() => deuCerto("passada curta"),
+      (e) => falhouDeNovo("passada curta", "espelho: passada curta falhou:", e));
     descarregarUso().catch((e) => console.error("uso: descarga falhou:", e?.message || e));
     descarregarFuncoes().catch((e) => console.error("funcoes: descarga falhou:", e?.message || e));
     rodarXpDeVoz().catch((e) => console.error("niveis: voz falhou:", e?.message || e));
