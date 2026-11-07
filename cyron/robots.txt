@@ -1,0 +1,27 @@
+# O site inteiro pode ser lido por buscadores e por IAs: é assim que a CYRON
+# aparece quando alguém pergunta por um bot de tradução para Discord.
+User-agent: *
+Allow: /
+Disallow: /painel.html
+
+User-agent: GPTBot
+Allow: /
+Disallow: /painel.html
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /painel.html
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /painel.html
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /painel.html
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /painel.html
+
+Sitemap: https://hicyron.github.io/sitemap.xml

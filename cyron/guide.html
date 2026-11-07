@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to translate a Discord server into 22 languages — CYRON guide</title>
+<meta name="description" content="A practical guide to running a multilingual Discord server: one chat room per language, automatic translation between rooms, flag-reaction translation, and how CYRON compares to translating by command.">
+<meta name="robots" content="index,follow">
+<link rel="canonical" href="https://hicyron.github.io/guide.html">
+<meta property="og:title" content="How to translate a Discord server into 22 languages">
+<meta property="og:description" content="One chat room per language, translated automatically. Built for multilingual communities and gaming alliances.">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://hicyron.github.io/guide.html">
+<meta property="og:image" content="https://hicyron.github.io/img/cyron-og.jpg">
+<link rel="icon" href="./img/cyron.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "What is the best way to translate a Discord server automatically?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Use a bot that translates without commands. CYRON gives each language its own chat room and mirrors every message into the other rooms, translated, so people just chat. A flag reaction also translates any single message privately." } },
+    { "@type": "Question", "name": "How many languages does CYRON support?",
+      "acceptedAnswer": { "@type": "Answer", "text": "22: English, Portuguese, Spanish, French, German, Italian, Dutch, Polish, Russian, Ukrainian, Turkish, Arabic, Hindi, Chinese (Simplified and Traditional), Japanese, Korean, Indonesian, Malay, Thai, Vietnamese and Filipino." } },
+    { "@type": "Question", "name": "Is CYRON free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Flag-reaction translation and the translate button are free forever. The mirrored language rooms are part of the Pro and Alliance plans, and while CYRON is in beta every server gets the Alliance plan for free." } },
+    { "@type": "Question", "name": "Does it work for gaming alliances?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes, that is what it was built for: alliances in international game servers (for example mobile strategy games like Kingshot) where players from many countries need to coordinate rallies and events. Game terms can be kept untranslated with a per-server glossary." } },
+    { "@type": "Question", "name": "Do stickers, GIFs and emojis get through?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Yes. Stickers appear next to the message, GIF links show as images, and emojis from other servers are drawn below the text, in every language room." } }
+  ]
+}
+</script>
+<style>
+:root{ --fundo:#07080F; --painel:#13161C; --painel-2:#1A1E26; --borda:#232935; --texto:#EDEFF3; --fraco:#98A1AE;
+  --fraquinho:#6C7583; --ambar:#7B8CFF; --ambar-claro:#A9B4FF; --verde:#5EBB83; --r:16px; }
+*{box-sizing:border-box}
+body{margin:0; background:var(--fundo); color:var(--texto);
+  font:17px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased}
+a{color:var(--ambar); text-decoration:none} a:hover{text-decoration:underline}
+.env{max-width:760px; margin:0 auto; padding:0 22px}
+.barra{position:sticky; top:0; z-index:30; background:rgba(11,13,17,.86); backdrop-filter:blur(12px); border-bottom:1px solid var(--borda)}
+.barra .env{display:flex; align-items:center; gap:14px; height:60px; max-width:1000px}
+.marca{font-weight:800; letter-spacing:.14em; font-size:15px; color:var(--texto)}
+.barra nav{margin-left:auto; display:flex; gap:6px}
+.barra nav a{color:var(--fraco); font-size:14.5px; padding:8px 11px; border-radius:9px; white-space:nowrap}
+.barra nav a:hover{color:var(--texto); background:var(--painel-2); text-decoration:none}
+.topo{padding:60px 0 8px}
+.rotulo{font-size:12px; font-weight:750; letter-spacing:.18em; text-transform:uppercase; color:var(--ambar); margin-bottom:14px}
+h1{font-size:clamp(30px,5vw,42px); line-height:1.14; letter-spacing:-.022em; margin:0}
+.abre{margin:22px 0 0; color:var(--fraco); font-size:18px}
+main{padding:10px 0 90px}
+h2{font-size:24px; letter-spacing:-.015em; margin:54px 0 0}
+h3{font-size:18px; margin:28px 0 0; color:var(--ambar-claro)}
+p{margin:14px 0 0} ul,ol{margin:14px 0 0; padding-left:22px} li{margin:8px 0}
+.quadro{margin-top:22px; border:1px solid var(--borda); border-radius:var(--r); overflow:hidden}
+table{width:100%; border-collapse:collapse; font-size:15.5px}
+th,td{text-align:left; padding:13px 16px; border-bottom:1px solid var(--borda); vertical-align:top}
+th{background:var(--painel-2); font-size:12.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--fraquinho)}
+tr:last-child td{border-bottom:0}
+.botao{display:inline-block; margin-top:22px; background:#5865F2; color:#fff; font-weight:700; padding:13px 22px; border-radius:12px}
+.botao:hover{text-decoration:none; filter:brightness(1.08)}
+.nota{color:var(--fraquinho); font-size:15px}
+@media (max-width:640px){ .barra nav a.opc{display:none} th,td{padding:11px 12px} }
+</style>
+</head>
+<body>
+<header class="barra"><div class="env">
+  <a class="marca" href="./">CYRON</a>
+  <nav>
+    <a href="./recursos.html" class="opc">Features</a>
+    <a href="./passos.html" class="opc">Setup</a>
+    <a href="./">Home</a>
+  </nav>
+</div></header>
+
+<div class="env">
+  <div class="topo">
+    <div class="rotulo">Guide</div>
+    <h1>How to translate a Discord server into 22 languages</h1>
+    <p class="abre">If your community mixes people from many countries, the hard part isn't translating one message. It's letting everyone just talk, in their own language, without stopping to run a command. This guide shows how CYRON does that.</p>
+  </div>
+
+  <main>
+    <h2>The problem with translating by command</h2>
+    <p>Most translation bots wait for someone to type <em>/translate</em> or react to a message. That works for the occasional sentence, but in a busy chat nobody does it: the conversation splits by language, and half the server stops reading the other half.</p>
+
+    <h2>How CYRON works</h2>
+    <ol>
+      <li><strong>Each member picks a language</strong> in the entry channel. CYRON gives them a role and a chat room in that language, for example <em>#chat-id</em> for Indonesian or <em>#chat-zh</em> for Chinese.</li>
+      <li><strong>They write in their own room, in their own language.</strong> The message appears in every other language room, translated, with the author's name and a small tag like 🇮🇩 → 🇬🇧.</li>
+      <li><strong>Replies come back the same way.</strong> A player in Thailand answers in Thai, and the English room reads it in English.</li>
+    </ol>
+    <p>Stickers, GIF links and emojis cross between rooms too, including stickers and emojis from other servers. Edits and deletions follow the original message.</p>
+
+    <h3>Other ways to translate</h3>
+    <ul>
+      <li><strong>Flag reactions:</strong> react to any message with a country flag (🇯🇵 🇮🇩 🇧🇷 …) and the translation arrives privately. Free forever, in any channel.</li>
+      <li><strong>Translate button:</strong> under an announcement, each person picks a language and gets a private copy.</li>
+      <li><strong>Images and voice:</strong> text in screenshots and voice messages can be translated too.</li>
+      <li><strong>Glossary:</strong> game terms such as "rally" or "bear" stay as they are instead of being turned into something else.</li>
+    </ul>
+
+    <h2>Translating by command vs. CYRON</h2>
+    <div class="quadro"><table>
+      <tr><th></th><th>Typical translation bot</th><th>CYRON</th></tr>
+      <tr><td>How people use it</td><td>A command or reaction per message</td><td>People just chat; translation happens on its own</td></tr>
+      <tr><td>Who sees what</td><td>Everyone sees every language mixed together</td><td>Each person reads one room, in their language</td></tr>
+      <tr><td>Replies and mentions</td><td>Usually lost between languages</td><td>Replies, mentions and edits follow the message</td></tr>
+      <tr><td>Stickers and emojis</td><td>Often not carried over</td><td>Carried into every room</td></tr>
+    </table></div>
+
+    <h2>Who it's for</h2>
+    <p>CYRON was built for <strong>gaming alliances in international servers</strong>, like the mobile strategy games where one alliance has players from Brazil, Indonesia, China, Thailand, Vietnam and Europe and needs to coordinate rallies and events at the same time. It fits any Discord community whose members speak different languages.</p>
+
+    <h2>Languages</h2>
+    <p>English, Portuguese, Spanish, French, German, Italian, Dutch, Polish, Russian, Ukrainian, Turkish, Arabic, Hindi, Chinese (Simplified), Chinese (Traditional), Japanese, Korean, Indonesian, Malay, Thai, Vietnamese and Filipino.</p>
+
+    <h2>Price</h2>
+    <p>Flag-reaction translation and the translate button are free, with no limit. The language rooms, copied channels and image/voice translation are part of the Pro and Alliance plans. <strong>While CYRON is in beta, every server gets the Alliance plan for free.</strong></p>
+
+    <h2>Setting it up</h2>
+    <ol>
+      <li>Add CYRON to your server.</li>
+      <li>Members choose their language; CYRON creates the rooms when someone needs them.</li>
+      <li>Adjust everything in the ⚙️-cyron channel, or with <em>/cyron</em>.</li>
+    </ol>
+    <a class="botao" href="https://discord.com/oauth2/authorize?client_id=1498142929041096856&amp;permissions=327223209040&amp;scope=bot%20applications.commands">➕ Add CYRON to Discord</a>
+    <p class="nota">Step-by-step with screenshots: <a href="./passos.html">setup guide</a> · Every feature: <a href="./recursos.html">features</a></p>
+  </main>
+</div>
+</body>
+</html>

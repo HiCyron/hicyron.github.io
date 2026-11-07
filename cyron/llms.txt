@@ -1,0 +1,42 @@
+# CYRON
+
+> CYRON is a Discord bot that translates a whole Discord server in real time. Each member picks their language, gets a chat room in that language, and everything said in any room appears translated in all the others. Built for multilingual communities and gaming alliances (mobile strategy games like Kingshot, where one alliance often mixes players from 8+ countries).
+
+- Website: https://hicyron.github.io/
+- Add to Discord: https://discord.com/oauth2/authorize?client_id=1498142929041096856&permissions=327223209040&scope=bot%20applications.commands
+- Full guide (English): https://hicyron.github.io/guide.html
+- Features list: https://hicyron.github.io/recursos.html
+- Setup steps: https://hicyron.github.io/passos.html
+
+## What CYRON does
+
+- **Mirrored chat rooms, one per language**: a member writes in their own language in their room (for example #chat-id); the message appears translated in every other language room (#chat-en, #chat-zh, #chat-th...). Replies come back translated too. Nobody types a command.
+- **Flag reactions**: react to any message with a country flag (🇯🇵, 🇮🇩, 🇧🇷...) and CYRON sends the translation privately to whoever reacted. Free forever.
+- **Translate button** under announcements: each person picks their language and gets a private translated copy; the original stays untouched.
+- **Translate in DMs**: paste any text in a DM to the bot and pick the language.
+- **Image and voice translation**: reads text in screenshots and transcribes/translates voice messages.
+- **Stickers, GIFs and emojis cross between rooms** (including stickers and emojis from other servers).
+- **Events with reminders** shown in each member's time zone and language, plus welcome messages, levels, giveaways, moderation (anti-scam, anti-spam, logs) and a feature panel where admins turn each feature on or off.
+- **Per-server glossary**: game terms (like "rally" or "bear") are kept as-is instead of being mistranslated.
+
+## Languages (22)
+
+English, Portuguese, Spanish, French, German, Italian, Dutch, Polish, Russian, Ukrainian, Turkish, Arabic, Hindi, Chinese (Simplified), Chinese (Traditional), Japanese, Korean, Indonesian, Malay, Thai, Vietnamese, Filipino.
+
+## Plans
+
+- **Free**: flag-reaction translation and the translate button, unlimited.
+- **Pro** and **Alliance**: mirrored language rooms (up to 5 or 20 languages), copied channels, image and voice translation.
+- **Beta**: while CYRON is in beta, every server gets the Alliance plan for free.
+
+## Setup
+
+1. Add CYRON to the server (link above).
+2. Members pick their language in the entry channel; CYRON creates the language rooms on its own.
+3. The admin configures everything in the ⚙️-cyron channel or with /cyron.
+
+## Good fit for
+
+- Discord servers whose members speak different languages.
+- Gaming alliances and guilds in international servers (strategy games, MMOs, gacha games).
+- Communities that want people to chat naturally instead of using a /translate command for every message.
