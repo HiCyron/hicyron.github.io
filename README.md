@@ -1,5 +1,16 @@
 # CYRON
 
+**CYRON is a Discord bot that translates a whole server in real time.** Each member picks their language and
+gets a chat room in it; every message is mirrored, translated, into the other language rooms, so people just
+chat — no commands. Flag reactions translate any single message privately. 22 languages (English, Chinese
+Simplified/Traditional, Indonesian, Malay, Thai, Vietnamese, Japanese, Korean, Filipino, Hindi, Arabic, Russian,
+Spanish, Portuguese and more), built for multilingual communities and gaming alliances.
+
+- Website: https://hicyron.github.io · Guide: https://hicyron.github.io/guide.html
+- Add to Discord: https://discord.com/oauth2/authorize?client_id=1498142929041096856&permissions=327223209040&scope=bot%20applications.commands
+
+---
+
 Bot de tradução para Discord, e o site dele: https://hicyron.github.io
 
 | Pasta | O que é |

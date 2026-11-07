@@ -1,0 +1,205 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fontes/noto-sans/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/900.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans-thai/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans-thai/package/700.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b0d1a; }
+  body { font-family: "Noto Sans", "Noto Sans SC", "Noto Sans Thai", "Noto Color Emoji", sans-serif; color: #fff; }
+  #palco { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 900px at 50% 30%, #23295c 0%, #12152e 55%, #090a16 100%); }
+  .bolha-luz { position: absolute; border-radius: 50%; filter: blur(80px); opacity: .55; }
+  .abs { position: absolute; will-change: transform, opacity; }
+  /* cena 1: saudacoes */
+  .oi { font-weight: 700; font-size: 58px; padding: 22px 34px; border-radius: 40px; background: #2b3170;
+    box-shadow: 0 10px 30px rgba(0,0,0,.35); white-space: nowrap; }
+  .oi.b { background: #3a2f72; } .oi.c { background: #1f4a6e; } .oi.d { background: #4a2a5c; }
+  #confuso { font-size: 220px; left: 0; right: 0; text-align: center; top: 640px; }
+  /* painel de chat */
+  .painel { position: absolute; left: 80px; width: 920px; background: #1e1f2b; border-radius: 36px;
+    box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 2px rgba(255,255,255,.05); overflow: hidden; }
+  .topo { display: flex; align-items: center; gap: 14px; padding: 26px 34px; background: #17181f;
+    font-weight: 700; font-size: 38px; color: #dfe1ff; }
+  .topo .h { color: #8a8fb8; font-size: 44px; }
+  .msg { display: flex; gap: 22px; padding: 26px 34px 10px; align-items: flex-start; }
+  .av { flex: 0 0 auto; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 900; font-size: 40px; color: #fff; }
+  .nome { font-weight: 700; font-size: 34px; color: #c9ccff; margin-bottom: 6px; }
+  .texto { font-weight: 500; font-size: 42px; line-height: 1.25; color: #f2f3ff; }
+  .cursor { display: inline-block; width: 4px; height: 44px; background: #fff; vertical-align: -6px; margin-left: 4px; }
+  .cartao { margin: 14px 34px 26px 140px; padding: 20px 26px; border-radius: 18px; background: #262839;
+    border-left: 8px solid #f0a33a; display: flex; gap: 20px; align-items: flex-start; }
+  .cartao .corpo { flex: 1; }
+  .cartao .nome { font-size: 30px; }
+  .cartao .texto { font-size: 38px; }
+  .selo { font-size: 26px; color: #9ea3cf; margin-top: 8px; font-weight: 500; }
+  .canto { width: 150px; height: 150px; object-fit: contain; flex: 0 0 auto; }
+  .emojis { display: flex; gap: 14px; margin-top: 12px; }
+  .emojis img { width: 72px; height: 72px; object-fit: contain; }
+  /* salas espalhadas */
+  .sala { position: absolute; width: 440px; background: #1e1f2b; border-radius: 26px; padding: 22px 24px;
+    box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+  .sala .t { font-weight: 700; font-size: 28px; color: #8a8fb8; margin-bottom: 10px; }
+  .sala .x { font-weight: 500; font-size: 33px; line-height: 1.3; color: #f2f3ff; }
+  .sala .s { font-size: 24px; color: #9ea3cf; margin-top: 10px; }
+  /* cyron */
+  #nomeCyron { left: 0; right: 0; text-align: center; font-weight: 900; font-size: 150px; letter-spacing: 6px;
+    background: linear-gradient(90deg, #8fd3ff, #b79bff, #ffd1f5); -webkit-background-clip: text; color: transparent; }
+  .chip { position: absolute; font-weight: 700; font-size: 29px; padding: 12px 18px; border-radius: 30px; width: 230px; text-align: center; overflow: hidden;
+    background: rgba(255,255,255,.09); border: 2px solid rgba(255,255,255,.14); white-space: nowrap; }
+  /* chamada final */
+  #cta { left: 90px; width: 900px; text-align: center; }
+  .botao { display: inline-block; font-weight: 900; font-size: 64px; padding: 34px 70px; border-radius: 80px;
+    background: linear-gradient(90deg, #5865f2, #8b5cf6); box-shadow: 0 20px 60px rgba(88,101,242,.55); }
+  .linha2 { font-weight: 700; font-size: 50px; margin-top: 44px; color: #ffe27a; }
+  .linha3 { font-weight: 500; font-size: 40px; margin-top: 26px; color: #c9ccff; }
+  /* legenda */
+  #legenda { position: absolute; left: 60px; right: 60px; top: 1500px; text-align: center; font-weight: 900;
+    font-size: 76px; line-height: 1.15; text-transform: uppercase; letter-spacing: 1px;
+    -webkit-text-stroke: 10px #0b0d1a; paint-order: stroke fill; }
+  #legenda span { display: inline-block; margin: 0 10px; transition: none; }
+  #legenda span.ja { color: #fff; }
+  #legenda span.agora { color: #ffd84d; }
+  #legenda span.vem { color: rgba(255,255,255,.0); }
+  #marca { position: absolute; top: 70px; left: 0; right: 0; text-align: center; font-weight: 700; font-size: 34px;
+    color: rgba(255,255,255,.55); letter-spacing: 8px; }
+</style></head>
+<body><div id="palco"></div>
+<script>
+const P = document.getElementById("palco");
+let TL = null, TX = null;
+const el = (tag, cls, html, pai = P) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; pai.appendChild(e); return e; };
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const prog = (t, a, b) => clamp((t - a) / (b - a));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeBack = (x) => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const cena = (id) => TL.cenas.find((c) => c.id === id);
+const COR = { "Você": "#5865f2", You: "#5865f2", Budi: "#e0732f", Mika: "#d9488f", Lan: "#2fa36b", Wei: "#c9a227", Somchai: "#2f86c9" };
+
+function montar(tl, tx) {
+  TL = tl; TX = tx;
+  // luzes de fundo
+  [["#3b4bff", 700, 300, 200], ["#a24bff", 600, 760, 1250], ["#00b3ff", 500, 120, 1500]].forEach(([c, s, x, y], i) => {
+    const b = el("div", "bolha-luz"); b.style.cssText += `background:${c};width:${s}px;height:${s}px;left:${x - s / 2}px;top:${y - s / 2}px`; b.dataset.i = i;
+  });
+  el("div", "", "CYRON", P).id = "marca";
+  // cena 1
+  const ois = [["Hello!", 120, 260], ["你好！", 600, 360, "b"], ["Halo!", 160, 560, "c"], ["สวัสดี", 610, 640, "d"],
+    ["Xin chào!", 90, 860, "b"], ["안녕!", 660, 930], ["Привет!", 140, 1130, "d"], ["مرحبا", 640, 1210, "c"], ["Olá!", 380, 1360]];
+  ois.forEach(([txt, x, y, v], i) => { const o = el("div", "oi abs " + (v || ""), txt); o.style.left = x + "px"; o.style.top = y + "px"; o.dataset.i = i; o.dataset.k = "oi"; });
+  const conf = el("div", "abs", "😵‍💫"); conf.id = "confuso";
+  // painel principal
+  const pn = el("div", "painel abs"); pn.id = "painel";
+  pn.innerHTML = `<div class="topo"><span class="h">#</span>${TX.sala}</div>
+    <div class="msg"><div class="av" style="background:${COR.You}">Y</div><div><div class="nome">You</div>
+      <div class="texto"><span id="digitado"></span><span class="cursor" id="cursor"></span></div></div></div>
+    <div class="cartao" id="resp"><div class="corpo"><div class="nome">Budi</div><div class="texto">${TX.resposta}</div>
+      <div class="selo">🇮🇩 → 🇬🇧</div></div></div>
+    <div class="cartao" id="fig"><div class="corpo"><div class="nome">Mika</div><div class="texto">🎨 GG</div>
+      <div class="emojis"><img src="img/kkk.png"><img src="img/amei.png"><img src="img/uau.png"></div>
+      <div class="selo">🇯🇵 → 🇬🇧</div></div><img class="canto" src="img/gg.png"></div>`;
+  // salas que recebem a traducao
+  const salas = [["chat-id", "Ada yang ikut beruang jam 8 malam?", "🇬🇧 → 🇮🇩", 60, 880],
+    ["chat-zh", "有人晚上8点打熊吗？", "🇬🇧 → 🇨🇳", 580, 880],
+    ["chat-th", "มีใครไปตีหมีตอนสองทุ่มไหม?", "🇬🇧 → 🇹🇭", 60, 1150],
+    ["chat-vi", "Có ai đi đánh gấu lúc 8 giờ tối không?", "🇬🇧 → 🇻🇳", 580, 1150],
+    ["chat-ja", "20時に熊に参加する人いる？", "🇬🇧 → 🇯🇵", 320, 610]];
+  salas.forEach(([n, x, s, l, tp], i) => { const d = el("div", "sala abs", `<div class="t"># ${n}</div><div class="x">${x}</div><div class="s">${s}</div>`); d.style.left = l + "px"; d.style.top = tp + "px"; d.dataset.i = i; d.dataset.k = "sala"; });
+  // cena cyron
+  const corpo = el("img", "abs"); corpo.src = "img/cyron-corpo.webp"; corpo.id = "corpo"; corpo.style.cssText += "height:680px;left:372px;top:170px";
+  const nm = el("div", "abs", "CYRON"); nm.id = "nomeCyron"; nm.style.top = "860px";
+  const chips = ["🇬🇧 English", "🇮🇩 Indonesia", "🇨🇳 中文", "🏮 繁體中文", "🇹🇭 ไทย", "🇻🇳 Tiếng Việt", "🇯🇵 日本語", "🇰🇷 한국어",
+    "🇲🇾 Melayu", "🇵🇭 Filipino", "🇧🇷 Português", "🇪🇸 Español", "🇷🇺 Русский", "🇸🇦 العربية", "🇹🇷 Türkçe", "🇩🇪 Deutsch"];
+  chips.forEach((c, i) => { const ch = el("div", "chip", c); ch.dataset.i = i; ch.dataset.k = "chip";
+    const col = i % 4, lin = Math.floor(i / 4); ch.style.left = (50 + col * 250) + "px"; ch.style.top = (1080 + lin * 86) + "px"; });
+  // chamada final
+  const cta = el("div", "abs"); cta.id = "cta"; cta.style.top = "1000px";
+  cta.innerHTML = `<div class="botao">➕ ${TX.cta1}</div><div class="linha2">✨ ${TX.cta2}</div><div class="linha3">${TX.cta3} · hicyron.github.io</div>`;
+  const rosto = el("img", "abs"); rosto.src = "img/aceno.png"; rosto.id = "rosto"; rosto.style.cssText += "width:520px;left:280px;top:380px";
+  el("div", "", "", P).id = "legenda";
+}
+
+function mostra(e, op, tx = 0, ty = 0, sc = 1, rot = 0) {
+  e.style.opacity = op; e.style.transform = `translate(${tx}px,${ty}px) scale(${sc}) rotate(${rot}deg)`;
+  e.style.visibility = op <= 0.001 ? "hidden" : "visible";
+}
+
+function render(t) {
+  const q = (s) => document.querySelector(s), qa = (s) => [...document.querySelectorAll(s)];
+  // fundo vivo
+  qa(".bolha-luz").forEach((b) => { const i = +b.dataset.i; b.style.transform = `translate(${Math.sin(t * .4 + i * 2) * 60}px,${Math.cos(t * .33 + i) * 50}px)`; });
+  const c1 = cena("caos"), c2 = cena("digita"), c3 = cena("espalha"), c4 = cena("resposta"), c5 = cena("figurinha"), c6 = cena("cyron"), c7 = cena("cta");
+  // cena 1: saudacoes pipocando, depois confusao
+  const sai1 = prog(t, c2.inicio - 0.3, c2.inicio + 0.2);
+  qa('[data-k="oi"]').forEach((o) => { const i = +o.dataset.i; const a = prog(t, 0.1 + i * 0.28, 0.45 + i * 0.28);
+    const bob = Math.sin(t * 2.2 + i) * 10; const tremor = t > c1.inicio + 2.6 ? Math.sin(t * 40 + i) * 4 : 0;
+    mostra(o, easeOut(a) * (1 - sai1), tremor, bob + (1 - easeOut(a)) * 40, 0.6 + 0.4 * easeBack(a)); });
+  const cf = prog(t, c1.inicio + 2.4, c1.inicio + 2.8);
+  mostra(q("#confuso"), easeOut(cf) * (1 - sai1), 0, Math.sin(t * 3) * 12, 0.4 + 0.6 * easeBack(cf), Math.sin(t * 5) * 6);
+  // painel: entra na cena 2, sobe na 3, volta na 4, sai na 6
+  const pn = q("#painel");
+  const entra = easeOut(prog(t, c2.inicio, c2.inicio + 0.5));
+  const sobe = easeOut(prog(t, c3.inicio - 0.1, c3.inicio + 0.5));
+  const volta = easeOut(prog(t, c4.inicio - 0.2, c4.inicio + 0.4));
+  const sai = easeOut(prog(t, c6.inicio - 0.2, c6.inicio + 0.3));
+  const yBase = 380, yAlto = 230;
+  let y = yBase + (1 - entra) * 300;
+  y = y + (yAlto - yBase) * sobe * (1 - volta);
+  const esc = 1 - 0.18 * sobe * (1 - volta);
+  mostra(pn, entra * (1 - sai), 0, y - 0 - 0, esc);
+  pn.style.top = "0px"; pn.style.transformOrigin = "50% 0%";
+  // digitacao
+  const txt = TX.pergunta, ndig = Math.round(txt.length * prog(t, c2.inicio + 0.9, c2.fim - 0.2));
+  q("#digitado").textContent = txt.slice(0, ndig);
+  q("#cursor").style.opacity = (ndig < txt.length && Math.floor(t * 3) % 2 === 0) || ndig === 0 ? 1 : (ndig < txt.length ? 0 : 0);
+  // resposta e figurinha dentro do painel
+  const r = prog(t, c4.inicio + 0.3, c4.inicio + 0.75), f = prog(t, c5.inicio + 0.1, c5.inicio + 0.55);
+  const resp = q("#resp"), fig = q("#fig");
+  resp.style.display = t >= c4.inicio + 0.3 ? "flex" : "none"; mostra(resp, easeOut(r), 0, (1 - easeOut(r)) * 40, 0.9 + 0.1 * easeBack(r));
+  fig.style.display = t >= c5.inicio + 0.1 ? "flex" : "none"; mostra(fig, easeOut(f), 0, (1 - easeOut(f)) * 40, 0.9 + 0.1 * easeBack(f));
+  // salas: entram uma a uma na cena 3 e saem na 4
+  const saiSalas = easeOut(prog(t, c4.inicio - 0.2, c4.inicio + 0.3));
+  qa('[data-k="sala"]').forEach((s) => { const i = +s.dataset.i; const a = prog(t, c3.inicio + 0.15 + i * 0.32, c3.inicio + 0.55 + i * 0.32);
+    mostra(s, easeOut(a) * (1 - saiSalas), 0, (1 - easeOut(a)) * 80 + Math.sin(t * 2 + i) * 6, 0.7 + 0.3 * easeBack(a)); });
+  // cena cyron
+  const cy = prog(t, c6.inicio, c6.inicio + 0.6), saiCy = easeOut(prog(t, c7.inicio - 0.2, c7.inicio + 0.3));
+  mostra(q("#corpo"), easeOut(cy) * (1 - saiCy), 0, (1 - easeBack(cy)) * 200 + Math.sin(t * 2.5) * 10, 1);
+  mostra(q("#nomeCyron"), easeOut(prog(t, c6.inicio + 0.4, c6.inicio + 0.9)) * (1 - saiCy), 0, 0, 0.8 + 0.2 * easeBack(prog(t, c6.inicio + 0.4, c6.inicio + 0.9)));
+  qa('[data-k="chip"]').forEach((ch) => { const i = +ch.dataset.i; const a = prog(t, c6.inicio + 2.2 + i * 0.12, c6.inicio + 2.6 + i * 0.12);
+    // chips orbitam em volta do topo, por cima do corpo
+    mostra(ch, easeOut(a) * (1 - saiCy), 0, (1 - easeOut(a)) * -40 + Math.sin(t * 2 + i) * 5, 0.6 + 0.4 * easeBack(a)); });
+  // chamada final
+  const ct = prog(t, c7.inicio, c7.inicio + 0.6);
+  const pulso = 1 + Math.max(0, Math.sin((t - c7.inicio) * 4)) * 0.03 * (t > c7.inicio + 0.6 ? 1 : 0);
+  mostra(q("#cta"), easeOut(ct), 0, (1 - easeOut(ct)) * 120, pulso);
+  mostra(q("#rosto"), easeOut(prog(t, c7.inicio + 0.2, c7.inicio + 0.7)), 0, Math.sin(t * 3) * 14, 0.7 + 0.3 * easeBack(prog(t, c7.inicio + 0.2, c7.inicio + 0.7)), Math.sin(t * 4) * 3);
+  // legenda: o trecho de ate 4 palavras que contem a palavra falada agora
+  legenda(t);
+}
+
+function legenda(t) {
+  const L = document.getElementById("legenda");
+  const c = TL.cenas.find((x) => t >= x.inicio - 0.05 && t <= x.fim + 0.25);
+  if (!c || !c.palavras.length) { L.innerHTML = ""; return; }
+  const pal = c.palavras, grupos = [];
+  let atual = [];
+  for (const p of pal) { atual.push(p); if (p.quebra || atual.length === 5) { grupos.push(atual); atual = []; } }
+  if (atual.length) grupos.push(atual);
+  let g = grupos.findIndex((gr) => t < gr[gr.length - 1].t1 + 0.08);
+  if (g < 0) g = grupos.length - 1;
+  const chave = c.id + ":" + g;
+  if (L.dataset.chave !== chave) {
+    L.dataset.chave = chave;
+    L.innerHTML = grupos[g].map((p) => `<span>${p.texto}</span>`).join(" ");
+  }
+  [...L.children].forEach((s, i) => { const p = grupos[g][i];
+    s.className = t >= p.t0 - 0.02 && t < p.t1 + 0.05 ? "agora" : t >= p.t0 ? "ja" : "ja";
+    const pop = clamp((t - p.t0) / 0.12); s.style.transform = `scale(${t >= p.t0 && t < p.t1 + 0.05 ? 1 + 0.08 * (1 - Math.abs(pop - 0.5) * 2) + 0.04 : 1})`; });
+}
+window.montar = montar; window.render = render;
+</script></body></html>

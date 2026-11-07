@@ -1,0 +1,26 @@
+{
+  "voz": "en-US-AvaMultilingualNeural",
+  "taxa": "+8%",
+  "tom": "+0Hz",
+  "final": 1.6,
+  "textos": {
+    "sala": "chat-en",
+    "pergunta": "Anyone joining the bear at 8pm?",
+    "resposta": "Yes! I'm in 🐻",
+    "resposta_de": "id",
+    "cta1": "Add CYRON",
+    "cta2": "Free during beta",
+    "cta3": "22 languages",
+    "beta": "Everything unlocked, free",
+    "caos": "???"
+  },
+  "cenas": [
+    { "id": "caos", "fala": "Your alliance speaks eight languages... and nobody understands each other?" },
+    { "id": "digita", "fala": "Watch this. I write in English..." },
+    { "id": "espalha", "fala": "and everyone reads it in their own language. Instantly." },
+    { "id": "resposta", "fala": "They answer in their language, and I read it in mine." },
+    { "id": "figurinha", "fala": "Stickers, GIFs and emojis go across too." },
+    { "id": "cyron", "fala": "This is CYRON. A Discord bot with twenty-two languages, made for multilingual alliances." },
+    { "id": "cta", "fala": "It's in beta, so everything is free right now. Link in bio!" }
+  ]
+}
