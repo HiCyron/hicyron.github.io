@@ -503,7 +503,10 @@ function porQueNaoTraduzir(texto, teto = 800, minimo = 12) {
   /* Sem a pontuacao do fim: "ok!" e "ok" sao a mesma coisa. */
   if (UNIVERSAIS.has(t.toLowerCase().replace(/[!?.…\s]+$/u, ""))) return "curto";
 
-  if (/^[\p{Emoji_Presentation}\p{Extended_Pictographic}\s]+$/u.test(t)) return "curto";
+  /* Emoji de servidor (`<:pepe:123...>`) conta como emoji: sao 30 letras de
+     marcacao que nao dizem nada ao tradutor, e mandavam a fala pra traducao
+     -- cota gasta pra devolver o mesmo emoji. */
+  if (/^(?:<a?:\w+:\d+>|[\p{Emoji_Presentation}\p{Extended_Pictographic}\s])+$/u.test(t)) return "curto";
   if (/^https?:\/\/\S+$/i.test(t)) return "curto";
   if (/^[\d\s.,:!?-]+$/.test(t)) return "curto";
   if (/^[/!.][a-z]/i.test(t)) return "curto"; // parece comando
@@ -2254,17 +2257,36 @@ function emendaNestaSala(velho, ultimoDaSala, juntas, traduzidoAgora = null) {
   return ultimoDaSala === velho.id && juntas.length <= LIMITE_DO_CARTAO;
 }
 
-/* A figura de um cartao que recebe emenda: a do cartao novo, e o que faltar
-   vem do de cima. O canto (figurinha) e a imagem (GIF do link) sao lugares
-   separados -- a fala nova so' toma o lugar que ela mesma traz. Devolve o
-   embed pronto e a figura para lembrar na proxima emenda. Pura. */
+/* A figura de um cartao que recebe emenda. O canto (figurinha ou emoji de
+   fora) e a imagem (GIF do link) sao lugares separados, cada um com a sua
+   regra:
+   - o CANTO e' de quem chegou primeiro. Fala com figurinha nunca emenda, entao
+     o canto que a fala nova traz e' um emoji de fora -- e um emoji num "kkk"
+     nao tira o "GG" que ja' estava ali;
+   - a IMAGEM e' do GIF mais novo, como sempre foi.
+   Devolve o embed pronto e a figura para lembrar na proxima emenda. Pura. */
 function figuraQueFica(embed, deCima = {}) {
   const figura = {};
-  for (const lugar of ["thumbnail", "image"]) {
-    const url = embed?.[lugar]?.url || deCima?.[lugar]?.url;
-    if (url) figura[lugar] = { url };
-  }
+  const canto = deCima?.thumbnail?.url || embed?.thumbnail?.url;
+  const imagem = embed?.image?.url || deCima?.image?.url;
+  if (canto) figura.thumbnail = { url: canto };
+  if (imagem) figura.image = { url: imagem };
   return { embed: { ...embed, ...figura }, figura };
+}
+
+/* O emoji de OUTRO servidor (de quem tem Nitro) nao atravessa escrito.
+
+   Medido no servidor de verdade: o webhook manda `<:nome:id>` de fora e o
+   Discord grava `:nome:` -- no texto e no cartao, os dois. O emoji DESTE
+   servidor passa normal. Entao o primeiro emoji de fora vai como figura, no
+   canto do cartao, servida pelo CDN do proprio Discord: o bot so' aponta, nao
+   baixa nem guarda nada. O `:nome:` fica no texto, ao lado. Pura. */
+function emojiDeFora(texto, daCasa) {
+  for (const [, animado, nome, id] of String(texto || "").matchAll(/<(a?):(\w{2,32}):(\d{15,25})>/g)) {
+    if (daCasa?.has?.(id)) continue;
+    return { nome, id, url: `https://cdn.discordapp.com/emojis/${id}.${animado ? "gif" : "png"}?size=128` };
+  }
+  return null;
 }
 
 /* Onde a fala respondida mora, quando a memoria ja' esqueceu.
@@ -3859,6 +3881,9 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   const enquete = textoDaEnquete(msg);
   if (enquete) texto = [String(texto || "").trim(), enquete].filter(Boolean).join("\n");
   const figurinha = figurinhaDe(msg);
+  /* O canto do cartao: a figurinha, ou -- sem ela -- o primeiro emoji de
+     outro servidor, que escrito nao atravessa (emojiDeFora). */
+  const canto = figurinha?.url || emojiDeFora(texto, msg.guild?.emojis?.cache)?.url || "";
   /* A previa que o Discord ja' resolveu do link, se ja' chegou. Quando ainda
      nao chegou -- o caso comum, porque ele resolve depois de mandar --, quem
      pendura a imagem e' ilustrarNasOutrasSalas(), na segunda passada. */
@@ -4149,13 +4174,14 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     const montar = (corpoDoCartao, cabecalhoDoCartao) => ({
       color: cor,
       ...(cabecalhoDoCartao ? { author: cabecalhoDoCartao } : {}),
-      /* A figurinha vai PEQUENA, no canto do cartao (thumbnail, ~80 px), ao
-         lado da fala -- como a CYRON no lembrete do evento. Como IMAGEM ela
+      /* A figurinha (ou o emoji de outro servidor) vai PEQUENA, no canto do
+         cartao (thumbnail, ~80 px), ao lado da fala -- como a CYRON no
+         lembrete do evento. Como IMAGEM ela
          saia do tamanho de uma foto e engolia a conversa: um "GG" ocupava
          meia tela em cada sala. O nome entra no corpo quando nao ha' texto,
          e e' ele que segura o cartao quando nao ha' desenho nenhum (as do
          Discord ainda sem GIF) -- sem ele o cartao sairia vazio. */
-      ...(figurinha?.url ? { thumbnail: { url: figurinha.url } } : {}),
+      ...(canto ? { thumbnail: { url: canto } } : {}),
       /* GIF colado como link vira IMAGEM do cartao: dentro da descricao de um
          embed o Discord nao desenha previa nenhuma, e o GIF chegaria do outro
          lado como texto azul. Com a figurinha no canto, o lugar da imagem e'
