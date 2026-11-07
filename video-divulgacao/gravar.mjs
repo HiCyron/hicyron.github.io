@@ -15,7 +15,7 @@ const aqui = path.dirname(new URL(import.meta.url).pathname);
 
 const nav = await chromium.launch();
 const pag = await nav.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
-await pag.goto(pathToFileURL(path.join(aqui, "cena.html")).href);
+await pag.goto(pathToFileURL(path.join(aqui, roteiro.cena || "cena.html")).href);
 await pag.evaluate(([tl, tx]) => window.montar(tl, tx), [tempos, roteiro.textos]);
 // passa por todas as cenas uma vez: as fontes de cada escrita carregam antes de gravar
 for (const c of tempos.cenas) await pag.evaluate((t) => window.render(t), (c.inicio + c.fim) / 2);
@@ -24,10 +24,13 @@ await pag.waitForTimeout(1500);
 
 if (modo === "previa") {
   mkdirSync(path.join(pasta, "previa"), { recursive: true });
-  for (const c of tempos.cenas) {
-    const t = Math.min(c.fim, c.inicio + (c.fim - c.inicio) * 0.8);
-    await pag.evaluate((t) => window.render(t), t);
-    await pag.screenshot({ path: path.join(pasta, "previa", `${c.id}.jpg`), type: "jpeg", quality: 80 });
+  for (const [i, c] of tempos.cenas.entries()) {
+    const prox = (tempos.cenas[i + 1] || { inicio: tempos.total }).inicio;
+    for (const fr of [0.35, 0.85]) {
+      const t = c.inicio + (prox - c.inicio) * fr;
+      for (let k = 6; k >= 0; k--) await pag.evaluate((t) => window.render(t), t - k / 30); // anima ate o ponto
+      await pag.screenshot({ path: path.join(pasta, "previa", `${String(i).padStart(2, "0")}-${c.id}-${fr}.jpg`), type: "jpeg", quality: 80 });
+    }
   }
   await nav.close();
   console.log("prévias prontas");

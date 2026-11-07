@@ -1,0 +1,306 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fontes/noto-sans/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/900.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans-thai/package/500.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b0d1a; }
+  body { font-family: "Noto Sans", "Noto Sans SC", "Noto Sans Thai", "Noto Color Emoji", sans-serif; color: #fff; }
+  #palco { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 900px at 50% 30%, #23295c 0%, #12152e 55%, #090a16 100%); }
+  .luz { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .5; }
+  #etiqueta { position: absolute; top: 58px; left: 0; right: 0; text-align: center; }
+  #etiqueta span { display: inline-block; font-weight: 900; font-size: 38px; padding: 14px 30px; border-radius: 40px;
+    background: rgba(88,101,242,.9); box-shadow: 0 10px 30px rgba(88,101,242,.4); }
+  /* o celular */
+  #fone { position: absolute; left: 60px; top: 150px; width: 960px; height: 1290px; border-radius: 54px;
+    background: #313338; overflow: hidden; box-shadow: 0 40px 90px rgba(0,0,0,.6), 0 0 0 10px #0d0e14, 0 0 0 12px #2a2c3a; }
+  #tela { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .cab { flex: 0 0 auto; height: 112px; display: flex; align-items: center; gap: 16px; padding: 0 36px;
+    background: #2b2d31; border-bottom: 2px solid #1f2023; font-weight: 700; font-size: 40px; color: #f2f3f5; }
+  .cab .h { color: #80848e; font-size: 48px; font-weight: 500; }
+  .cab .arroba { color: #80848e; }
+  .rolo { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px 0 18px; overflow: hidden; }
+  .msg { display: flex; gap: 22px; padding: 14px 30px; }
+  .av { flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 900; font-size: 38px; color: #fff; overflow: hidden; }
+  .av img { width: 100%; height: 100%; object-fit: cover; }
+  .cbody { flex: 1; min-width: 0; }
+  .linha1 { display: flex; align-items: center; gap: 12px; }
+  .nome { font-weight: 700; font-size: 34px; }
+  .app { font-weight: 700; font-size: 21px; background: #5865f2; color: #fff; border-radius: 8px; padding: 2px 9px; }
+  .hora { font-size: 24px; color: #949ba4; }
+  .txt { font-weight: 500; font-size: 36px; line-height: 1.32; color: #dbdee1; margin-top: 4px; }
+  .emb { margin-top: 10px; background: #2b2d31; border-left: 7px solid #5865f2; border-radius: 10px; padding: 18px 22px;
+    display: flex; gap: 18px; max-width: 790px; }
+  .emb .e { flex: 1; min-width: 0; }
+  .emb .tit { font-weight: 700; font-size: 34px; color: #f2f3f5; margin-bottom: 6px; }
+  .emb .d { font-weight: 500; font-size: 34px; line-height: 1.32; color: #dbdee1; }
+  .emb .resp { font-size: 26px; color: #949ba4; margin-bottom: 6px; }
+  .emb .ass { font-size: 25px; color: #949ba4; margin-top: 8px; }
+  .emb .ass b { color: #00a8fc; font-weight: 500; }
+  .emb .canto { width: 140px; height: 140px; object-fit: contain; flex: 0 0 auto; }
+  .emb .baixo { width: 96px; height: 96px; object-fit: contain; display: block; margin-top: 10px; }
+  .sel { margin-top: 14px; max-width: 790px; background: #1e1f22; border-radius: 10px; padding: 20px 24px; font-size: 32px;
+    color: #b5bac1; display: flex; justify-content: space-between; align-items: center; }
+  .lista { margin-top: 6px; max-width: 790px; background: #2b2d31; border-radius: 10px; overflow: hidden; border: 2px solid #1e1f22; }
+  .lista div { padding: 16px 24px; font-size: 32px; color: #dbdee1; border-bottom: 1px solid #1e1f22; }
+  .lista div.on { background: #404249; color: #fff; }
+  .bts { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .bt { font-weight: 700; font-size: 30px; padding: 14px 24px; border-radius: 10px; background: #4e5058; color: #fff; }
+  .bt.verde { background: #248046; } .bt.azul { background: #5865f2; }
+  .reac { display: flex; gap: 10px; margin-top: 10px; }
+  .reac span { font-size: 30px; padding: 6px 16px; border-radius: 12px; background: #2b2d31; border: 2px solid #3f4147; color: #dbdee1; }
+  .reac span.eu { background: #373a53; border-color: #5865f2; }
+  .efem { font-size: 25px; color: #949ba4; margin-top: 10px; }
+  .efem b { color: #00a8fc; font-weight: 500; }
+  .entrada { flex: 0 0 auto; margin: 0 26px 26px; height: 96px; border-radius: 20px; background: #383a40; display: flex;
+    align-items: center; padding: 0 30px; font-size: 34px; color: #949ba4; }
+  .entrada .dig { color: #dbdee1; }
+  .cursor { display: inline-block; width: 3px; height: 40px; background: #dbdee1; vertical-align: -8px; margin-left: 3px; }
+  /* tres salas juntas */
+  .tres { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 18px; background: #1e1f22; }
+  .mini { flex: 1; border-radius: 26px; background: #313338; overflow: hidden; display: flex; flex-direction: column; }
+  .mini .cab { height: 84px; font-size: 34px; }
+  .mini .rolo { justify-content: center; }
+  .mini .msg { padding: 8px 22px; }
+  .mini .av { width: 64px; height: 64px; font-size: 30px; }
+  .mini .nome { font-size: 30px; } .mini .emb .d { font-size: 32px; } .mini .emb { padding: 14px 18px; }
+  .surge { will-change: transform, opacity; }
+  /* abertura e fechamento */
+  #intro, #cta { position: absolute; left: 0; right: 0; text-align: center; }
+  #intro .t1 { font-weight: 900; font-size: 92px; line-height: 1.05; margin-top: 30px;
+    background: linear-gradient(90deg, #8fd3ff, #b79bff, #ffd1f5); -webkit-background-clip: text; color: transparent; }
+  #intro .t2 { font-weight: 700; font-size: 44px; color: #c9ccff; margin-top: 20px; }
+  .botao { display: inline-block; font-weight: 900; font-size: 64px; padding: 34px 70px; border-radius: 80px;
+    background: linear-gradient(90deg, #5865f2, #8b5cf6); box-shadow: 0 20px 60px rgba(88,101,242,.55); }
+  .l2 { font-weight: 700; font-size: 50px; margin-top: 44px; color: #ffe27a; }
+  .l3 { font-weight: 500; font-size: 40px; margin-top: 26px; color: #c9ccff; }
+  #legenda { position: absolute; left: 50px; right: 50px; top: 1500px; text-align: center; font-weight: 900;
+    font-size: 72px; line-height: 1.15; text-transform: uppercase; -webkit-text-stroke: 10px #0b0d1a; paint-order: stroke fill; }
+  #legenda span { display: inline-block; margin: 0 9px; }
+  #legenda span.agora { color: #ffd84d; }
+  #dedo { position: absolute; width: 90px; height: 90px; border-radius: 50%; background: rgba(255,255,255,.55);
+    border: 6px solid rgba(255,255,255,.9); pointer-events: none; z-index: 50; }
+</style></head>
+<body><div id="palco"></div>
+<script>
+const P = document.getElementById("palco");
+let TL = null, cenaAtual = null, subAtual = -1;
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeBack = (x) => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const h = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
+
+const CYRON = { nome: "CYRON", av: '<img src="img/cyron-og.jpg">', cor: "#ffffff", app: true };
+const GENTE = {
+  voce: { nome: "Você", ini: "V", fundo: "#5865f2", cor: "#c9cdfb" },
+  budi: { nome: "Budi", ini: "B", fundo: "#e0732f", cor: "#f5b183" },
+  mika: { nome: "Mika", ini: "M", fundo: "#d9488f", cor: "#f39ac4" },
+  yuki: { nome: "Yuki", ini: "Y", fundo: "#2fa39a", cor: "#86dcd5" },
+  adm: { nome: "Admin", ini: "A", fundo: "#c9a227", cor: "#f0d77a" },
+};
+function avatar(p) { return p === CYRON ? `<div class="av">${CYRON.av}</div>` : `<div class="av" style="background:${p.fundo}">${p.ini}</div>`; }
+// uma mensagem; `at` = fracao da (sub)cena em que ela aparece
+function msg(p, { app = false, hora = "Hoje às 19:35", corpo = "", at = 0, id = "" } = {}) {
+  const nome = p === CYRON ? "CYRON" : p.nome, cor = p === CYRON ? "#ffffff" : p.cor;
+  return `<div class="msg surge" data-at="${at}" ${id ? `id="${id}"` : ""}>${avatar(p)}<div class="cbody">
+    <div class="linha1"><span class="nome" style="color:${cor}">${nome}</span>${app || p === CYRON ? '<span class="app">APP</span>' : ""}<span class="hora">${hora}</span></div>
+    ${corpo}</div></div>`;
+}
+const txt = (t) => `<div class="txt">${t}</div>`;
+// conversa de antes, para a sala parecer uma sala de verdade
+const ANTES_PT = () => [
+  msg(GENTE.adm, { at: -1, hora: "Hoje às 19:05", corpo: txt("Boa noite, aliança! Hoje tem urso às 20h 🐻") }),
+  msg(GENTE.yuki, { app: true, at: -1, hora: "Hoje às 19:12", corpo: cartao("Vou chegar um pouco atrasado hoje 🙏", { cor: "#2fa39a", quem: "Yuki", selo: "🇯🇵 → 🇧🇷" }) })];
+// o cartao espelhado, como a CYRON monta: texto, e a assinatura miuda embaixo
+function cartao(texto, { cor = "#5865f2", quem = "", selo = "", canto = "", baixo = "", resp = "", tit = "" } = {}) {
+  return `<div class="emb" style="border-left-color:${cor}"><div class="e">
+    ${resp ? `<div class="resp">${resp}</div>` : ""}${tit ? `<div class="tit">${tit}</div>` : ""}
+    <div class="d">${texto}</div>${baixo ? `<img class="baixo" src="${baixo}">` : ""}
+    ${quem ? `<div class="ass"><b>${quem}</b>${selo ? " · " + selo : ""} · ᶜʸʳᵒⁿ</div>` : ""}</div>
+    ${canto ? `<img class="canto" src="${canto}">` : ""}</div>`;
+}
+function tela(canal, mensagens, { dm = false, entrada = "", rodape = "" } = {}) {
+  return `<div id="tela"><div class="cab">${dm ? '<span class="arroba">@</span>' : '<span class="h">#</span>'}${canal}</div>
+    <div class="rolo">${mensagens.join("")}</div>${rodape}
+    ${entrada !== null ? `<div class="entrada">${entrada}</div>` : ""}</div>`;
+}
+
+/* As cenas. Cada uma tem partes (sub-cenas) com o trecho da fala em que valem,
+   o rotulo de cima, o que montar e o que animar. Toques: { at, alvo }. */
+const CENAS = {
+  intro: { partes: [{ de: 0, ate: 1, fone: false }] },
+  idioma: { rotulo: "1 · Escolher a língua", partes: [
+    { de: 0, ate: 0.56, montar: () => tela("idioma-language", [
+        msg(CYRON, { at: 0, corpo: cartao("Escolha uma vez e o servidor passa a falar com você na sua língua.", { tit: "🌐 Escolha seu idioma · Pick your language" }) +
+          `<div class="sel" id="sel"><span>Selecione seu idioma / Select your language</span><span>▾</span></div>
+           <div class="lista surge" data-at="0.3" id="lista">
+             <div>🇧🇷 Português</div><div>🇬🇧 Inglês</div><div>🇪🇸 Espanhol</div><div id="opId">🇮🇩 Indonésio</div><div>🇨🇳 Chinês</div><div>🇯🇵 Japonês</div></div>` })],
+        { entrada: "Conversar em #idioma-language" }),
+      toques: [{ at: 0.24, alvo: "#sel" }, { at: 0.62, alvo: "#opId" }],
+      animar: (f) => { const o = document.getElementById("opId"); if (o) o.className = f > 0.62 ? "on" : ""; } },
+    { de: 0.56, ate: 1, montar: () => tela("chat-pt", [...ANTES_PT(),
+        msg(GENTE.mika, { app: true, hora: "Hoje às 19:30", at: -1, corpo: cartao("Bom dia, pessoal! ☀️", { cor: "#d9488f", quem: "Mika", selo: "🇯🇵 → 🇧🇷" }) }),
+        msg(CYRON, { at: 0.15, hora: "Hoje às 19:35", corpo: txt('👋 <span style="color:#00a8fc">Budi</span> · 🇮🇩 Bahasa Indonesia<br>Acabou de chegar! Escreva na sua língua e eu traduzo para todo mundo.') })],
+        { entrada: "Conversar em #chat-pt" }) }] },
+  conversa: { rotulo: "2 · Conversar", partes: [
+    { de: 0, ate: 1, montar: () => tela("chat-pt", [...ANTES_PT(),
+        msg(CYRON, { at: -1, corpo: txt('👋 <span style="color:#00a8fc">Budi</span> · 🇮🇩 Bahasa Indonesia<br>Acabou de chegar! Escreva na sua língua e eu traduzo para todo mundo.') }),
+        msg(GENTE.voce, { at: 0.86, hora: "Hoje às 19:36", corpo: txt("Alguém entra no urso às 20h? 🐻") })],
+        { entrada: '<span class="dig" id="dig"></span><span class="cursor" id="cur"></span>' }),
+      animar: (f) => { const alvo = "Alguém entra no urso às 20h? 🐻"; const n = f > 0.84 ? 0 : Math.round(alvo.length * clamp((f - 0.12) / 0.6));
+        const d = document.getElementById("dig"); if (d) d.textContent = [...alvo].slice(0, n).join("");
+        const c = document.getElementById("cur"); if (c) c.style.opacity = Math.floor(f * 30) % 2 ? 1 : 0.2; } }] },
+  espelho: { rotulo: "3 · Cada um na sua língua", partes: [
+    { de: 0, ate: 1, montar: () => `<div id="tela"><div class="tres">
+        ${[["chat-en", "Anyone joining the bear at 8pm? 🐻", "🇧🇷 → 🇬🇧", 0.08], ["chat-id", "Ada yang ikut beruang jam 8 malam? 🐻", "🇧🇷 → 🇮🇩", 0.3], ["chat-zh", "有人晚上8点打熊吗？🐻", "🇧🇷 → 🇨🇳", 0.52]]
+          .map(([c, t, s, at]) => `<div class="mini surge" data-at="${at}"><div class="cab"><span class="h">#</span>${c}</div><div class="rolo">
+            ${msg(GENTE.voce, { app: true, at: -1, hora: "Hoje às 19:36", corpo: cartao(t, { cor: "#5865f2", quem: "Você", selo: s }) })}</div></div>`).join("")}
+      </div></div>` }] },
+  resposta: { rotulo: "4 · A resposta volta traduzida", partes: [
+    { de: 0, ate: 1, montar: () => tela("chat-pt", [...ANTES_PT(),
+        msg(CYRON, { at: -1, corpo: txt('👋 <span style="color:#00a8fc">Budi</span> · 🇮🇩 Bahasa Indonesia<br>Acabou de chegar! Escreva na sua língua e eu traduzo para todo mundo.') }),
+        msg(GENTE.voce, { at: -1, hora: "Hoje às 19:36", corpo: txt("Alguém entra no urso às 20h? 🐻") }),
+        msg(GENTE.budi, { app: true, at: 0.22, hora: "Hoje às 19:37", corpo: cartao("Bora! Eu vou 🐻🔥", { cor: "#e0732f", quem: "Budi", selo: "🇮🇩 → 🇧🇷", resp: "↪ Você: Alguém entra no urso às 20h?" }) })],
+        { entrada: "Conversar em #chat-pt" }) }] },
+  figurinha: { rotulo: "5 · Figurinhas e emojis", partes: [
+    { de: 0, ate: 1, montar: () => tela("chat-pt", [...ANTES_PT(),
+        msg(GENTE.voce, { at: -1, hora: "Hoje às 19:36", corpo: txt("Alguém entra no urso às 20h? 🐻") }),
+        msg(GENTE.budi, { app: true, at: -1, hora: "Hoje às 19:37", corpo: cartao("Bora! Eu vou 🐻🔥", { cor: "#e0732f", quem: "Budi", selo: "🇮🇩 → 🇧🇷" }) }),
+        msg(GENTE.mika, { app: true, at: 0.12, hora: "Hoje às 19:38", corpo: cartao("🎨 CYRON GG", { cor: "#d9488f", quem: "Mika", selo: "🇯🇵 → 🇧🇷", canto: "img/gg.png" }) }),
+        msg(GENTE.budi, { app: true, at: 0.58, hora: "Hoje às 19:38", corpo: cartao("kkk boa", { cor: "#e0732f", quem: "Budi", selo: "🇮🇩 → 🇧🇷", baixo: "img/amei.png" }) })],
+        { entrada: "Conversar em #chat-pt" }) }] },
+  bandeira: { rotulo: "6 · Reação com bandeira", partes: [
+    { de: 0, ate: 0.55, montar: () => tela("geral", [
+        msg(GENTE.adm, { at: -1, hora: "Hoje às 18:20", corpo: txt("Lembrem de doar para a aliança hoje 💎") }),
+        msg(GENTE.budi, { at: -1, hora: "Hoje às 18:31", corpo: txt("Siap! 💪") }),
+        msg(GENTE.yuki, { at: 0, hora: "Hoje às 19:40", corpo: txt("明日のイベントは何時からですか？") +
+          `<div class="reac"><span>👍 2</span><span class="eu surge" data-at="0.5" id="rb">🇧🇷 1</span><span id="mais">😀+</span></div>` })],
+        { entrada: "Conversar em #geral" }),
+      toques: [{ at: 0.42, alvo: "#mais" }] },
+    { de: 0.55, ate: 1, montar: () => tela("CYRON", [
+        msg(CYRON, { at: 0.1, hora: "Hoje às 19:40", corpo: cartao("A que horas começa o evento de amanhã?", { tit: "🇧🇷 Tradução", cor: "#5865f2" }) +
+          `<div class="efem">Yuki em <b>#geral</b></div>` })],
+        { dm: true, entrada: "Conversar com @CYRON" }) }] },
+  aviso: { rotulo: "7 · Tradução nos avisos", partes: [
+    { de: 0, ate: 0.6, montar: () => tela("avisos", [
+        msg(GENTE.adm, { at: -1, hora: "Ontem às 17:00", corpo: txt("📣 Urso todo dia às 20h. Quem puder, entra!") }),
+        msg(GENTE.adm, { at: 0, hora: "Hoje às 18:00", corpo: txt("📣 Guerra de alianças no sábado, 15h UTC. Todo mundo online!") }),
+        msg(CYRON, { at: 0, hora: "Hoje às 18:00", corpo: `<div class="sel" id="sel2"><span>🌐 Ler no seu idioma / Read in your language</span><span>▾</span></div>
+          <div class="lista surge" data-at="0.4" id="lista2"><div>🇬🇧 Inglês</div><div>🇪🇸 Espanhol</div><div id="op2">🇮🇩 Indonésio</div><div>🇨🇳 Chinês</div><div>🇹🇭 Tailandês</div></div>` })],
+        { entrada: null }),
+      toques: [{ at: 0.3, alvo: "#sel2" }, { at: 0.75, alvo: "#op2" }],
+      animar: (f) => { const o = document.getElementById("op2"); if (o) o.className = f > 0.75 ? "on" : ""; } },
+    { de: 0.6, ate: 1, montar: () => tela("avisos", [
+        msg(GENTE.adm, { at: -1, hora: "Ontem às 17:00", corpo: txt("📣 Urso todo dia às 20h. Quem puder, entra!") }),
+        msg(GENTE.adm, { at: -1, hora: "Hoje às 18:00", corpo: txt("📣 Guerra de alianças no sábado, 15h UTC. Todo mundo online!") }),
+        msg(CYRON, { at: 0.12, hora: "Hoje às 19:41", corpo: cartao("📣 Perang aliansi hari Sabtu, pukul 15.00 UTC. Semua online!", { cor: "#5865f2", tit: "🇮🇩 Bahasa Indonesia" }) +
+          `<div class="efem">👁 Só você pode ver esta mensagem · <b>Ignorar mensagem</b></div>` })],
+        { entrada: null }) }] },
+  evento: { rotulo: "8 · Eventos com lembrete", partes: [
+    { de: 0, ate: 0.55, montar: () => tela("agenda", [
+        msg(CYRON, { at: -1, hora: "Hoje às 12:00", corpo: cartao("⚔️ Sábado às 15:00 <span style='color:#949ba4'>(no seu fuso)</span><br>👥 34 inscritos", { tit: "Guerra de alianças", cor: "#e04f4f" }) }),
+        msg(CYRON, { at: 0, hora: "Hoje às 19:35", corpo: cartao("🕗 Hoje às 20:00 <span style='color:#949ba4'>(no seu fuso)</span><br>⏳ começa em 25 minutos<br>👥 11 inscritos", { tit: "🐻 Armadilha do Urso", cor: "#f0a33a" }) +
+          `<div class="bts"><span class="bt verde" id="insc">✅ Me inscrever</span></div>` })],
+        { entrada: null }),
+      toques: [{ at: 0.45, alvo: "#insc" }],
+      animar: (f) => { const b = document.getElementById("insc"); if (b) { b.textContent = f > 0.47 ? "✅ Inscrito · 12" : "✅ Me inscrever"; b.className = f > 0.47 ? "bt azul" : "bt verde"; } } },
+    { de: 0.55, ate: 1, montar: () => tela("CYRON", [
+        msg(CYRON, { at: 0.1, hora: "Hoje às 19:50", corpo: `<div class="emb" style="border-left-color:#f0a33a"><div class="e"><div class="tit">⏰ Armadilha do Urso</div>
+          <div class="d">Começa em 10 minutos! Você se inscreveu.</div></div><img class="canto" src="img/cyron-og.jpg" style="border-radius:12px"></div>` })],
+        { dm: true, entrada: "Conversar com @CYRON" }) }] },
+  painel: { rotulo: "9 · Painel do administrador", partes: [
+    { de: 0, ate: 1, montar: () => tela("⚙️-cyron", [
+        msg(CYRON, { at: 0, hora: "Hoje às 19:00", corpo: cartao(
+          `<span id="f1">🟢</span> 🃏 Heróis aparecendo no chat<br>🟢 ⚔️ Chamada para duelo no chat<br>🟢 🔔 Lembrete de escolher idioma<br>🟢 💬 Tradutor por mensagem<br>🟢 ⬆️ Níveis e XP<br>🟢 👋 Boas-vindas nas salas<br><br><span style="color:#ffe27a">🧪 CYRON em beta: plano Aliança liberado</span>`,
+          { tit: "🧩 Funções", cor: "#5865f2" }) + `<div class="sel" id="sel3"><span>Ligar ou desligar uma função</span><span>▾</span></div>` })],
+        { entrada: null }),
+      toques: [{ at: 0.5, alvo: "#sel3" }],
+      animar: (f) => { const s = document.getElementById("f1"); if (s) s.textContent = f > 0.6 ? "⚪" : "🟢"; } }] },
+  cta: { partes: [{ de: 0, ate: 1, fone: false }] },
+};
+
+function montar(tl) {
+  TL = tl;
+  [["#3b4bff", 700, 300, 200], ["#a24bff", 600, 760, 1250], ["#00b3ff", 500, 120, 1500]].forEach(([c, s, x, y], i) => {
+    const b = h(`<div class="luz" style="background:${c};width:${s}px;height:${s}px;left:${x - s / 2}px;top:${y - s / 2}px"></div>`); b.dataset.i = i; P.appendChild(b); });
+  P.appendChild(h('<div id="etiqueta"><span></span></div>'));
+  P.appendChild(h('<div id="fone"></div>'));
+  P.appendChild(h(`<div id="intro" style="top:250px"><img src="img/cyron-corpo.webp" style="height:820px"><div class="t1">A CYRON<br>na prática</div><div class="t2">Tradução automática no Discord</div></div>`));
+  P.appendChild(h(`<div id="cta" style="top:330px"><img src="img/aceno.png" style="width:520px"><div style="margin-top:50px"><span class="botao">➕ Adicione a CYRON</span></div>
+    <div class="l2">✨ Grátis durante o beta</div><div class="l3">22 línguas · hicyron.github.io</div></div>`));
+  P.appendChild(h('<div id="dedo"></div>'));
+  P.appendChild(h('<div id="legenda"></div>'));
+}
+
+function mostra(e, op, ty = 0, sc = 1) {
+  e.style.opacity = op; e.style.transform = `translateY(${ty}px) scale(${sc})`; e.style.visibility = op <= 0.001 ? "hidden" : "visible";
+}
+
+function render(t) {
+  document.querySelectorAll(".luz").forEach((b) => { const i = +b.dataset.i; b.style.transform = `translate(${Math.sin(t * .4 + i * 2) * 60}px,${Math.cos(t * .33 + i) * 50}px)`; });
+  const c = TL.cenas.find((x, i) => t < (TL.cenas[i + 1] ? TL.cenas[i + 1].inicio : 1e9)) || TL.cenas[TL.cenas.length - 1];
+  const def = CENAS[c.id];
+  const fim = (TL.cenas[TL.cenas.indexOf(c) + 1] || { inicio: TL.total }).inicio;
+  const fc = clamp((t - c.inicio) / Math.max(0.5, fim - c.inicio));   // fracao da cena inteira, ate a proxima
+  const pi = def.partes.findIndex((p) => fc >= p.de && fc < p.ate);
+  const parte = def.partes[pi < 0 ? def.partes.length - 1 : pi];
+  const fp = clamp((fc - parte.de) / (parte.ate - parte.de));       // fracao da parte
+  const durParte = (fim - c.inicio) * (parte.ate - parte.de);
+  const fone = document.getElementById("fone");
+  const chave = c.id + ":" + def.partes.indexOf(parte);
+  if (cenaAtual !== chave) {
+    cenaAtual = chave;
+    fone.innerHTML = parte.fone === false ? "" : parte.montar();
+  }
+  // o celular entra na primeira cena com ele e sai antes do fim
+  const comFone = parte.fone !== false;
+  const tIni = TL.cenas[1].inicio, tCta = TL.cenas[TL.cenas.length - 1].inicio;
+  const entra = easeOut(clamp((t - tIni + 0.3) / 0.6)), sai = easeOut(clamp((t - tCta + 0.3) / 0.5));
+  mostra(fone, comFone ? entra * (1 - sai) : 0, (1 - entra) * 200 + sai * 200, 1);
+  // troca de parte: um piscar suave do conteudo
+  const tela = document.getElementById("tela");
+  if (tela) { const a = easeOut(clamp(fp * durParte / 0.25)); tela.style.opacity = a; tela.style.transform = `translateY(${(1 - a) * 30}px)`; }
+  // mensagens e listas que surgem
+  fone.querySelectorAll(".surge").forEach((e) => { const at = +e.dataset.at; if (at < 0) { mostra(e, 1); return; }
+    const a = clamp((fp - at) * durParte / 0.35); if (e.classList.contains("lista")) { e.style.display = fp >= at && !(parte.toques && parte.toques[1] && fp > parte.toques[1].at + 0.05) ? "block" : "none"; mostra(e, easeOut(a), (1 - easeOut(a)) * -20); }
+    else mostra(e, easeOut(a), (1 - easeOut(a)) * 40, 0.92 + 0.08 * easeBack(a)); });
+  if (parte.animar) parte.animar(fp);
+  // dedo tocando
+  const dedo = document.getElementById("dedo"); let op = 0;
+  (parte.toques || []).forEach((tq) => { const dt = (fp - tq.at) * durParte; if (dt > -0.45 && dt < 0.4) {
+    const alvo = fone.querySelector(tq.alvo); if (!alvo) return; const r = alvo.getBoundingClientRect();
+    dedo.style.left = (r.left + Math.min(r.width * 0.5, 300) - 45) + "px"; dedo.style.top = (r.top + r.height / 2 - 45) + "px";
+    op = dt < 0 ? clamp(1 + dt / 0.45) : clamp(1 - dt / 0.4); dedo.style.transform = `scale(${dt < 0 ? 1.3 - 0.3 * clamp(1 + dt / 0.45) : 0.85 + dt})`; } });
+  dedo.style.opacity = op;
+  // rotulo de cima
+  const et = document.getElementById("etiqueta"); et.firstElementChild.textContent = def.rotulo || "";
+  const fe = easeOut(clamp((t - c.inicio) / 0.4)); mostra(et, def.rotulo ? fe : 0, (1 - fe) * -20, 1);
+  // abertura e fechamento
+  const fi = easeOut(clamp((t - 0.1) / 0.6)) * (1 - easeOut(clamp((t - tIni + 0.4) / 0.4)));
+  mostra(document.getElementById("intro"), fi, Math.sin(t * 2.2) * 8, 0.9 + 0.1 * fi);
+  const fcta = easeOut(clamp((t - tCta) / 0.6));
+  mostra(document.getElementById("cta"), fcta, (1 - fcta) * 120 + Math.sin(t * 3) * 6, 1);
+  legenda(t);
+}
+
+function legenda(t) {
+  const L = document.getElementById("legenda");
+  const c = TL.cenas.find((x) => t >= x.inicio - 0.05 && t <= x.fim + 0.25);
+  if (!c || !c.palavras.length) { L.innerHTML = ""; return; }
+  const grupos = []; let atual = [];
+  for (const p of c.palavras) { atual.push(p); if (p.quebra || atual.length === 5) { grupos.push(atual); atual = []; } }
+  if (atual.length) grupos.push(atual);
+  let g = grupos.findIndex((gr) => t < gr[gr.length - 1].t1 + 0.08); if (g < 0) g = grupos.length - 1;
+  const chave = c.id + ":" + g;
+  if (L.dataset.chave !== chave) { L.dataset.chave = chave; L.innerHTML = grupos[g].map((p) => `<span>${p.texto}</span>`).join(" "); }
+  [...L.children].forEach((s, i) => { const p = grupos[g][i]; const agora = t >= p.t0 - 0.02 && t < p.t1 + 0.05;
+    s.className = agora ? "agora" : ""; s.style.transform = `scale(${agora ? 1.08 : 1})`; });
+}
+/* montar e render ja sao globais (window.montar, window.render) */
+</script></body></html>
