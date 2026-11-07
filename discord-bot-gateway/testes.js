@@ -2692,11 +2692,23 @@ function conferirCartao(onde, embed, componentes = []) {
     }
   };
 
-  for (const aba of ["resumo", "traducao", "uso", "agenda", "plano"]) {
+  /* A aba 🧩 Funções lê a lista e os ajustes (o carregar deixa as duas no
+     escopo global). */
+  carregar(["FUNCOES", "funcaoLigada"]);
+  const ajustesAntesDoPainel = globalThis.ajustes;
+  globalThis.ajustes = async () => ({ "aparicao-off:s1": "1" });
+  for (const aba of ["resumo", "traducao", "funcoes", "uso", "agenda", "plano"]) {
     soTexto(await montarPainel(guild, servidor, "", aba), `a aba ${aba} em português`);
     soTexto(await montarPainel(guild, servidor, "de", aba), `a aba ${aba} em alemão`);
     conferirCartao(`o painel do servidor, aba ${aba}`, (await montarPainel(guild, servidor, "", aba)).embed);
   }
+  {
+    const fun = (await montarPainel(guild, servidor, "", "funcoes")).embed.fields;
+    verdade("a aba Funções mostra os heróis desligados (o 🔕 da carta conta)", fun.some((f) => /^⚫ 🃏/.test(f.name)));
+    verdade("e o duelo ligado (ninguém desligou)", fun.some((f) => /^✅ ⚔️/.test(f.name)));
+    verdade("e o tradutor por mensagem como a coluna do servidor diz", fun.some((f) => /^⚫ 💬/.test(f.name)));
+  }
+  globalThis.ajustes = ajustesAntesDoPainel;
   verdade("o fixado (sem aba) é a visão geral",
     (await montarPainel(guild, servidor, "")).embed.fields.some((f) => /Em resumo/.test(f.name)));
   const agenda = (await montarPainel(guild, servidor, "", "agenda")).embed.fields[0];
@@ -13383,9 +13395,10 @@ function conferirCartao(onde, embed, componentes = []) {
  * fazia o TOP inteiro ser remontado a cada 2 minutos: 46 cortes por prazo em
  * duas semanas, todos lá. */
 {
-  const globais = ["client", "servidorDoGuild", "sb", "sincronizarAgora"];
+  const globais = ["client", "servidorDoGuild", "sb", "sincronizarAgora", "boasVindasNasSalas"];
   const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
   try {
+    globalThis.boasVindasNasSalas = async () => false;
     const R = carregar(["JANELA_RECENTE", "ESPERA_REMONTAR", "ultimaMontagem", "ESPERA_IDIOMA_SEM_SALA",
       "remontouPorIdioma", "naoEstaNoServidor", "tentouHaPouco", "membroRecente", "sincronizarRecentes"]);
     let pedidos = [], remontou = 0, fetches = 0, recentes = [];
@@ -13642,6 +13655,135 @@ function conferirCartao(onde, embed, componentes = []) {
     /sincronizarRecentes\(\)\.then\(\(\) => deuCerto\("passada curta"\),\s*\(e\) => falhouDeNovo\("passada curta"/.test(idx));
   verdade("surdo há poucos segundos (reconexão de rotina) não vira cartão",
     /\(v\.ha >= SILENCIO_ANTES_DE_GRITAR \? console\.error : console\.log\)\(/.test(idx));
+}
+
+/* ====== 🧩 AS FUNÇÕES QUE O ADMIN LIGA E DESLIGA ======
+ *
+ * "A carta aparece no chat movimentado e atrapalha" -- e o único jeito de
+ * desligar era um 🔕 dentro da própria carta. Agora o que eu faço sozinha no
+ * chat mora numa aba só, com um menu de marcar. */
+{
+  const F = carregar(["FUNCOES", "funcaoLigada", "ABAS_DO_PAINEL", "podeTestar", "MODOS", "modoDe", "componentesDoPainel"]);
+  ok("cada função tem uma chave só", new Set(F.FUNCOES.map((f) => f.chave)).size, F.FUNCOES.length);
+  for (const f of F.FUNCOES) {
+    verdade(`${f.chave}: guardada num ajuste OU numa coluna`, !!f.ajuste !== !!f.coluna);
+    verdade(`${f.chave}: nome e explicação cabem no menu`, f.nome.length <= 100 && f.oque.length <= 100 && !!f.emoji);
+  }
+  verdade("a tradução não está na lista (ela é o bot)", !F.FUNCOES.some((f) => /tradu[cç][aã]o autom|espelho/i.test(f.nome)));
+  verdade("a aba existe no menu de abas", F.ABAS_DO_PAINEL.some((a) => a.valor === "funcoes"));
+
+  const s = { id: "s1", tradutor_topico: true, niveis_ligado: false };
+  const marcas = { "aparicao-off:s1": "1", "idioma_lembrete_off:s1": "" };
+  const ligada = (chave) => F.funcaoLigada(F.FUNCOES.find((f) => f.chave === chave), s, marcas);
+  verdade("heróis desligados pelo 🔕 de antes continuam desligados", !ligada("herois"));
+  verdade("o que ninguém desligou está ligado", ligada("duelo"));
+  verdade("lembrete religado (vazio) está ligado", ligada("lembrete"));
+  verdade("coluna ligada", ligada("topico"));
+  verdade("coluna desligada", !ligada("niveis"));
+
+  const linhas = F.componentesDoPainel(s, [], { fontes: 10, idiomas: 20 }, [], [], "funcoes", new Set(["duelo", "topico"]));
+  const menu = linhas.flatMap((l) => l.components).find((c) => c.custom_id === "cyron:funcoes");
+  verdade("a aba Funções tem o menu de marcar", !!menu);
+  ok("com todas as funções", menu?.options.map((o) => o.value), F.FUNCOES.map((f) => f.chave));
+  ok("marcadas as que estão ligadas", menu?.options.filter((o) => o.default).map((o) => o.value), ["duelo", "topico"]);
+  verdade("dá para desmarcar tudo e marcar tudo", menu?.min_values === 0 && menu?.max_values === F.FUNCOES.length);
+  conferirCartao("os botões da aba Funções", { title: "funcoes" }, linhas);
+  verdade("o menu só aparece na aba dele",
+    !F.componentesDoPainel(s, [], { fontes: 10, idiomas: 20 }, [], [], "resumo").flatMap((l) => l.components)
+      .some((c) => c.custom_id === "cyron:funcoes"));
+
+  /* As chaves que a aba grava são as que cada função lê. */
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("os heróis leem aparicao-off", /ajustes\(\)\)\[`aparicao-off:\$\{servidor\.id\}`\] === "1"/.test(idx));
+  verdade("a chamada do duelo lê duelo-chamada-off", /a\[`duelo-chamada-off:\$\{servidor\.id\}`\] === "1"/.test(idx));
+  verdade("o lembrete lê idioma_lembrete_off", /!!marcas\[`idioma_lembrete_off:\$\{servidor\.id\}`\]/.test(idx));
+  verdade("os níveis leem niveis_ligado", /if \(!servidor\?\.niveis_ligado \|\| msg\.author\?\.bot\) return;/.test(idx));
+  const clique = idx.slice(idx.indexOf("async function cliquePainel"), idx.indexOf("if (acao === \"tradutor\")"));
+  verdade("o clique só vale para quem pode administrar (vem depois da trava)",
+    clique.indexOf("podeAdministrar(inter)") > 0 && clique.indexOf("podeAdministrar(inter)") < clique.indexOf('acao === "funcoes"'));
+  verdade("e responde dentro do prazo (depois do deferUpdate)",
+    clique.indexOf("await inter.deferUpdate();") < clique.indexOf('acao === "funcoes"'));
+  verdade("ajustes que não chegaram não fazem pular nada (grava o que foi marcado)",
+    /if \(!marcas\.falhou && funcaoLigada\(f, servidor, marcas\) === ligar\) continue;/.test(clique));
+}
+
+/* ====== 👋 BOAS-VINDAS NAS SALAS ======
+ *
+ * Entrar não é chegar: enquanto a pessoa não escolhe o idioma ela não vê sala
+ * nenhuma, e quem conversa nunca sabe que ela existe. Quando ela escolhe,
+ * cada sala de conversa é avisada na própria língua. */
+{
+  const globais = ["client", "ajustes", "canaisEspelho", "traduzirPara", "traduzirComCache", "contarUso", "motorDe"];
+  const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
+  try {
+    carregar(["FUNCOES", "funcaoLigada", "BV_TEXTO_PADRAO", "BV_TEXTO_MAX", "textoDeBoasVindas", "LINGUAS_MENU", "nomeNaPropriaLingua"]);
+    const B = carregar(["BOAS_VINDAS_NOVO", "BOAS_VINDAS_SALAS_POR_MINUTO", "boasVindasDadas", "boasVindasNoMinuto",
+      "podeBoasVindasNasSalas", "avisoDeChegada", "boasVindasNasSalas"]);
+    const t0 = Date.parse("2026-11-07T12:00:00Z");
+    let marcas = {};
+    globalThis.ajustes = async () => marcas;
+    globalThis.motorDe = () => ({ tipo: "auto" });
+    globalThis.contarUso = () => {};
+    globalThis.traduzirPara = async (t, idioma) => `[${idioma}] ${t}`;
+    globalThis.traduzirComCache = async (t, idioma) => `[${idioma}] ${t}`;
+    globalThis.canaisEspelho = async () => [
+      { canal_id: "c-pt", idioma: "pt" }, { canal_id: "c-zh", idioma: "zh-CN" }, { canal_id: "c-tr", idioma: "tr" }];
+    const postado = { "c-pt": [], "c-zh": [], "c-tr": [] };
+    const historico = { "c-pt": [], "c-zh": [], "c-tr": [] };
+    const canal = (id) => ({ id, send: async (m) => { postado[id].push(m); },
+      messages: { fetch: async () => new Map(historico[id].map((m, i) => [String(i), m])) } });
+    const guild = { id: "g1", name: "TOP", memberCount: 120,
+      channels: { cache: new Map(Object.keys(postado).map((id) => [id, canal(id)])) } };
+    globalThis.client = { user: { id: "bot" } };
+    const membro = (id, entrouHa) => ({ id, displayName: `Ana${id}`, user: { bot: false, username: `ana${id}` },
+      guild, joinedTimestamp: t0 - entrouHa });
+    const servidor = { id: "s1", boas_vindas_texto: "Leia as regras, {nome}! Você é o número {numero}." };
+
+    verdade("quem chegou agora e escolheu chinês é recebido",
+      await B.boasVindasNasSalas(guild, servidor, membro("1", 3600e3), "zh-CN", t0));
+    ok("em todas as salas de conversa", Object.values(postado).map((l) => l.length), [1, 1, 1]);
+    const zh = postado["c-zh"][0], pt = postado["c-pt"][0], tr = postado["c-tr"][0];
+    verdade("a menção e o idioma dela, iguais em toda sala", [zh, pt, tr].every((m) => m.content.startsWith("👋 <@1> · ")));
+    verdade("na sala portuguesa a frase não passa pelo tradutor", /\nAcabou de chegar!/.test(pt.content));
+    verdade("na sala turca vem em turco", /\[tr\] Acabou de chegar!/.test(tr.content));
+    verdade("a mensagem do admin vem em seguida, na língua da sala, com os marcadores trocados",
+      /\[tr\] Leia as regras, Ana1! Você é o número 120\./.test(tr.content));
+    ok("só a sala dela marca a pessoa", zh.allowedMentions, { users: ["1"] });
+    ok("nas outras a menção é só para ver o nome", tr.allowedMentions, { parse: [] });
+
+    for (const l of Object.values(postado)) l.length = 0;
+    await B.boasVindasNasSalas(guild, servidor, membro("1", 3600e3), "zh-CN", t0 + 60000);
+    ok("a passada seguinte não repete", Object.values(postado).map((l) => l.length), [0, 0, 0]);
+
+    verdade("quem já estava aqui e trocou de idioma não é recebido de novo",
+      !await B.boasVindasNasSalas(guild, servidor, membro("2", 5 * 864e5), "tr", t0));
+
+    B.boasVindasDadas.clear();
+    historico["c-tr"].push({ author: { id: "bot" }, content: "👋 <@3> · 🇹🇷 Türkçe\n..." });
+    verdade("depois de um reinício, a mensagem na sala dela é a marca de que já recebi",
+      !await B.boasVindasNasSalas(guild, servidor, membro("3", 600e3), "tr", t0));
+
+    verdade("idioma sem sala ainda: espera a sala existir",
+      !await B.boasVindasNasSalas(guild, servidor, membro("4", 600e3), "ja", t0));
+    verdade("(e tenta de novo na passada seguinte)", !B.boasVindasDadas.has("g1|4"));
+
+    marcas = { "boas-vindas-salas-off:s1": "1" };
+    verdade("desligado na aba Funções, não avisa", !await B.boasVindasNasSalas(guild, servidor, membro("5", 600e3), "pt", t0));
+    marcas = {};
+
+    B.boasVindasDadas.clear(); B.boasVindasNoMinuto.clear();
+    for (const l of Object.values(postado)) l.length = 0;
+    for (let i = 10; i < 16; i++) await B.boasVindasNasSalas(guild, servidor, membro(String(i), 600e3), "pt", t0 + 1000);
+    ok("entrada em massa: no máximo três avisos por minuto em cada sala", postado["c-pt"].length, B.BOAS_VINDAS_SALAS_POR_MINUTO);
+
+    const semTexto = await B.avisoDeChegada(membro("9", 0), "pt", { idioma: "pt" }, null, {});
+    ok("sem mensagem do admin, só as duas linhas", semTexto.content.split("\n").length, 2);
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("a passada curta chama as boas-vindas para quem acabou de escolher",
+    /await boasVindasNasSalas\(guild, servidor, membro, escolha\.idioma, agora\)/.test(idx));
 }
 
 /* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======

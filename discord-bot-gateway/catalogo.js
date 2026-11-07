@@ -390,6 +390,18 @@ export const RECURSOS = [
     prova: "mylanguage",
   },
   {
+    chave: "boas-vindas-salas",
+    categoria: "chegar",
+    plano: "gratis",
+    nome: { pt: "Boas-vindas em todas as salas", en: "Welcome in every room" },
+    como: { pt: "Sozinho, ao escolher o idioma", en: "On its own, on picking a language" },
+    oque: {
+      pt: "Quem chega e escolhe o idioma é anunciado em todas as salas, cada uma na sua língua. Por exemplo: “👋 @Ana · 🇨🇳 中文 — acabou de chegar!” Se a administração escreveu uma mensagem de boas-vindas, ela vem logo depois, traduzida para cada sala. Assim todo mundo sabe que chegou gente nova e pode receber a pessoa na sua língua. Liga e desliga em 🧩 Funções.",
+      en: "Whoever joins and picks a language is announced in every room, each in its own language. For example: “👋 @Ana · 🇨🇳 中文 — just arrived!” If the admins wrote a welcome message, it comes right after, translated for each room. Everyone knows someone new is here and can welcome them in their own language. Turn it on or off in 🧩 Features.",
+    },
+    prova: "async function boasVindasNasSalas",
+  },
+  {
     chave: "passos",
     categoria: "chegar",
     plano: "gratis",
@@ -584,6 +596,18 @@ export const RECURSOS = [
       en: "A single card that refreshes in place: what is on, what is missing, how many channels exist and what to do next. Only people who manage the server even see the command.",
     },
     prova: "montarPainel",
+  },
+  {
+    chave: "funcoes",
+    categoria: "mandar",
+    plano: "gratis",
+    nome: { pt: "🧩 Ligar e desligar funções", en: "🧩 Turn features on and off" },
+    como: { pt: "/cyron → 🧩 Funções", en: "/cyron → 🧩 Features" },
+    oque: {
+      pt: "O que o bot faz sozinho no chat, num menu de marcar. Heróis aparecendo, chamada para duelo, lembrete de idioma, tradutor por mensagem, níveis e boas-vindas nas salas: a administração escolhe o que é prioridade; o que as pessoas chamam por comando continua funcionando sempre.",
+      en: "What the bot does on its own in the chat, in one checklist. Heroes showing up, duel calls, the language reminder, the per-message translator, levels and room welcomes: admins choose what matters to them; whatever people call by command keeps working.",
+    },
+    prova: "const FUNCOES = [",
   },
   {
     chave: "instalacao",
