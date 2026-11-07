@@ -24,6 +24,12 @@ como uma gravação de tela — a lista de canais desliza, o teclado sobe e digi
 digitando…", os menus abrem de baixo, a notificação chega e é tocada, e cada toque do dedo acontece
 na palavra em que a narração fala dele (a cena lê o tempo de cada palavra no `tempos.json`).
 Prévia em instantes escolhidos: `node gravar.mjs roteiro-pt-uso.json saida-uso previa 17.3,36.7,81.1`.
+
+**Diário da CYRON — Ep. 1: Como eu surgi** (`roteiro-historia-pt.json` + `cena-historia.html`, ~1 min 37 s,
+em português): a CYRON conta a própria história em primeira pessoa — a aliança [TOP] Best de Kingshot,
+os bots que não davam conta, as traduções erradas, o portal, o bot com GIF de rosas, o chat espelhado,
+o dia em que ganhou o nome e a virada para qualquer servidor. Cada cena tem a data real do histórico
+do projeto, e a expressão da mascote muda conforme a fala (`cara` em `CENAS`, dentro da cena).
 Vozes: `python3 -m edge_tts --list-voices` (ex.: `id-ID-GadisNeural`, `zh-CN-XiaoxiaoNeural`, `th-TH-PremwadeeNeural`).
 
 No ambiente da nuvem, o `narrar.py` usa sozinho o certificado do proxy (`/root/.ccr/ca-bundle.crt`).
