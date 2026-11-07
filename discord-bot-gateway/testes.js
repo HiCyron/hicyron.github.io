@@ -12882,7 +12882,7 @@ function conferirCartao(onde, embed, componentes = []) {
       "PEGAS_POR_DIA", "aparicoes", "ultimaAparicao", "aparicoesNoDia", "pegasNoDia", "raridadeDe", "sortearRaridade",
       "sortearHeroi", "contarNoDia", "podeAparecer", "retratoDoHeroi", "cartaoDaAparicao", "cartaoPego", "talvezAparecerHeroi",
       "heroiFoiEmbora", "guardarCarta", "pegarHeroi", "ligarAparicoes", "cliqueHeroi", "chancesDoDiario", "proximoDiario",
-      "comandoDiario", "diaAnterior", "albumDaColecao", "comandoColecao", "comandoPresentear"]);
+      "linkDeVoto", "botaoDeVoto", "comandoDiario", "diaAnterior", "albumDaColecao", "comandoColecao", "comandoPresentear"]);
 
     /* ---- a sorte ---- */
     ok("sorte baixa: comum", H.sortearRaridade(0).pt, "Comum");
@@ -14273,6 +14273,68 @@ function conferirCartao(onde, embed, componentes = []) {
   for (const f of ["atualizarEventos", "rodarComandosAgendados", "soltarAsInteracoes", "deHoraEmHora"]) {
     verdade(`${f} continua de dez em dez minutos`, passada.includes(`await ${f}()`) && !portoes.includes(f));
   }
+}
+
+/* ====== 🗳️ VOTOS NO DISCORDBOTLIST ======
+ *
+ * O Google e as IAs indicam bot pelas listas, e as listas ordenam por voto.
+ * Quem vota ganha uma carta e um obrigado no privado; reinício nenhum paga
+ * o mesmo voto duas vezes. */
+{
+  const globais = ["client", "chaveDoDbl", "ajustes", "porAjuste", "premiarVoto", "guardarCarta", "contarUso", "DBL_API"];
+  const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
+  try {
+    const V = carregar(["VOTOS_A_CADA", "PREMIOS_POR_RODADA", "linkDeVoto", "votosNovos", "colherVotos", "botaoDeVoto"]);
+    const u = (id, ts) => ({ user_id: id, timestamp: ts, username: "x" });
+    const lista = [u("111111111111111111", "2026-11-07T10:00:00Z"), u("222222222222222222", "2026-11-07T12:00:00Z"),
+      u("333333333333333333", "2026-11-07T11:00:00Z"), u("nao-e-id", "2026-11-07T13:00:00Z")];
+    const desde = Date.parse("2026-11-07T10:30:00Z");
+    ok("só os votos depois da marca, do mais velho ao mais novo",
+      V.votosNovos(lista, desde).map((v) => v.user), ["333333333333333333", "222222222222222222"]);
+    ok("id que não é de pessoa fica de fora", V.votosNovos([u("abc", "2026-11-07T12:00:00Z")], 0).length, 0);
+    ok("resposta estranha não estoura", V.votosNovos(null, 0).length, 0);
+
+    globalThis.client = { user: { id: "1498142929041096856" } };
+    globalThis.DBL_API = "https://discordbotlist.com/api/v1/bots";
+    ok("o link de voto é a página da CYRON no discordbotlist", V.linkDeVoto(), "https://discordbotlist.com/bots/1498142929041096856/upvote");
+    verdade("o botão de votar é um link", V.botaoDeVoto().components[0].style === 5 && V.botaoDeVoto().components[0].url === V.linkDeVoto());
+
+    let marcas = {}, gravado = null, pagos = [], pedido = null;
+    globalThis.chaveDoDbl = async () => "token-da-lista";
+    globalThis.ajustes = async () => marcas;
+    globalThis.porAjuste = async (k, v) => { gravado = [k, v]; marcas = { ...marcas, [k]: v }; };
+    globalThis.premiarVoto = async (id) => { pagos.push(id); };
+    const buscar = async (url, o) => { pedido = { url, auth: o?.headers?.Authorization }; return { ok: true, json: async () => ({ upvotes: lista, total: 4 }) }; };
+
+    const agora = Date.parse("2026-11-07T14:00:00Z");
+    ok("primeira rodada: nenhum voto antigo vira carta", await V.colherVotos(buscar, agora), 0);
+    ok("e a marca nasce agora", gravado, ["voto_dbl_ate", String(agora)]);
+    ok("pergunta à lista com o token dela", [pedido.url, pedido.auth], ["https://discordbotlist.com/api/v1/bots/1498142929041096856/upvotes", "token-da-lista"]);
+
+    marcas = { voto_dbl_ate: String(desde) }; pagos = [];
+    ok("votos novos: paga os dois", await V.colherVotos(buscar, agora), 2);
+    ok("cada um ganha o seu prêmio", pagos, ["333333333333333333", "222222222222222222"]);
+    ok("e a marca anda até o voto mais novo", marcas.voto_dbl_ate, String(Date.parse("2026-11-07T12:00:00Z")));
+    pagos = [];
+    ok("a rodada seguinte não paga de novo", await V.colherVotos(buscar, agora), 0);
+    ok("ninguém recebe duas vezes", pagos.length, 0);
+
+    marcas = Object.defineProperty({}, "falhou", { value: true }); pagos = [];
+    ok("banco fora: não paga nada (nem sabe a marca)", await V.colherVotos(buscar, agora), 0);
+    globalThis.chaveDoDbl = async () => "";
+    ok("sem token da lista: não pergunta nada", await V.colherVotos(async () => { throw new Error("não devia chamar"); }, agora), 0);
+    globalThis.chaveDoDbl = async () => "token-da-lista";
+    let estourou = false;
+    try { await V.colherVotos(async () => ({ ok: false, status: 401 }), agora); } catch { estourou = true; }
+    verdade("token recusado vira erro no log, e não prêmio", estourou);
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  const diario = idx.slice(idx.indexOf("async function comandoDiario("), idx.indexOf("function diaAnterior("));
+  ok("o /diario convida a votar nas duas respostas", (diario.match(/components: \[botaoDeVoto\(\)\]/g) || []).length, 2);
+  verdade("os votos são colhidos de 5 em 5 minutos", /setInterval\(\(\) => colherVotos\(\)[^\n]*VOTOS_A_CADA\)/.test(idx));
+  verdade("o prêmio é uma carta, guardada antes do obrigado", /async function premiarVoto[^]*?await guardarCarta\(userId, p, r\)[^]*?pessoa\.send/.test(idx));
 }
 
 function NA_CONTA_DO_FONTE() {
