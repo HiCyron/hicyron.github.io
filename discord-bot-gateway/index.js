@@ -4928,6 +4928,10 @@ async function sincronizarRecentes(agora = Date.now()) {
           if (cargo === querido && !tem) await membro.roles.add(cargo, "idioma escolhido").catch(() => {});
           else if (cargo !== querido && tem) await membro.roles.remove(cargo, "trocou de idioma").catch(() => {});
         }
+        /* Aqui, e nao no clique: a escolha chega por tres portas (o menu da
+           sala, o privado, o /mylanguage), e todas passam por esta lista. */
+        await boasVindasNasSalas(guild, servidor, membro, escolha.idioma, agora)
+          .catch((e) => console.error("boas-vindas: o aviso nas salas falhou em", guild.name, e?.message || e));
       }
     } catch (e) {
       console.error("espelho: passada curta falhou em", guild.name, e?.message || e);
@@ -6958,10 +6962,64 @@ async function replicasOrfas(guild, servidor) {
 const ABAS_DO_PAINEL = [
   { valor: "resumo", emoji: "🏠", nome: "Visão geral · Overview" },
   { valor: "traducao", emoji: "🌐", nome: "Tradução · Translation" },
+  { valor: "funcoes", emoji: "🧩", nome: "Funções · Features" },
   { valor: "uso", emoji: "📊", nome: "Uso · Usage" },
   { valor: "agenda", emoji: "📆", nome: "Agenda · Events" },
   { valor: "plano", emoji: "💳", nome: "Plano · Plan" },
 ];
+
+/* ---------------- 🧩 o que o admin liga e desliga ----------------
+
+   O que precisa de interruptor e' o que eu faco SOZINHA no chat; o que a
+   pessoa chama (/figurinha, /duelo, /evento) nao atrapalha ninguem.
+
+   Cada uma dessas ja' tinha interruptor -- cada um num lugar. O da carta do
+   heroi era o 🔕 dentro da propria carta, que so' aparece quando ela ja' esta'
+   atrapalhando; o do lembrete, um botao no quadro de idiomas; o dos niveis,
+   o /niveis. Quem reclamava da carta no chat movimentado nao achava onde
+   desligar. Agora moram juntos na aba 🧩 Funções.
+
+   Cada um continua guardado onde ja' estava (um ajuste ou uma coluna do
+   servidor), entao quem desligou algo antes continua com ele desligado. A
+   traducao nao esta' aqui de proposito: ela e' o bot, e desligar sem querer
+   seria o pior defeito possivel. */
+const FUNCOES = [
+  { chave: "herois", emoji: "🃏", nome: "Heróis aparecendo no chat",
+    oque: "Com o chat animado aparece uma carta de herói; quem clicar primeiro leva.",
+    ajuste: (s) => `aparicao-off:${s.id}` },
+  { chave: "duelo", emoji: "⚔️", nome: "Chamada para duelo no chat",
+    oque: "Uma vez por dia, com o chat animado, eu chamo a sala para um duelo.",
+    ajuste: (s) => `duelo-chamada-off:${s.id}` },
+  { chave: "lembrete", emoji: "🔔", nome: "Lembrete de escolher idioma",
+    oque: "Uma vez por dia eu marco quem ainda não escolheu idioma (cada pessoa no máximo a cada 3 dias).",
+    ajuste: (s) => `idioma_lembrete_off:${s.id}` },
+  { chave: "topico", emoji: "💬", nome: "Tradutor por mensagem",
+    oque: "Um menu 🌐 embaixo das mensagens para cada um ler na sua língua.",
+    coluna: "tradutor_topico" },
+  { chave: "niveis", emoji: "⬆️", nome: "Níveis e XP",
+    oque: "XP por conversar e por falar na voz, e o aviso de quem subiu de nível.",
+    coluna: "niveis_ligado" },
+  { chave: "boasvindas", emoji: "👋", nome: "Boas-vindas nas salas de conversa",
+    oque: "Quem chega e escolhe o idioma é recebido em todas as salas, cada uma na sua língua.",
+    ajuste: (s) => `boas-vindas-salas-off:${s.id}` },
+];
+
+/* Ligada ou nao. O ajuste guarda o DESLIGADO ("1"); vazio ou ausente e'
+   ligado -- o mesmo que cada funcao ja' lia. Pura. */
+function funcaoLigada(f, servidor, marcas) {
+  if (f.coluna) return !!servidor?.[f.coluna];
+  return !marcas?.[f.ajuste(servidor)];
+}
+
+async function mudarFuncao(f, servidor, ligar) {
+  if (f.coluna) {
+    await sbPatch(`cyron_servidor?id=eq.${encodeURIComponent(servidor.id)}`, { [f.coluna]: ligar });
+    servidor[f.coluna] = ligar;
+    cacheServidor.delete(servidor.guild_id);
+    return;
+  }
+  await porAjuste(f.ajuste(servidor), ligar ? "" : "1");
+}
 
 /* Em que aba esta' a mensagem onde clicaram: e' a opcao marcada do menu. */
 function abaDaMensagem(msg) {
@@ -6975,7 +7033,7 @@ function abaDaMensagem(msg) {
   return "resumo";
 }
 
-function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "resumo") {
+function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "resumo", ligadas = null) {
   const escolhidos = new Set(fontes.map((f) => f.canal_id));
 
   /* O teto do menu e' o teto do plano, e nao o do Discord.
@@ -7020,6 +7078,20 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
         })),
       }],
     });
+  }
+
+  /* Um menu so', de marcar: o que fica marcado fica ligado. Botao por funcao
+     nao caberia (cinco por fileira, cinco fileiras) e obrigaria a ler o
+     rotulo de cada um para saber se ele liga ou desliga. */
+  if (aba === "funcoes") {
+    linhas.push({ type: 1, components: [{
+      type: 3, custom_id: "cyron:funcoes", placeholder: "Marque o que fica ligado",
+      min_values: 0, max_values: FUNCOES.length,
+      options: FUNCOES.map((f) => ({
+        value: f.chave, label: f.nome.slice(0, 100), emoji: { name: f.emoji },
+        description: f.oque.slice(0, 100), default: !!ligadas?.has(f.chave),
+      })),
+    }] });
   }
 
   if (aba === "traducao") linhas.push({
@@ -10052,6 +10124,101 @@ async function darBoasVindas(member) {
   await canal.send(await mensagemDeBoasVindas(member, linguas, servidor.boas_vindas_texto))
     .then(() => contarUso("boas-vindas", member.guild.id))
     .catch((e) => console.error(`boas-vindas: nao consegui postar em ${member.guild.name}:`, e?.message || e));
+}
+
+/* ---------------- 👋 boas-vindas nas salas de conversa ----------------
+
+   O cartao de cima sai quando a pessoa ENTRA, num canal so'. So' que entrar
+   nao e' chegar: enquanto ela nao escolhe o idioma, nao ve sala nenhuma, e
+   quem esta' conversando nunca fica sabendo que ela existe.
+
+   Entao, quando ela escolhe, cada sala de conversa ganha um aviso na propria
+   lingua -- "chegou a @Ana, que le em 中文" --, seguido da mensagem do
+   administrador, se ele escreveu uma. Quem esta' na sala dos chineses le em
+   chines, quem esta' na dos turcos le em turco, e qualquer um pode responder
+   "bem-vinda" na sua lingua: o espelho leva ate' ela.
+
+   "Membro novo" e' quem entrou ha' ate' dois dias: quem ja' estava aqui e
+   trocou de idioma nao e' recebido de novo como se tivesse acabado de chegar.
+
+   A marca de "ja' recebi" e' a propria mensagem na sala dela -- ela sobrevive
+   a reinicio, que a memoria nao. E o teto por minuto segura uma entrada em
+   massa: dez pessoas escolhendo juntas nao viram dez avisos em cada sala. */
+const BOAS_VINDAS_NOVO = 48 * 3600 * 1000;
+const BOAS_VINDAS_SALAS_POR_MINUTO = 3;
+const boasVindasDadas = new Map();     // `${guildId}|${userId}` -> quando
+const boasVindasNoMinuto = new Map();  // guildId -> [quando]
+
+function podeBoasVindasNasSalas(guildId, agora = Date.now()) {
+  const lista = (boasVindasNoMinuto.get(guildId) || []).filter((t) => agora - t < 60000);
+  if (lista.length >= BOAS_VINDAS_SALAS_POR_MINUTO) { boasVindasNoMinuto.set(guildId, lista); return false; }
+  lista.push(agora);
+  boasVindasNoMinuto.set(guildId, lista);
+  return true;
+}
+
+/* O aviso de uma sala, ja' na lingua dela. A mencao e o nome do idioma
+   ficam fora do tradutor: a mencao voltaria quebrada, e o nome na propria
+   lingua ("🇨🇳 中文") se le igual em qualquer sala. */
+async function avisoDeChegada(membro, idiomaDela, sala, modelo, motor) {
+  const frase = "Acabou de chegar! Escreva na sua língua e eu traduzo para todo mundo.";
+  const linhas = [`👋 <@${membro.id}> · ${nomeNaPropriaLingua(idiomaDela)}`,
+    sala.idioma === "pt" ? frase : await traduzirPara(frase, sala.idioma, motor)];
+  if (modelo) {
+    const texto = textoDeBoasVindas(modelo, { id: membro.id, nome: membro.displayName || membro.user?.username,
+      servidor: membro.guild.name, numero: membro.guild.memberCount, ola: "" }).trim();
+    const { marcado, pecas } = protegerDoTradutor(texto, []);
+    const traduzido = /\p{L}/u.test(marcado.replace(/%%\d+%%/g, ""))
+      ? await traduzirComCache(marcado.trim(), sala.idioma, motor).catch(() => null) : null;
+    linhas.push(traduzido ? devolverPecas(traduzido, pecas) : texto);
+  }
+  return {
+    content: linhas.filter(Boolean).join("\n").slice(0, 2000),
+    /* Marca so' na sala dela: nas outras ela nem entra, e a mencao serve
+       para os outros verem o nome e responderem. */
+    allowedMentions: sala.idioma === idiomaDela ? { users: [membro.id] } : { parse: [] },
+  };
+}
+
+async function boasVindasNasSalas(guild, servidor, membro, idiomaDela, agora = Date.now()) {
+  if (!membro || membro.user?.bot) return false;
+  const chave = `${guild.id}|${membro.id}`;
+  if (boasVindasDadas.has(chave)) return false;
+  for (const [k, t] of boasVindasDadas) if (agora - t > BOAS_VINDAS_NOVO) boasVindasDadas.delete(k);
+  if (!membro.joinedTimestamp || agora - membro.joinedTimestamp > BOAS_VINDAS_NOVO) {
+    boasVindasDadas.set(chave, agora);
+    return false;
+  }
+  const marcas = await ajustes();
+  if (marcas.falhou || !funcaoLigada(FUNCOES.find((f) => f.chave === "boasvindas"), servidor, marcas)) return false;
+  const salas = (await canaisEspelho(servidor.id)).filter((s) => s.canal_id);
+  const minha = salas.find((s) => s.idioma === idiomaDela);
+  /* A sala dela ainda nao existe (lingua nova aqui): a passada seguinte
+     tenta de novo -- quem escolheu fica na lista por quinze minutos. */
+  if (!minha) return false;
+  /* Marca ANTES de qualquer espera: duas passadas juntas nao viram dois avisos. */
+  boasVindasDadas.set(chave, agora);
+
+  const canalDela = guild.channels.cache.get(String(minha.canal_id));
+  const ultimas = await canalDela?.messages?.fetch?.({ limit: 30 }).catch(() => null);
+  const jaRecebi = [...(ultimas?.values?.() || [])].some((m) => m.author?.id === client.user?.id &&
+    String(m.content || "").startsWith(`👋 <@${membro.id}>`));
+  if (jaRecebi || !podeBoasVindasNasSalas(guild.id, agora)) return false;
+
+  const motor = motorDe(servidor);
+  const modelo = servidor.boas_vindas_texto || null;
+  let postou = 0;
+  for (const sala of salas) {
+    const canal = guild.channels.cache.get(String(sala.canal_id));
+    if (typeof canal?.send !== "function") continue;
+    const aviso = await comoTextoDoBot(() => avisoDeChegada(membro, idiomaDela, sala, modelo, motor));
+    if (await canal.send(aviso).then(() => true, (e) => {
+      console.error(`boas-vindas: nao consegui avisar na sala ${sala.idioma} de ${guild.name}:`, e?.message || e);
+      return false;
+    })) postou++;
+  }
+  if (postou) contarUso("boas-vindas-salas", guild.id);
+  return postou > 0;
 }
 
 /* /boas-vindas #canal liga (e mostra na hora o cartao de quem pediu);
@@ -13096,7 +13263,8 @@ async function ligarAparicoes(inter, ligar) {
     content: ligar
       ? "🔔 Pronto: os heróis voltam a aparecer quando o chat estiver animado.\n_Done: heroes will show up again when the chat is lively._"
       : "🔕 Pronto: os heróis não aparecem mais neste servidor. /colecao e /diario continuam funcionando.\n" +
-        "_Done: heroes won't show up in this server anymore. /colecao and /diario still work._",
+        "_Done: heroes won't show up in this server anymore. /colecao and /diario still work._\n" +
+        "-# Isto e as outras funções que eu faço sozinha no chat ficam no painel ⚙️ → 🧩 Funções.",
     components: ligar ? [] : [{ type: 1, components: [
       { type: 2, custom_id: "heroi:on:x", style: 2, emoji: { name: "🔔" }, label: "Religar · Turn back on" }] }] });
 }
@@ -15485,10 +15653,27 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
     });
   }
 
+  /* Uma fileira por funcao, e nao uma lista num campo so': traduzida para o
+     alemao a lista inteira passaria dos 1024 caracteres do campo, e o
+     Discord recusa o painel todo. */
+  let ligadas = null;
+  if (aba === "funcoes") {
+    const marcas = await ajustes();
+    ligadas = new Set(FUNCOES.filter((f) => funcaoLigada(f, servidor, marcas)).map((f) => f.chave));
+    for (const f of FUNCOES) {
+      campos.push({ _aba: "funcoes",
+        name: `${ligadas.has(f.chave) ? "✅" : "⚫"} ${f.emoji} ${await T(f.nome)}`,
+        value: `_${await T(f.oque)}_` });
+    }
+    campos.push({ _aba: "funcoes", name: await T("🧩 Como mudar"),
+      value: await T("Marque no menu abaixo o que fica ligado. O que vocês chamam por comando " +
+        "(/figurinha, /duelo, /evento) continua funcionando sempre.") });
+  }
+
   const daAba = campos.filter((c) => c._aba === aba).map(({ _aba, ...c }) => c);
 
   const embed = {
-    title: { resumo: "⚙️ CYRON", traducao: "⚙️ CYRON · 🌐", uso: "⚙️ CYRON · 📊",
+    title: { resumo: "⚙️ CYRON", traducao: "⚙️ CYRON · 🌐", funcoes: "⚙️ CYRON · 🧩", uso: "⚙️ CYRON · 📊",
       agenda: "⚙️ CYRON · 📆", plano: "⚙️ CYRON · 💳" }[aba] || "⚙️ CYRON",
     description: await vereditoDoPainel(problemas, vivas.length, idiomas.length, T),
     color: corDoPainel(noTeto, fila.length > 0 || inalcancaveis.length > 0 || !!cargoRuim),
@@ -15510,7 +15695,7 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
     },
   };
 
-  return { embed, extras, componentes: componentesDoPainel(servidor, vivas, limite, orfas, elegiveis, aba) };
+  return { embed, extras, componentes: componentesDoPainel(servidor, vivas, limite, orfas, elegiveis, aba, ligadas) };
 }
 
 async function cartaoDeConfig(guild, servidor) {
@@ -16582,6 +16767,30 @@ async function cliquePainel(inter) {
   }
 
   await inter.deferUpdate();
+
+  /* A aba 🧩 Funções. O menu manda o conjunto inteiro do que ficou marcado,
+     e as opcoes dele sao sempre todas as funcoes -- entao, aqui, ausencia e'
+     desligar mesmo (diferente do menu de canais, que pode nao mostrar tudo). */
+  if (acao === "funcoes" && inter.isStringSelectMenu()) {
+    const querem = new Set(inter.values || []);
+    const marcas = await ajustes();
+    const mudou = [];
+    for (const f of FUNCOES) {
+      const ligar = querem.has(f.chave);
+      if (!marcas.falhou && funcaoLigada(f, servidor, marcas) === ligar) continue;
+      await mudarFuncao(f, servidor, ligar);
+      mudou.push(f);
+    }
+    if (mudou.length) {
+      await inter.followUp({ flags: 64, content: mudou.map((f) => querem.has(f.chave)
+        ? `✅ ${f.emoji} ${f.nome}: ligado` : `⚫ ${f.emoji} ${f.nome}: desligado`).join("\n") }).catch(() => {});
+    }
+    /* O quadro de idiomas mostra o estado do lembrete no botao dele. */
+    if (mudou.some((f) => f.chave === "lembrete")) {
+      await quadroDeIdiomas(inter.guild, servidor, { forcar: true }).catch(() => {});
+    }
+    return refrescarPainel(inter, servidor);
+  }
 
   if (acao === "tradutor") {
     const ligar = !servidor.tradutor_topico;
