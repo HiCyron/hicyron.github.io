@@ -2593,16 +2593,17 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("os idiomas aparecem na própria língua", painel.includes("nomeNaPropriaLingua"));
   verdade("e não mais só em português", !/nomeDoIdioma\(i\.idioma\)/.test(painel));
 
-  /* ---- o cartão fixado continua em português, e tem que continuar ----
+  /* ---- o cartão fixado fala a língua do DONO ----
 
-     Ele é UMA mensagem para o servidor inteiro. Desenhá-lo na língua de quem
-     mexeu por último traduziria o cartão de todos para a língua dessa pessoa. */
+     Ele é UMA mensagem, na sala do dono. Desenhá-lo na língua de quem mexeu
+     por último traduziria o cartão para a língua dessa pessoa; desenhá-lo
+     sempre em português deixava um dono japonês sem ler o próprio painel. */
   const cartao = corpoDe("async function cartaoDeConfig", "\n/* Mudanca que deu certo");
-  verdade("o cartão fixado é montado sem idioma",
-    /montarPainel\(guild, servidor\)/.test(cartao));
+  verdade("o cartão fixado é montado na língua do dono",
+    /montarPainel\(guild, servidor, await linguaDaSalaCyron\(guild\)\)/.test(cartao));
   const refresca = corpoDe("async function refrescarPainel", "\n/* O menu manda");
   verdade("depois do clique, a língua sai da superfície e não de quem clicou",
-    /noFixado \? "" :/.test(refresca));
+    /noFixado \? await linguaDaSalaCyron\(inter\.guild\) :/.test(refresca));
 }
 
 /* ============ o painel montado de verdade ============
@@ -2629,7 +2630,7 @@ function conferirCartao(onde, embed, componentes = []) {
     "porMolde", "falaFixa", "vereditoDoPainel", "comoEstaOMotor",
     "DIAS_DE_RITMO", "primeiroDiaDoMes", "ritmoDiario", "emK", "usoDoMes",
     "diaISO", "BARRINHAS", "grafiquinho", "variacaoEmTexto", "PRECOS", "precoDoPlano",
-    "montarPainel"]);
+    "componentesNaLingua", "montarPainel"]);
 
   globalThis.COR = 0xF5A623;
   globalThis.MOTOR_AUTO = { tipo: "auto" };
@@ -2864,7 +2865,7 @@ function conferirCartao(onde, embed, componentes = []) {
     /const aba = noFixado \? "resumo" : abaDaMensagem\(inter\.message\)/.test(fonteIdx));
   verdade("no fixado, a aba abre ao lado, só para quem escolheu",
     /if \(noFixado\) await inter\.deferReply\(\{ flags: 64 \}\);\s*else await inter\.deferUpdate\(\);/.test(fonteIdx));
-  verdade("e o fixado é sempre a visão geral", /montarPainel\(guild, servidor\);/.test(fonteIdx));
+  verdade("e o fixado é sempre a visão geral", /montarPainel\(guild, servidor, await linguaDaSalaCyron\(guild\)\);/.test(fonteIdx));
   ok("aba inventada também", abaDaMensagem({ components: [
     { components: [{ custom_id: "cyron:aba", options: [{ value: "x", default: true }] }] }] }), "resumo");
   globalThis.LINK_PRO_VIVO = "";
@@ -3137,9 +3138,16 @@ function conferirCartao(onde, embed, componentes = []) {
      arena. Guarda que mede a coisa errada acusa defeito onde não há. */
   const inicioRecibo = fonte.indexOf("async function reciboDaSemana");
   const corpoDoRecibo = fonte.slice(inicioRecibo, fonte.indexOf("\n}", inicioRecibo) + 2);
-  for (const proibido of ["traduzirComCache", "traduzirEmbed", "traduzirLongo", "anotarUso"]) {
+  for (const proibido of ["traduzirComCache", "traduzirLongo", "anotarUso"]) {
     verdade(`o recibo não chama ${proibido}`, !corpoDoRecibo.includes(proibido));
   }
+  /* A exceção é o dono que não lê nenhuma das duas: aí o cartão vai na língua
+     dele, montado só com a metade em português (senão a mesma frase sairia
+     duas vezes). Em português e em inglês, nada passa pelo tradutor. */
+  verdade("o recibo só traduz para o dono que não lê português nem inglês",
+    (corpoDoRecibo.match(/traduzirEmbed\(/g) || []).length === 1 &&
+    /const uma = !!lingua && !\["pt", "en"\]\.includes\(lingua\);/.test(corpoDoRecibo) &&
+    /return uma \? await traduzirEmbed\(cartao, lingua,/.test(corpoDoRecibo));
 
   const tudoQueEleEscreve = [cartao.title, cartao.description, cartao.footer.text,
     ...cartao.fields.map((f) => f.name)].join("\n");
@@ -4907,21 +4915,37 @@ function conferirCartao(onde, embed, componentes = []) {
       /if \(jaDesenhado\(servidor\.msg_config, assinatura\)\) return;/.test(idx));
     verdade("o nome do servidor é acompanhado na volta do relógio e na hora",
       /await acompanharNome\(servidor\);/.test(idx) && /client\.on\("guildUpdate"/.test(idx));
-    verdade("o convite reaproveita o que já existe", /unique: false/.test(idx));
-    globalThis.ChannelType = { GuildText: 0 };
-    globalThis.portaDoIdioma = async () => "porta";
-    const { conviteDoServidor } = carregar(["convitesDosClientes", "conviteDoServidor"]);
-    ok("endereço próprio do servidor primeiro",
-      await conviteDoServidor({ id: "g0", vanityURLCode: "toptop" }), "https://discord.gg/toptop");
-    let criados = 0;
-    const canal = (pode) => ({ type: 0, permissionsFor: () => ({ has: () => pode }),
-      createInvite: async (o) => { criados++; return { url: `https://discord.gg/abc${o.unique ? "-novo" : ""}` }; } });
-    const g = (pode) => ({ id: `g-${pode}`, name: "x", members: { me: {} },
-      channels: { cache: new Map([["porta", canal(pode)]]) } });
-    ok("sem endereço próprio: convite na porta do idioma", await conviteDoServidor(g(true), 1), "https://discord.gg/abc");
-    await conviteDoServidor(g(true), 2);
-    ok("e não pede de novo dentro de 6 horas", criados, 1);
-    ok("sem permissão: sem link, e sem erro", await conviteDoServidor(g(false), 1), "");
+    /* O top.gg reprovou o bot por criar convite sozinho no servidor de quem o
+       instala. A ficha mostra só o endereço público; convite, nunca. */
+    verdade("o bot não cria convite em servidor de cliente", !/\.createInvite\(/.test(idx));
+    const { conviteDoServidor } = carregar(["conviteDoServidor"]);
+    ok("endereço público do servidor, quando existe",
+      conviteDoServidor({ id: "g0", vanityURLCode: "toptop" }), "https://discord.gg/toptop");
+    ok("sem endereço público: sem link", conviteDoServidor({ id: "g1" }), "");
+
+    /* E os convites que ele já tinha criado saem -- só os dele, e nunca o do suporte. */
+    const antesR = { client: globalThis.client, guildDoSuporte: globalThis.guildDoSuporte,
+      portaDoIdioma: globalThis.portaDoIdioma, umaVezPorProcesso: globalThis.umaVezPorProcesso };
+    try {
+      globalThis.client = { user: { id: "bot" } };
+      globalThis.portaDoIdioma = async () => "porta";
+      const vistos = new Set();
+      globalThis.umaVezPorProcesso = (k) => (vistos.has(k) ? false : (vistos.add(k), true));
+      const { revogarMeusConvites } = carregar(["revogarMeusConvites"]);
+      const apagados = [];
+      const convite = (codigo, de) => ({ code: codigo, inviterId: de, delete: async () => { apagados.push(codigo); } });
+      const porta = { fetchInvites: async () => new Map([["a", convite("meu", "bot")], ["b", convite("do-dono", "dono")]]) };
+      const g = (id) => ({ id, name: id, channels: { cache: new Map([["porta", porta]]) }, systemChannel: porta, rulesChannel: null });
+      globalThis.guildDoSuporte = async () => ({ id: "suporte" });
+      ok("apaga só o convite que o bot criou", await revogarMeusConvites(g("cliente")), 1);
+      ok("(e é o dele)", apagados, ["meu"]);
+      ok("uma vez por servidor", await revogarMeusConvites(g("cliente")), 0);
+      ok("no servidor de suporte, nunca (é o link dos botões 💬)", await revogarMeusConvites(g("suporte")), 0);
+      globalThis.guildDoSuporte = async () => null;
+      ok("sem saber qual é o suporte, não mexe em nada", await revogarMeusConvites(g("outro")), 0);
+    } finally {
+      Object.assign(globalThis, antesR);
+    }
   }
 }
 
@@ -13784,6 +13808,68 @@ function conferirCartao(onde, embed, componentes = []) {
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
   verdade("a passada curta chama as boas-vindas para quem acabou de escolher",
     /await boasVindasNasSalas\(guild, servidor, membro, escolha\.idioma, agora\)/.test(idx));
+}
+
+/* ====== A SALA ⚙️-CYRON NA LÍNGUA DO DONO ======
+ *
+ * "Se o dono fala japonês, a sala do adm é para ele": o painel fixo, a
+ * pergunta do modo, o recibo, os marcos e o aviso de limite saem na língua
+ * dele. */
+{
+  const globais = ["idiomaEscolhido", "traduzirComCache", "traduzirEmbed"];
+  const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
+  try {
+    let escolhida = "";
+    globalThis.idiomaEscolhido = async () => escolhida;
+    const L = carregar(["LINGUAS_MENU", "idiomaDoAplicativo", "linguaDaSalaCyron", "porMolde", "falaFixa",
+      "componentesNaLingua", "textoNaLingua", "cartaoNaLingua"]);
+    escolhida = "ja";
+    ok("a língua que o dono escolheu no bot manda", await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "pt-BR" }), "ja");
+    escolhida = "";
+    ok("sem escolha, a do servidor", await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "ja" }), "ja");
+    ok("o en-US de todo servidor novo não conta: português, como sempre foi",
+      await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "en-US" }), "pt");
+    ok("sem nada, português", await L.linguaDaSalaCyron({ ownerId: "d" }), "pt");
+
+    globalThis.traduzirComCache = async (t, idioma) => `[${idioma}] ${t}`;
+    const linhas = [{ type: 1, components: [
+      { type: 2, custom_id: "cyron:ajuda", label: "Ajuda", emoji: { name: "❓" } },
+      { type: 3, custom_id: "cyron:aba", placeholder: "Abrir uma aba",
+        options: [{ value: "resumo", label: "Visão geral", default: true, description: "o resumo" }] }] }];
+    const ja = await L.componentesNaLingua(linhas, "ja");
+    ok("o rótulo do botão vai na língua do dono", ja[0].components[0].label, "[ja] Ajuda");
+    ok("o do menu e as opções também", [ja[0].components[1].placeholder, ja[0].components[1].options[0].label,
+      ja[0].components[1].options[0].description], ["[ja] Abrir uma aba", "[ja] Visão geral", "[ja] o resumo"]);
+    ok("o id do clique e o valor da opção ficam (é por eles que o clique é reconhecido)",
+      [ja[0].components[0].custom_id, ja[0].components[1].options[0].value, ja[0].components[1].options[0].default],
+      ["cyron:ajuda", "resumo", true]);
+    verdade("em português nada passa pelo tradutor", (await L.componentesNaLingua(linhas, "pt")) === linhas);
+    ok("menção e emoji atravessam o tradutor inteiros",
+      await L.textoNaLingua("Olá <@123>, veja <#456> <:amei:789>", "ja"), "[ja] Olá <@123>, veja <#456> <:amei:789>");
+
+    /* O marco em uma língua só: as duas metades traduzidas dariam a frase duas vezes. */
+    const M = carregar(["INDICACAO", "cartaoDoMarco"]);
+    const bi = M.cartaoDoMarco({ name: "TOP" }, 500);
+    const uma = M.cartaoDoMarco({ name: "TOP" }, 500, true);
+    verdade("bilíngue em português e inglês, como sempre", /messages translated/.test(bi.embeds[0].title) && /_Since CYRON/.test(bi.embeds[0].description));
+    verdade("em uma língua só, nada em inglês para o tradutor duplicar",
+      !/messages translated|Since CYRON|Know another/.test(uma.embeds[0].title + uma.embeds[0].description + uma.content));
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+
+  /* A pergunta do modo traduzida continua saindo da sala em 30 minutos. */
+  const V = carregar(["MODOS", "modoDe", "MODO_SOME_EM", "cartaoDoModoVencido"]);
+  const agora = Date.parse("2026-11-07T12:00:00Z");
+  const m = (titulo, min) => ({ author: { id: "eu" }, embeds: [{ title: titulo }], editedTimestamp: agora - min * 60000 });
+  verdade("respondida e traduzida (🔀 em japonês): sai", V.cartaoDoModoVencido(m("🔀 このサーバーでのCYRONモード", 31), "eu", agora));
+  verdade("ainda sem resposta (👋 em japonês): fica", !V.cartaoDoModoVencido(m("👋 ここでCYRONをどう使いますか？", 90), "eu", agora));
+
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("o painel traduz os botões junto", /componentes: await componentesNaLingua\(\s*componentesDoPainel\(/.test(idx));
+  verdade("a pergunta do modo vai na língua do dono", /cartaoNaLingua\(cartaoDoModo\(servidor\), await linguaDaSalaCyron\(guild\)/.test(idx));
+  verdade("o recibo também", /const lingua = await linguaDaSalaCyron\(guild\);\s*const embed = await reciboDaSemana\(guild, s, lingua\);/.test(idx));
+  verdade("e o aviso de limite", /async function avisarDoTeto[^]*?const lingua = await linguaDaSalaCyron\(guild\);/.test(idx));
 }
 
 /* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======

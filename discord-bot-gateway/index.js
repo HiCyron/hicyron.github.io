@@ -4528,6 +4528,8 @@ async function avisarDoTeto(guild, servidor, naoCoube, limite) {
 
   const canal = await guild.channels.fetch(servidor.canal_config).catch(() => null);
   if (!canal) return;
+  const lingua = await linguaDaSalaCyron(guild);
+  const motor = await motorDoGuild(guild.id).catch(() => MOTOR_AUTO);
 
   const quem = novos
     .map(([idioma, quantos]) => `• ${nomeDoIdioma(idioma)} — ${quantos} ${quantos === 1 ? "pessoa" : "pessoas"}`)
@@ -4543,7 +4545,7 @@ async function avisarDoTeto(guild, servidor, naoCoube, limite) {
      Quem lesse concluiria que o bot quebrou. */
     const semEspelho = !(limite.idiomas > 0);
 
-  await canal.send({
+  await canal.send(await cartaoNaLingua({
     content: semEspelho
       ? [
         "🌐 **Escolheram o idioma delas aqui.**",
@@ -4567,7 +4569,7 @@ async function avisarDoTeto(guild, servidor, naoCoube, limite) {
         "Para resolver: suba de plano, ou peça a elas que escolham um dos idiomas que já existem aqui.",
       ].join("\n"),
     allowedMentions: { parse: [] },
-  }).catch((e) => console.error("limite: nao consegui avisar:", e?.message || e));
+  }, lingua, motor)).catch((e) => console.error("limite: nao consegui avisar:", e?.message || e));
 }
 
 /* Um pedido de canal. Devolve false quando o orcamento acabou, e avisa uma
@@ -6659,7 +6661,9 @@ const MODO_SOME_EM = 30 * 60 * 1000;
 
 function cartaoDoModoVencido(m, euId, agora = Date.now()) {
   if (!m || !euId || m.author?.id !== euId) return false;
-  if (!String(m.embeds?.[0]?.title || "").startsWith("🔀 Modo da CYRON")) return false;
+  /* Pelo 🔀, e nao pela frase: na lingua do dono o titulo e' outro, e o emoji
+     o tradutor nao mexe. A pergunta ainda sem resposta comeca com 👋. */
+  if (!String(m.embeds?.[0]?.title || "").startsWith("🔀")) return false;
   return agora - (m.editedTimestamp || m.createdTimestamp || agora) >= MODO_SOME_EM;
 }
 
@@ -6688,7 +6692,9 @@ async function perguntarModo(guild, servidor) {
   const fresco = (await sb(`cyron_servidor?id=eq.${servidor.id}&select=canal_config`).catch(() => null))?.[0];
   const canal = fresco?.canal_config && await guild.channels.fetch(fresco.canal_config).catch(() => null);
   if (!canal?.send) return;
-  await canal.send(cartaoDoModo(servidor)).catch((e) => console.error("modo: nao consegui perguntar:", e?.message || e));
+  const carga = await cartaoNaLingua(cartaoDoModo(servidor), await linguaDaSalaCyron(guild),
+    await motorDoGuild(guild.id).catch(() => MOTOR_AUTO));
+  await canal.send(carga).catch((e) => console.error("modo: nao consegui perguntar:", e?.message || e));
 }
 
 async function escolherModo(inter, servidor, modo) {
@@ -6698,8 +6704,13 @@ async function escolherModo(inter, servidor, modo) {
   cacheServidor.delete(inter.guildId);
   console.log(`modo: ${inter.guild?.name} escolheu ${modo}`);
   /* O cartao da pergunta passa a mostrar a escolha, para ninguem clicar de
-     novo achando que nao pegou. */
-  await inter.message?.edit?.(cartaoDoModo({ ...servidor, modo })).catch(() => {});
+     novo achando que nao pegou -- na lingua em que ele ja' estava: a do dono
+     na pergunta da sala, a de quem clicou na copia efemera do painel. */
+  const efemera = !!inter.message?.flags?.has?.(64);
+  const lingua = efemera ? (await idiomaEscolhido(inter.user.id)) || idiomaDoAplicativo(inter.locale)
+    : await linguaDaSalaCyron(inter.guild);
+  await inter.message?.edit?.(await cartaoNaLingua(cartaoDoModo({ ...servidor, modo }), lingua,
+    await motorDoGuild(inter.guildId).catch(() => MOTOR_AUTO))).catch(() => {});
   /* E sai em 30 minutos -- a pergunta publica; a efemera some sozinha. */
   const pergunta = inter.message;
   if (pergunta?.id && !pergunta.flags?.has?.(64)) {
@@ -7449,7 +7460,13 @@ function semanasSeguidas(porSemana) {
   return n;
 }
 
-async function reciboDaSemana(guild, servidor) {
+/* `lingua`: a do dono. Em portugues e em ingles o cartao continua bilingue,
+   como sempre. Em outra lingua ele e' montado so' com a metade em portugues
+   e passa pelo tradutor -- traduzir as duas metades daria a mesma frase duas
+   vezes, em japones. */
+async function reciboDaSemana(guild, servidor, lingua = "") {
+  const uma = !!lingua && !["pt", "en"].includes(lingua);
+  const bi = (pt, en) => (uma ? pt : `${pt} · ${en}`);
   const fimISO = semanaDe();                       // segunda desta semana
   const fim = new Date(`${fimISO}T00:00:00Z`).getTime();
   const inicioISO = diaISO(fim - SEMANA);          // segunda passada
@@ -7497,8 +7514,8 @@ async function reciboDaSemana(guild, servidor) {
   const linhas = [
     `**${agora} ${agora === 1 ? "mensagem atravessou" : "mensagens atravessaram"}** ` +
     `**${quantos} ${quantos === 1 ? "idioma" : "idiomas"}** esta semana.`,
-    `_${agora} ${agora === 1 ? "message crossed" : "messages crossed"} ` +
-    `${quantos} ${quantos === 1 ? "language" : "languages"} this week._`,
+    ...(uma ? [] : [`_${agora} ${agora === 1 ? "message crossed" : "messages crossed"} ` +
+      `${quantos} ${quantos === 1 ? "language" : "languages"} this week._`]),
   ];
 
   /* A comparacao so' aparece quando ha' com o que comparar: "↑ 100%" na
@@ -7507,13 +7524,13 @@ async function reciboDaSemana(guild, servidor) {
     const variacao = Math.round(((agora - antes) / antes) * 100);
     if (variacao !== 0) {
       const sinal = `${variacao > 0 ? "+" : ""}${variacao}%`;
-      linhas.push(`${variacao > 0 ? "📈" : "📉"} ${sinal} · semana passada / _last week_`);
+      linhas.push(`${variacao > 0 ? "📈" : "📉"} ${sinal} · ${uma ? "semana passada" : "semana passada / _last week_"}`);
     }
   }
 
   if (seguidas >= 2) {
-    linhas.push(`🔥 **${seguidas} semanas seguidas** sem ninguém ficar sem entender · ` +
-      `_${seguidas} weeks in a row with nobody left out_`);
+    linhas.push(bi(`🔥 **${seguidas} semanas seguidas** sem ninguém ficar sem entender`,
+      `_${seguidas} weeks in a row with nobody left out_`));
   }
 
   const campos = [];
@@ -7524,17 +7541,17 @@ async function reciboDaSemana(guild, servidor) {
   const sete = Array.from({ length: 7 }, (_, i) => diaISO(fim - (7 - i) * 864e5));
   const serie = sete.map((d) => porDia.filter((l) => l.dia === d).reduce((a, l) => a + Number(l.traducoes || 0), 0));
   if (serie.some((v) => v > 0)) {
-    campos.push({ name: "📈 Seg → Dom · Mon → Sun", value: "```\n" + grafiquinho(serie) + "\n```", inline: true });
+    campos.push({ name: bi("📈 Seg → Dom", "Mon → Sun"), value: "```\n" + grafiquinho(serie) + "\n```", inline: true });
   }
   const eventos = (await sb(`cyron_evento?servidor_id=eq.${servidor.id}` +
     `&quando=gte.${new Date(fim - SEMANA).toISOString()}&quando=lt.${new Date(fim).toISOString()}&select=id`)
     .catch(() => null) || []).filter((e) => e?.id);
   if (eventos.length) {
-    campos.push({ name: "📆 Eventos · Events", value: `**${eventos.length}**`, inline: true });
+    campos.push({ name: bi("📆 Eventos", "Events"), value: `**${eventos.length}**`, inline: true });
   }
   if (leitores.length) {
     campos.push({
-      name: `🗣️ Quem lê em cada língua · Who reads what — ${gente}`,
+      name: `${bi("🗣️ Quem lê em cada língua", "Who reads what")} — ${gente}`,
       /* Sem bandeira na frente: nomeDoIdioma JA' devolve "🇧🇷 Português".
          Acrescentar outra dava "🇧🇷 🇧🇷 Português" -- e nenhum teste pegaria,
          porque o texto continua certo e o limite continua cabendo. Foi a
@@ -7545,9 +7562,9 @@ async function reciboDaSemana(guild, servidor) {
     });
   }
 
-  return {
+  const cartao = {
     color: COR,
-    title: "📊 A semana de vocês, em línguas · Your week in languages",
+    title: bi("📊 A semana de vocês, em línguas", "Your week in languages"),
     description: linhas.join("\n"),
     fields: campos,
     /* O fecho e' o que faz a conta na cabeca de quem le: sem tradutor, essa
@@ -7555,12 +7572,13 @@ async function reciboDaSemana(guild, servidor) {
        cartao que precisa mesmo de palavras, entao vem nas duas linguas. */
     footer: {
       text: gente
-        ? `Sem tradução, cada uma dessas ${gente} pessoas teria lido só a própria língua.\n` +
-          `Without translation, each of those ${gente} would have read only their own.`
-        : "Cada mensagem chegou legível para quem não fala a língua de quem escreveu.\n" +
-          "Each message arrived readable for people who don't speak the writer's language.",
+        ? `Sem tradução, cada uma dessas ${gente} pessoas teria lido só a própria língua.` +
+          (uma ? "" : `\nWithout translation, each of those ${gente} would have read only their own.`)
+        : "Cada mensagem chegou legível para quem não fala a língua de quem escreveu." +
+          (uma ? "" : "\nEach message arrived readable for people who don't speak the writer's language."),
     },
   };
+  return uma ? await traduzirEmbed(cartao, lingua, await motorDoGuild(guild.id).catch(() => MOTOR_AUTO)) : cartao;
 }
 
 /* Um botão só, e o destino já é conhecido: o canal-fonte é o canal que o
@@ -15165,20 +15183,22 @@ function marcoAlcancado(total, anunciado) {
   return alcancado && alcancado > ja ? alcancado : null;
 }
 
-function cartaoDoMarco(guild, marco) {
+/* `uma`: so' a metade em portugues, para o tradutor levar a lingua do dono
+   (as duas metades traduzidas dariam a mesma frase duas vezes). */
+function cartaoDoMarco(guild, marco, uma = false) {
   return {
     content: [
       `🤝 Conhece outra aliança com gente de vários países? Indique a CYRON: quando ela usar de verdade, ` +
         `**os dois servidores ganham ${INDICACAO.dias} dias de Pro**.`,
-      `_Know another server with people from many countries? Refer CYRON: once they really use it, ` +
-        `**both servers get ${INDICACAO.dias} days of Pro**._`,
+      ...(uma ? [] : [`_Know another server with people from many countries? Refer CYRON: once they really use it, ` +
+        `**both servers get ${INDICACAO.dias} days of Pro**._`]),
     ].join("\n"),
     embeds: [{
       color: COR_OK,
-      title: `🎉 ${marco} mensagens traduzidas · ${marco} messages translated`,
+      title: uma ? `🎉 ${marco} mensagens traduzidas` : `🎉 ${marco} mensagens traduzidas · ${marco} messages translated`,
       description: [
         `Desde que a CYRON chegou, **${marco} mensagens** atravessaram idiomas em **${guild.name}**.`,
-        `_Since CYRON arrived, **${marco} messages** crossed languages in **${guild.name}**._`,
+        ...(uma ? [] : [`_Since CYRON arrived, **${marco} messages** crossed languages in **${guild.name}**._`]),
       ].join("\n"),
     }],
     components: [{ type: 1, components: [
@@ -15203,7 +15223,14 @@ async function anunciarMarcos() {
       const marco = marcoAlcancado(total, marcas[`marco:${s.id}`]);
       if (!marco) continue;
       const canal = await guild.channels.fetch(String(s.canal_config)).catch(() => null);
-      if (typeof canal?.send === "function") await canal.send(cartaoDoMarco(guild, marco)).catch(() => null);
+      if (typeof canal?.send === "function") {
+        const lingua = await linguaDaSalaCyron(guild);
+        const uma = !["pt", "en"].includes(lingua);
+        const carga = uma
+          ? await cartaoNaLingua(cartaoDoMarco(guild, marco, true), lingua, await motorDoGuild(guild.id).catch(() => MOTOR_AUTO))
+          : cartaoDoMarco(guild, marco);
+        await canal.send(carga).catch(() => null);
+      }
       /* Sem canal tambem marca: o proximo marco tenta de novo, e insistir no
          mesmo de hora em hora nao muda nada. */
       await porAjuste(`marco:${s.id}`, String(marco));
@@ -15215,15 +15242,15 @@ async function anunciarMarcos() {
 
 /* O painel na língua de quem abriu -- quando dá para saber quem abriu.
 
-   O cartão FIXADO não recebe idioma, e não é esquecimento: ele é uma mensagem
-   só para o servidor inteiro, como o placar da arena, e não existe versão por
-   leitor de uma mensagem única. Ele fica em português e ganha o botão 🌐, que
-   devolve a cópia de cada um, efêmera.
+   O cartão FIXADO é uma mensagem só, e não existe versão por leitor de uma
+   mensagem única. Ele sai na língua do DONO (linguaDaSalaCyron): a sala é
+   dele. Quem abre uma aba recebe a cópia dele, efêmera, na língua dele.
 
    O /cyron é outra coisa: nasce do clique de UMA pessoa, e aí a língua dela
    manda. Mesmo desenho, mesmo estado, mesma função -- só o idioma muda. */
 async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
-  const T = falaFixa(idioma, await motorDoGuild(guild.id).catch(() => MOTOR_AUTO));
+  const motor = await motorDoGuild(guild.id).catch(() => MOTOR_AUTO);
+  const T = falaFixa(idioma, motor);
   const fontes = await sb(
     `discord_fonte_replica?servidor_id=eq.${servidor.id}&gera_replica=is.true&tipo=neq.${TIPO_AGENDA}&select=canal_id,tipo&order=criado_em.asc`) || [];
   const idiomas = await sb(
@@ -15695,14 +15722,17 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
     },
   };
 
-  return { embed, extras, componentes: componentesDoPainel(servidor, vivas, limite, orfas, elegiveis, aba, ligadas) };
+  /* Os botoes tambem: um painel em japones com botoes em portugues ainda e'
+     um painel que o dono nao le. */
+  return { embed, extras, componentes: await componentesNaLingua(
+    componentesDoPainel(servidor, vivas, limite, orfas, elegiveis, aba, ligadas), idioma, motor) };
 }
 
 async function cartaoDeConfig(guild, servidor) {
   const canal = await guild.channels.fetch(servidor.canal_config).catch(() => null);
   if (!canal) return;
 
-  const { embed, componentes } = await montarPainel(guild, servidor);
+  const { embed, componentes } = await montarPainel(guild, servidor, await linguaDaSalaCyron(guild));
   const assinatura = assinaturaDoCartao(embed, componentes);
   if (jaDesenhado(servidor.msg_config, assinatura)) return;
 
@@ -15925,13 +15955,13 @@ async function refrescarPainel(inter, servidor) {
      Se o clique veio do cartão fixado, `editReply` edita o próprio fixado --
      que é uma mensagem para o servidor inteiro. Redesenhar ele na língua de
      quem apertou o botão traduziria o cartão de todo mundo para a língua da
-     última pessoa que mexeu nele. Ali é português, sempre.
+     última pessoa que mexeu nele. Ali é a língua do dono, sempre.
 
      Na cópia efêmera é o contrário: ela é dela, e continua dela depois do
      clique. Perder a língua ao apertar um botão faria o painel "voltar para o
      português sozinho", que parece defeito e é dos piores de explicar. */
   const noFixado = inter.message?.id === servidor.msg_config;
-  const idioma = noFixado ? "" : await idiomaEscolhido(inter.user.id);
+  const idioma = noFixado ? await linguaDaSalaCyron(inter.guild) : await idiomaEscolhido(inter.user.id);
   /* Continua na aba em que a pessoa estava: apertar um botao da aba Traducao
      e cair de volta na visao geral faria o botao parecer nao ter feito nada. */
   const aba = noFixado ? "resumo" : abaDaMensagem(inter.message);
@@ -18261,7 +18291,8 @@ async function cartaoDoCliente(guild, servidor) {
      O nome de usuario vem junto da mencao porque mencao de quem nao esta' no
      painel aparece como usuario desconhecido. */
   const dono = cliente?.ownerId ? await client.users.fetch(cliente.ownerId).catch(() => null) : null;
-  const convite = cliente && !servidor.saiu_em ? await conviteDoServidor(cliente) : "";
+  const convite = cliente && !servidor.saiu_em ? conviteDoServidor(cliente) : "";
+  if (cliente && !servidor.saiu_em) await revogarMeusConvites(cliente).catch(() => {});
 
   const embed = {
     color: servidor.saiu_em ? 0x8A3A33 : plano === "pago" ? 0x2E8B7A : 0xB08A2E,
@@ -18278,7 +18309,7 @@ async function cartaoDoCliente(guild, servidor) {
       { name: "Motor", value: servidor.tradutor_motor && servidor.tradutor_motor !== "auto"
           ? `🔑 ${servidor.tradutor_motor}` : "⚪ google grátis", inline: true },
       { name: "👑 Dono", value: dono ? `<@${dono.id}> · ${dono.username}` : "—", inline: true },
-      { name: "🔗 Servidor", value: convite || (cliente ? "_sem permissão para criar convite_" : "—"), inline: true },
+      { name: "🔗 Servidor", value: convite || (cliente ? "_sem endereço público_" : "—"), inline: true },
       /* O problema do cliente aparece na ficha DELE, e nao no canal de erros
          do dono. Aqui ele e' contexto -- "por isso este servidor tem idioma e
          nao tem gente nas categorias" --, e nao um chamado. */
@@ -20564,39 +20595,43 @@ client.on("guildUpdate", async (antes, depois) => {
   }
 });
 
-/* O link de um servidor cliente, para o dono poder entrar e atender.
+/* O link de um servidor cliente: so' o endereco PUBLICO (discord.gg/nome).
 
-   O endereco proprio (discord.gg/nome) primeiro, quando o servidor tem. Sem
-   ele, um convite permanente na sala de escolher idioma -- a porta de entrada
-   que todo mundo enxerga. Com unique false o Discord devolve o convite que eu
-   ja' criei ali em vez de abrir outro, entao reiniciar o bot nao espalha
-   convites pelo servidor do cliente. Sem a permissao de criar convite, fica
-   sem link: nao peco permissao a mais so' para isto. */
-const convitesDosClientes = new Map(); // guildId -> { url, t }
+   Aqui havia um convite permanente que eu criava sozinha na porta de idioma
+   de cada cliente, "para o suporte atender". O teste do top.gg reprovou o bot
+   por isso -- e com razao: um convite que aparece no registro de auditoria no
+   minuto em que eu entro, sem ninguem pedir, e' uma porta que o dono do
+   servidor nao abriu. Quem precisa de ajuda manda o convite pelo suporte; o
+   endereco publico, que o proprio servidor publicou, continua na ficha. */
+function conviteDoServidor(g) {
+  return g?.vanityURLCode ? "https:" + "//discord.gg/" + g.vanityURLCode : "";
+}
 
-async function conviteDoServidor(g, agora = Date.now()) {
-  if (!g) return "";
-  if (g.vanityURLCode) return "https:" + "//discord.gg/" + g.vanityURLCode;
-  const guardado = convitesDosClientes.get(g.id);
-  if (guardado && agora - guardado.t < 6 * 3600 * 1000) return guardado.url;
-  let url = "";
-  try {
-    const eu = g.members?.me;
-    const porta = await portaDoIdioma(g).catch(() => null);
-    const candidatos = [porta && g.channels.cache.get(porta), g.systemChannel, g.rulesChannel,
-      ...g.channels.cache.values()];
-    const canal = candidatos.find((c) => c && c.type === ChannelType.GuildText
-      && c.permissionsFor?.(eu)?.has(PermissionFlagsBits.CreateInstantInvite));
-    if (canal) {
-      const convite = await canal.createInvite({ maxAge: 0, maxUses: 0, unique: false,
-        reason: "link para o suporte da CYRON atender este servidor" });
-      url = convite?.url || "";
+/* E os convites que eu ja' tinha criado saem, uma vez por servidor e por
+   processo. So' os meus (o Discord diz quem criou cada um), e so' onde a
+   funcao antiga os criava: a porta de idioma, o canal do sistema, o das
+   regras. Sem permissao de ver os convites, fica como esta'. */
+async function revogarMeusConvites(g) {
+  if (!g) return 0;
+  /* O servidor de suporte e' meu, e o convite dele e' o que todo botao 💬
+     Suporte abre: esse fica. Sem saber qual e' o suporte (banco fora), nao
+     mexo em nada -- e tento de novo na proxima volta. */
+  const suporte = await guildDoSuporte().catch(() => null);
+  if (!suporte || suporte.id === g.id) return 0;
+  if (!umaVezPorProcesso(`convites:${g.id}`)) return 0;
+  const porta = await portaDoIdioma(g).catch(() => null);
+  const canais = [porta && g.channels.cache.get(porta), g.systemChannel, g.rulesChannel]
+    .filter((c, i, l) => c && typeof c.fetchInvites === "function" && l.indexOf(c) === i);
+  let foram = 0;
+  for (const canal of canais) {
+    const convites = await canal.fetchInvites().catch(() => null);
+    for (const c of convites?.values?.() || []) {
+      if (c.inviterId !== client.user?.id && c.inviter?.id !== client.user?.id) continue;
+      if (await c.delete("a CYRON não cria mais convite sozinha").then(() => true, () => false)) foram++;
     }
-  } catch (e) {
-    console.error("painel: nao consegui o convite de", g.name, e?.message || e);
   }
-  convitesDosClientes.set(g.id, { url, t: agora });
-  return url;
+  if (foram) console.log(`painel: apaguei ${foram} convite(s) que eu tinha criado em ${g.name}`);
+  return foram;
 }
 
 /* ---------------- falar com o dono de cada servidor ----------------
@@ -20615,6 +20650,67 @@ const AVISO_DE_VENCIMENTO = 3 * 864e5;
 async function linguaDoDono(guild) {
   return (await idiomaEscolhido(guild.ownerId).catch(() => "")) ||
     idiomaDoAplicativo(guild.preferredLocale) || "en";
+}
+
+/* A lingua da sala ⚙️-cyron: a do DONO do servidor.
+
+   A sala e' dele -- e' onde ele configura, ve o resumo da semana e decide.
+   Um dono japones abria o painel e via tudo em portugues: o fixado, a
+   pergunta do modo, o recibo. Agora vale a lingua que ele escolheu no bot;
+   sem escolha, a do servidor. "en-US" nao conta como escolha: e' o que o
+   Discord poe em todo servidor novo, e tomar isso por ingles poria em
+   ingles o painel de quase todo dono brasileiro. Sem nenhuma das duas,
+   portugues, como sempre foi. */
+async function linguaDaSalaCyron(guild) {
+  const escolhida = await idiomaEscolhido(guild?.ownerId).catch(() => "");
+  if (escolhida) return escolhida;
+  const local = String(guild?.preferredLocale || "");
+  return local && local !== "en-US" ? idiomaDoAplicativo(local) || "pt" : "pt";
+}
+
+/* Um texto meu na lingua pedida, com mencao, canal e emoji protegidos. */
+async function textoNaLingua(texto, idioma, motor = MOTOR_AUTO) {
+  if (!texto || !idioma || idioma === "pt" || !/\p{L}/u.test(texto)) return texto;
+  const { marcado, pecas } = protegerDoTradutor(texto, []);
+  const t = await comoTextoDoBot(() => traduzirComCache(marcado.trim(), idioma, motor)).catch(() => null);
+  return t ? devolverPecas(t, pecas) : texto;
+}
+
+/* Os rotulos dos botoes e menus na lingua pedida. O custom_id e os valores
+   ficam: e' por eles que o clique e a aba marcada sao reconhecidos. */
+async function componentesNaLingua(linhas, idioma, motor = MOTOR_AUTO) {
+  if (!idioma || idioma === "pt" || !Array.isArray(linhas)) return linhas;
+  const T = falaFixa(idioma, motor);
+  const fora = [];
+  for (const l of linhas) {
+    const comps = [];
+    for (const c of l.components || []) {
+      const n = { ...c };
+      if (n.label) n.label = (await T(n.label)).slice(0, 80);
+      if (n.placeholder) n.placeholder = (await T(n.placeholder)).slice(0, 150);
+      if (Array.isArray(n.options)) {
+        const opcoes = [];
+        for (const o of n.options) {
+          opcoes.push({ ...o, label: (await T(o.label)).slice(0, 100),
+            ...(o.description ? { description: (await T(o.description)).slice(0, 100) } : {}) });
+        }
+        n.options = opcoes;
+      }
+      comps.push(n);
+    }
+    fora.push({ ...l, components: comps });
+  }
+  return fora;
+}
+
+/* Uma mensagem inteira (texto, cartoes e botoes) na lingua pedida. */
+async function cartaoNaLingua(carga, idioma, motor = MOTOR_AUTO) {
+  if (!idioma || idioma === "pt") return carga;
+  const fora = { ...carga };
+  if (carga.content) fora.content = (await textoNaLingua(carga.content, idioma, motor)).slice(0, 2000);
+  if (carga.embeds) fora.embeds = await Promise.all(carga.embeds.map((e) => traduzirEmbed(e, idioma, motor)));
+  if (carga.components) fora.components = await componentesNaLingua(carga.components, idioma, motor);
+  return fora;
 }
 
 /* O que vence, e quando -- ou nada. Quem assina pela Stripe renova sozinho, e
@@ -25652,10 +25748,14 @@ client.once("clientReady", () => {
         const canal = s.canal_config ? await guild.channels.fetch(s.canal_config).catch(() => null) : null;
         if (typeof canal?.send !== "function") continue;
 
-        const embed = await reciboDaSemana(guild, s);
+        const lingua = await linguaDaSalaCyron(guild);
+        const embed = await reciboDaSemana(guild, s, lingua);
         /* Semana sem traducao nao vira cartao -- mas vira marca, senao eu
            tentaria montar o recibo de novo a cada volta do relogio. */
-        if (embed) await canal.send({ embeds: [embed], components: botoesDoRecibo() });
+        if (embed) {
+          await canal.send({ embeds: [embed], components: await componentesNaLingua(botoesDoRecibo(), lingua,
+            await motorDoGuild(guild.id).catch(() => MOTOR_AUTO)) });
+        }
         await porAjuste(`recibo:${s.id}`, semana);
       } catch (e) {
         console.error(`recibo: falhei no servidor ${s.id}:`, e?.message || e);
