@@ -314,6 +314,7 @@ export const NOMES = {
   ko: { welcome: "환영", rules: "규칙", howto: "사용법", plans: "요금제", news: "소식", chat: "채팅" },
   ja: { welcome: "ようこそ", rules: "ルール", howto: "使い方", plans: "プラン", news: "お知らせ", chat: "チャット" },
   "zh-CN": { welcome: "欢迎", rules: "规则", howto: "使用方法", plans: "套餐", news: "新闻", chat: "聊天" },
+  "zh-TW": { welcome: "歡迎", rules: "規則", howto: "使用方法", plans: "方案", news: "最新消息", chat: "聊天" },
   de: { welcome: "willkommen", rules: "regeln", howto: "anleitung", plans: "preise", news: "neuigkeiten", chat: "chat" },
   fr: { welcome: "bienvenue", rules: "règles", howto: "mode-d-emploi", plans: "offres", news: "actualités", chat: "discussion" },
   it: { welcome: "benvenuto", rules: "regole", howto: "come-usare", plans: "piani", news: "novità", chat: "chat" },
@@ -328,6 +329,7 @@ export const NOMES = {
   tl: { welcome: "maligayang-pagdating", rules: "mga-patakaran", howto: "paano-gamitin", plans: "mga-plano", news: "balita", chat: "chat" },
   hi: { welcome: "स्वागत", rules: "नियम", howto: "उपयोग-कैसे-करें", plans: "प्लान", news: "समाचार", chat: "चैट" },
   uk: { welcome: "вітаємо", rules: "правила", howto: "як-користуватися", plans: "тарифи", news: "новини", chat: "чат" },
+  ms: { welcome: "selamat-datang", rules: "peraturan", howto: "cara-guna", plans: "pelan", news: "berita", chat: "sembang" },
 };
 
 /* A ordem das copias no suporte e' a da ESTRUTURA, e nao a ordem em que as

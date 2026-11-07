@@ -391,6 +391,12 @@ const LINGUAS_MENU = [
   ["vi", "Vietnamita", "🇻🇳", "Tiếng Việt"], ["pl", "Polonês", "🇵🇱", "Polski"],
   ["nl", "Holandês", "🇳🇱", "Nederlands"], ["tl", "Filipino", "🇵🇭", "Filipino"],
   ["hi", "Hindi", "🇮🇳", "हिन्दी"], ["uk", "Ucraniano", "🇺🇦", "Українська"],
+  /* O chines tradicional (Taiwan, Hong Kong, Macau) leva lanterna, e nao
+     bandeira, de proposito: nas aliancas dos jogos asiaticos joga gente da
+     China continental ao lado de gente de Taiwan, e uma bandeira no menu de
+     lingua e' briga pronta. A lanterna diz "chines" sem dizer pais. A
+     reacao com 🇹🇼/🇭🇰 continua traduzindo para ele (PAIS_PARA_LINGUA). */
+  ["zh-TW", "Chinês tradicional", "🏮", "繁體中文"], ["ms", "Malaio", "🇲🇾", "Bahasa Melayu"],
 ];
 
 /* O nome como quem fala aquela lingua o escreve.
@@ -621,14 +627,18 @@ const IDIOMA_DO_PAIS = {
   BO: "es", EC: "es", GT: "es", CR: "es", DO: "es", PY: "es", PA: "es",
   AT: "de", CH: "de", LI: "de",
   BE: "nl",
-  TW: "zh-CN", HK: "zh-CN", SG: "zh-CN", MO: "zh-CN",
+  TW: "zh-TW", HK: "zh-TW", MO: "zh-TW", SG: "zh-CN", BN: "ms",
   AE: "ar", EG: "ar", MA: "ar", DZ: "ar", IQ: "ar", KW: "ar", QA: "ar",
   BH: "ar", OM: "ar", JO: "ar", LB: "ar", LY: "ar", TN: "ar", YE: "ar",
 };
 
 function idiomaDaBandeira(emoji) {
   const pais = paisDaBandeira(emoji);
-  return pais ? IDIOMA_DO_PAIS[pais] || "" : "";
+  if (pais) return IDIOMA_DO_PAIS[pais] || "";
+  /* Lingua cujo sinal no menu nao e' bandeira (a lanterna do chines
+     tradicional): reagir com o sinal que o proprio bot mostra traduz. */
+  const achado = LINGUAS_MENU.find(([, , sinal]) => sinal === emoji && !paisDaBandeira(sinal));
+  return achado ? achado[0] : "";
 }
 
 /* A assinatura da CYRON no pe de cada fala traduzida: um "CYRON" miudo,
@@ -969,8 +979,8 @@ function decifrar(guardado) {
 }
 
 /* Cada tradutor chama os idiomas do seu jeito. */
-const AZURE_IDIOMA = { "zh-CN": "zh-Hans", tl: "fil" };
-const DEEPL_IDIOMA = { pt: "PT-BR", en: "EN-US", "zh-CN": "ZH" };
+const AZURE_IDIOMA = { "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", tl: "fil" };
+const DEEPL_IDIOMA = { pt: "PT-BR", en: "EN-US", "zh-CN": "ZH-HANS", "zh-TW": "ZH-HANT" };
 
 /* Uma chamada a' Azure para todos os idiomas da mesma frase.
 
@@ -3331,7 +3341,10 @@ const LOCALE_DA_FALA = {
   zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", nl: "nl-NL", hi: "hi-IN", ms: "ms-MY", fil: "fil-PH",
 };
 function localeDaFala(idioma) {
-  return LOCALE_DA_FALA[String(idioma || "").toLowerCase().split(/[-_]/)[0]] || null;
+  const cod = String(idioma || "").toLowerCase();
+  /* O chines tradicional e' o mandarim de Taiwan: a Azure tem modelo proprio. */
+  if (cod === "zh-tw" || cod === "zh-hant") return "zh-TW";
+  return LOCALE_DA_FALA[cod.split(/[-_]/)[0]] || null;
 }
 
 async function transcrever(bytes, nome, fala, locale, buscar = fetch) {
@@ -5235,7 +5248,7 @@ async function traduzirLongo(texto, alvo, motor = MOTOR_AUTO) {
 const AGENDA_NA_LINGUA = {
   en: "schedule", es: "agenda", fr: "agenda", de: "termine", it: "agenda", ru: "расписание",
   uk: "розклад", tr: "takvim", pl: "terminarz", id: "jadwal", vi: "lịch", th: "ตารางนัด",
-  ja: "予定", ko: "일정", "zh-CN": "日程", ar: "الجدول", pt: "agenda",
+  ja: "予定", ko: "일정", "zh-CN": "日程", "zh-TW": "行程", ar: "الجدول", pt: "agenda", ms: "jadual",
 };
 
 function nomeDaSala(modelo, rotulo, idioma, doSuporte) {
@@ -7853,6 +7866,10 @@ const ESCRITAS = [
   [/[가-힯]/u, "ko"],
   [/[฀-๿]/u, "th"],
   [/[ऀ-ॿ]/u, "hi"],
+  /* Letras que so' o chines TRADICIONAL escreve assim (o simplificado e o
+     japones tem a forma curta: 们/這, 说/說, 会/會...). Uma ja' basta: texto
+     em han com uma delas e' de Taiwan, Hong Kong ou Macau. */
+  [/[們這說來會對與國學麼樣點關發聽讓從實體經錢賣氣歡號戰裡嗎沒讀寫]/u, "zh-TW"],
   [/[一-鿿]/u, "zh-CN"],
 ];
 
@@ -8674,7 +8691,7 @@ const TIPO_AGENDA = "agenda";
 const ROTULO_INSCREVER = {
   pt: "Me inscrever", en: "Subscribe", es: "Inscribirme", fr: "M'inscrire", de: "Anmelden", it: "Iscrivimi",
   ru: "Записаться", uk: "Записатися", tr: "Kaydol", pl: "Zapisz się", id: "Daftar", vi: "Đăng ký",
-  th: "ลงชื่อ", ja: "参加登録", ko: "참가 신청", "zh-CN": "报名", ar: "اشترك",
+  th: "ลงชื่อ", ja: "参加登録", ko: "참가 신청", "zh-CN": "报名", "zh-TW": "報名", ar: "اشترك", ms: "Daftar",
 };
 
 /* O id do evento que um cartao meu carrega, ou null. */
@@ -9018,6 +9035,7 @@ const ZONAS_DA_LINGUA = {
   es: [["🇪🇸", "Madrid", "Europe/Madrid"], ["🇲🇽", "México", "America/Mexico_City"],
     ["🇨🇴", "Bogotá", "America/Bogota"], ["🇦🇷", "Buenos Aires", "America/Argentina/Buenos_Aires"]],
   ko: [["🇰🇷", "서울", "Asia/Seoul"]], ja: [["🇯🇵", "東京", "Asia/Tokyo"]], "zh-CN": [["🇨🇳", "北京", "Asia/Shanghai"]],
+  "zh-TW": [["🏮", "台北", "Asia/Taipei"], ["🏮", "香港", "Asia/Hong_Kong"]], ms: [["🇲🇾", "Kuala Lumpur", "Asia/Kuala_Lumpur"]],
   de: [["🇩🇪", "Berlin", "Europe/Berlin"]], fr: [["🇫🇷", "Paris", "Europe/Paris"]], it: [["🇮🇹", "Roma", "Europe/Rome"]],
   ru: [["🇷🇺", "Москва", "Europe/Moscow"]], ar: [["🇸🇦", "الرياض", "Asia/Riyadh"], ["🇪🇬", "القاهرة", "Africa/Cairo"]],
   tr: [["🇹🇷", "İstanbul", "Europe/Istanbul"]], id: [["🇮🇩", "Jakarta", "Asia/Jakarta"]], th: [["🇹🇭", "กรุงเทพ", "Asia/Bangkok"]],
@@ -10168,7 +10186,7 @@ const SAUDACOES = {
    quebrado -- pior que nao estar la'. Japones, coreano e chines a fonte nao
    tem. Na mensagem, que o Discord desenha, todas entram. */
 const SAUDACOES_SO_NO_TEXTO = {
-  ar: "أهلاً وسهلاً", hi: "स्वागत है", th: "ยินดีต้อนรับ", ja: "ようこそ", ko: "환영합니다", "zh-CN": "欢迎",
+  ar: "أهلاً وسهلاً", hi: "स्वागत है", th: "ยินดีต้อนรับ", ja: "ようこそ", ko: "환영합니다", "zh-CN": "欢迎", "zh-TW": "歡迎",
 };
 const BV_LARGURA = 1024;
 const BV_ALTURA = 500;
@@ -11413,16 +11431,16 @@ async function rodarSorteios(agora = Date.now()) {
 const INTERACOES = {
   abraco: { reacao: "hug", emoji: "🤗", nomes: { pt: "Abraço", en: "Hug", es: "Abrazo", fr: "Câlin", de: "Umarmung", it: "Abbraccio",
     ru: "Объятие", uk: "Обійми", pl: "Uścisk", tr: "Sarılma", nl: "Knuffel", id: "Pelukan", vi: "Cái ôm", tl: "Yakap",
-    ko: "포옹", ja: "ハグ", "zh-CN": "拥抱", ar: "عناق", hi: "झप्पी", th: "กอด" } },
+    ko: "포옹", ja: "ハグ", "zh-CN": "拥抱", "zh-TW": "擁抱", ar: "عناق", hi: "झप्पी", th: "กอด", ms: "Pelukan" } },
   beijo: { reacao: "kiss", emoji: "💋", nomes: { pt: "Beijo", en: "Kiss", es: "Beso", fr: "Bisou", de: "Kuss", it: "Bacio",
     ru: "Поцелуй", uk: "Поцілунок", pl: "Buziak", tr: "Öpücük", nl: "Kus", id: "Ciuman", vi: "Nụ hôn", tl: "Halik",
-    ko: "뽀뽀", ja: "キス", "zh-CN": "亲亲", ar: "قبلة", hi: "चुंबन", th: "จูบ" } },
+    ko: "뽀뽀", ja: "キス", "zh-CN": "亲亲", "zh-TW": "親親", ar: "قبلة", hi: "चुंबन", th: "จูบ", ms: "Ciuman" } },
   tapa: { reacao: "slap", emoji: "👋", nomes: { pt: "Tapa", en: "Slap", es: "Bofetada", fr: "Gifle", de: "Ohrfeige", it: "Schiaffo",
     ru: "Пощёчина", uk: "Ляпас", pl: "Plaskacz", tr: "Tokat", nl: "Klap", id: "Tamparan", vi: "Cái tát", tl: "Sampal",
-    ko: "따귀", ja: "ビンタ", "zh-CN": "巴掌", ar: "صفعة", hi: "थप्पड़", th: "ตบ" } },
+    ko: "따귀", ja: "ビンタ", "zh-CN": "巴掌", "zh-TW": "巴掌", ar: "صفعة", hi: "थप्पड़", th: "ตบ", ms: "Tamparan" } },
   cafune: { reacao: "pat", emoji: "🫳", nomes: { pt: "Cafuné", en: "Headpat", es: "Caricia", fr: "Caresse", de: "Streicheln", it: "Carezza",
     ru: "Поглаживание", uk: "Погладжування", pl: "Głaskanie", tr: "Okşama", nl: "Aai", id: "Elusan", vi: "Xoa đầu", tl: "Haplos",
-    ko: "쓰담쓰담", ja: "なでなで", "zh-CN": "摸摸头", ar: "تربيت", hi: "सहलाना", th: "ลูบหัว" } },
+    ko: "쓰담쓰담", ja: "なでなで", "zh-CN": "摸摸头", "zh-TW": "摸摸頭", ar: "تربيت", hi: "सहलाना", th: "ลูบหัว", ms: "Usap kepala" } },
 };
 
 /* O nome da acao nas linguas de quem mandou, de quem recebeu, e em ingles
@@ -14097,7 +14115,7 @@ const ROTULOS_DA_FICHA = {
 /* Linguas cujas letras as fontes dos cards nao tem (arabe, japones,
    coreano, chines, tailandes, hindi): a IMAGEM sai em ingles. Os botoes e
    avisos, que o Discord desenha, continuam na lingua da pessoa. */
-const LINGUAS_SEM_FONTE_NO_CARD = new Set(["ko", "ja", "zh-CN", "ar", "th", "hi"]);
+const LINGUAS_SEM_FONTE_NO_CARD = new Set(["ko", "ja", "zh-CN", "zh-TW", "ar", "th", "hi"]);
 function linguaDoCard(idioma) {
   if (!idioma) return "pt";
   return LINGUAS_SEM_FONTE_NO_CARD.has(idioma) ? "en" : idioma;
@@ -21411,13 +21429,12 @@ async function traduzirEmbedDoBot(embed, idioma, motor) {
    devolve o texto igual esta quebrado.
 
    Os codigos do Discord nem sempre sao os meus: pt-BR, en-US e es-419 viram
-   pt, en e es; o chines tradicional cai no simplificado, que e' o unico que eu
-   tenho. O que nao bater cai em ingles, como antes. */
+   pt, en e es. O chines tradicional (zh-TW) agora e' lingua propria, e bate
+   direto. O que nao bater cai em ingles, como antes. */
 function idiomaDoAplicativo(local) {
   const bruto = String(local || "").trim();
   if (!bruto) return "";
-  if (LINGUAS_MENU.some(([c]) => c === bruto)) return bruto;      // "de", "fr", "zh-CN"
-  if (bruto === "zh-TW") return "zh-CN";                          // so' tenho o simplificado
+  if (LINGUAS_MENU.some(([c]) => c === bruto)) return bruto;      // "de", "fr", "zh-CN", "zh-TW"
   const curto = bruto.split("-")[0];                              // "pt-BR" -> "pt"
   return LINGUAS_MENU.some(([c]) => c === curto) ? curto : "";
 }
