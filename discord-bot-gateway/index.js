@@ -2252,41 +2252,128 @@ function emendaNaFalaAnterior(anterior, { autor, agora, respondeAlguem, marcados
    que aconteceu -- foi assim que o defeito do teto apareceu. Trecho que ficou
    no original comeca cartao proprio. */
 function emendaNestaSala(velho, ultimoDaSala, juntas, traduzidoAgora = null) {
-  if (!velho || !velho.id) return false;
+  if (!velho || !velho.id || velho.semEmenda) return false;
   if (traduzidoAgora !== null && velho.traduzido !== traduzidoAgora) return false;
   return ultimoDaSala === velho.id && juntas.length <= LIMITE_DO_CARTAO;
 }
 
-/* A figura de um cartao que recebe emenda. O canto (figurinha ou emoji de
-   fora) e a imagem (GIF do link) sao lugares separados, cada um com a sua
-   regra:
-   - o CANTO e' de quem chegou primeiro. Fala com figurinha nunca emenda, entao
-     o canto que a fala nova traz e' um emoji de fora -- e um emoji num "kkk"
-     nao tira o "GG" que ja' estava ali;
-   - a IMAGEM e' do GIF mais novo, como sempre foi.
-   Devolve o embed pronto e a figura para lembrar na proxima emenda. Pura. */
+/* A figura de um cartao que recebe emenda: a do cartao novo, e o que faltar
+   vem do de cima. O canto (figurinha) e a imagem (GIF do link, emojis de
+   fora) sao lugares separados -- a fala nova so' toma o lugar que ela mesma
+   traz. Devolve o embed pronto e a figura para lembrar na proxima emenda. Pura. */
 function figuraQueFica(embed, deCima = {}) {
   const figura = {};
-  const canto = deCima?.thumbnail?.url || embed?.thumbnail?.url;
-  const imagem = embed?.image?.url || deCima?.image?.url;
-  if (canto) figura.thumbnail = { url: canto };
-  if (imagem) figura.image = { url: imagem };
+  for (const lugar of ["thumbnail", "image"]) {
+    const url = embed?.[lugar]?.url || deCima?.[lugar]?.url;
+    if (url) figura[lugar] = { url };
+  }
   return { embed: { ...embed, ...figura }, figura };
 }
 
-/* O emoji de OUTRO servidor (de quem tem Nitro) nao atravessa escrito.
+/* ---------------- os emojis de OUTRO servidor, embaixo da fala ----------------
 
-   Medido no servidor de verdade: o webhook manda `<:nome:id>` de fora e o
-   Discord grava `:nome:` -- no texto e no cartao, os dois. O emoji DESTE
-   servidor passa normal. Entao o primeiro emoji de fora vai como figura, no
-   canto do cartao, servida pelo CDN do proprio Discord: o bot so' aponta, nao
-   baixa nem guarda nada. O `:nome:` fica no texto, ao lado. Pura. */
-function emojiDeFora(texto, daCasa) {
+   Emoji de fora (de quem tem Nitro) nao atravessa escrito. Medido no servidor
+   de verdade: o webhook manda `<:nome:id>` e o Discord grava `:nome:` -- no
+   texto e no cartao. Webhook usa a permissao do @everyone, e as salas sao
+   fechadas para ele; e o emoji ainda teria que ser de um servidor onde a
+   CYRON esta'. O emoji DESTE servidor passa normal, escrito.
+
+   Entao os de fora vao como FIGURA, pequenos, juntos, embaixo da fala:
+   - um so': o endereco dele no CDN do Discord. Nada baixado, e o animado
+     continua animado;
+   - varios: uma faixa so' com todos lado a lado (o cartao tem UMA imagem).
+     Esses sim sao baixados -- 48 px cada, poucos KB --, e ficam parados.
+   O canto do cartao e' da figurinha; os emojis nao disputam com ela. */
+const TAMANHO_DO_EMOJI_EMBAIXO = 48;
+const MAX_EMOJIS_EMBAIXO = 10;
+const FOLGA_ENTRE_EMOJIS = 6;
+const NOME_DA_FAIXA_DE_EMOJIS = "emojis.png";
+
+/* Os emojis de fora, na ordem em que aparecem, sem repetir. Pura. */
+function emojisDeFora(texto, daCasa) {
+  const achados = new Map();
   for (const [, animado, nome, id] of String(texto || "").matchAll(/<(a?):(\w{2,32}):(\d{15,25})>/g)) {
-    if (daCasa?.has?.(id)) continue;
-    return { nome, id, url: `https://cdn.discordapp.com/emojis/${id}.${animado ? "gif" : "png"}?size=128` };
+    if (daCasa?.has?.(id) || achados.has(id)) continue;
+    achados.set(id, { nome, id, animado: !!animado });
+    if (achados.size >= MAX_EMOJIS_EMBAIXO) break;
   }
-  return null;
+  return [...achados.values()];
+}
+
+function urlDoEmoji(e, animado = e.animado) {
+  return `https://cdn.discordapp.com/emojis/${e.id}.${animado ? "gif" : "png"}?size=${TAMANHO_DO_EMOJI_EMBAIXO}`;
+}
+
+/* Tira do texto os emojis que vao desenhados embaixo: escritos, o Discord os
+   trocaria por `:nome:`, e o nome em cima do desenho so' repetiria. Pura. */
+function tirarEmojisDoTexto(texto, ids) {
+  if (!ids?.length) return texto;
+  const tirar = new Set(ids);
+  return String(texto || "")
+    .replace(/<a?:\w{2,32}:(\d{15,25})>/g, (m, id) => (tirar.has(id) ? "" : m))
+    .split("\n").map((l) => l.replace(/[ \t]{2,}/g, " ").trim()).join("\n").trim();
+}
+
+/* O emoji ja' baixado fica guardado: os mesmos poucos aparecem o dia todo. */
+const emojisBaixados = new Map(); // id -> Buffer (png, 48 px)
+const MAX_EMOJIS_BAIXADOS = 300;
+
+async function baixarEmoji(e) {
+  if (emojisBaixados.has(e.id)) return emojisBaixados.get(e.id);
+  const r = await fetch(urlDoEmoji(e, false), { signal: AbortSignal.timeout(3000) });
+  if (!r.ok) throw new Error(`emoji ${e.id}: ${r.status}`);
+  const bytes = Buffer.from(await r.arrayBuffer());
+  emojisBaixados.set(e.id, bytes);
+  while (emojisBaixados.size > MAX_EMOJIS_BAIXADOS) emojisBaixados.delete(emojisBaixados.keys().next().value);
+  return bytes;
+}
+
+/* A faixa: todos lado a lado, num PNG transparente. Sem o processador de
+   imagem, sem memoria ou com menos de dois baixados, null -- e quem chama
+   cai no primeiro emoji sozinho. */
+async function faixaDeEmojis(emojis) {
+  const sharp = await carregarSharp();
+  if (!sharp || process.memoryUsage().rss > MEMORIA_PARA_DESENHAR) return null;
+  const lado = TAMANHO_DO_EMOJI_EMBAIXO;
+  const pecas = [];
+  for (const e of emojis) {
+    try {
+      const bytes = await baixarEmoji(e);
+      pecas.push(await sharp(bytes, { failOn: "none" })
+        .resize(lado, lado, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png().toBuffer());
+    } catch (err) {
+      console.log("emojis: nao consegui baixar um:", err?.message || err);
+    }
+  }
+  if (pecas.length < 2) return null;
+  return sharp({ create: { width: pecas.length * lado + (pecas.length - 1) * FOLGA_ENTRE_EMOJIS, height: lado,
+    channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite(pecas.map((input, i) => ({ input, left: i * (lado + FOLGA_ENTRE_EMOJIS), top: 0 })))
+    .png().toBuffer();
+}
+
+/* A imagem do cartao e' a dos emojis? (um so' no CDN, ou a faixa, que depois
+   de enviada vira anexo com o nome dela). Pura. */
+function ehImagemDeEmoji(url) {
+  return /\/emojis\/\d+\.(png|gif|webp)(\?|$)/.test(String(url || ""))
+    || new RegExp(`/${NOME_DA_FAIXA_DE_EMOJIS.replace(".", "\\.")}(\\?|$)`).test(String(url || ""));
+}
+
+/* O que vai embaixo da fala: { url, ids, arquivo? }, ou null. */
+async function emojisEmbaixoDaFala(emojis) {
+  if (!emojis?.length) return null;
+  if (emojis.length > 1) {
+    const faixa = await faixaDeEmojis(emojis).catch((e) => {
+      console.error("emojis: nao consegui montar a faixa:", e?.message || e);
+      return null;
+    });
+    if (faixa) {
+      return { url: `attachment://${NOME_DA_FAIXA_DE_EMOJIS}`, ids: emojis.map((e) => e.id),
+        arquivo: { attachment: faixa, name: NOME_DA_FAIXA_DE_EMOJIS } };
+    }
+  }
+  return { url: urlDoEmoji(emojis[0]), ids: [emojis[0].id] };
 }
 
 /* Onde a fala respondida mora, quando a memoria ja' esqueceu.
@@ -2668,6 +2755,8 @@ async function apagarNasOutrasSalas(msgId, canalId, guildId) {
    imagem, e esses continuam intocados -- `imagem` e' a URL, para saber qual. */
 function imagemSaiuDaFala(msg, falas, imagem) {
   if (!imagem || falas?.[0]?.msgId !== msg.id) return false;
+  /* A imagem dos emojis de fora tambem nao veio de link nenhum. */
+  if (ehImagemDeEmoji(imagem)) return false;
   const figurinha = figurinhaDe(msg);
   if (figurinha?.url && String(imagem) === figurinha.url) return false;
   return !/https?:/i.test(String(msg.content || ""));
@@ -2728,6 +2817,12 @@ async function corrigirNasOutrasSalas(msg) {
     const embed = copia?.embeds?.[0];
     if (!embed) continue;
 
+    /* Cartao com os emojis desenhados embaixo: a correcao tambem nao os
+       escreve de volta (escritos, virariam `:nome:` em cima do desenho). */
+    const desenhados = ehImagemDeEmoji(embed.image?.url) ? emojisDeFora(novo, msg.guild?.emojis?.cache).map((e) => e.id) : [];
+    if (desenhados.length) {
+      for (const f of atualizadas) if (f.msgId === msg.id) f.texto = tirarEmojisDoTexto(f.texto, desenhados);
+    }
     const descricao = remontarCartao(embed.description, atualizadas);
     const tirarImagem = imagemSaiuDaFala(msg, falas, embed.image?.url || "");
     /* Correcao que nao mudou nada naquela lingua nao vira edicao: o tradutor
@@ -3881,9 +3976,6 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   const enquete = textoDaEnquete(msg);
   if (enquete) texto = [String(texto || "").trim(), enquete].filter(Boolean).join("\n");
   const figurinha = figurinhaDe(msg);
-  /* O canto do cartao: a figurinha, ou -- sem ela -- o primeiro emoji de
-     outro servidor, que escrito nao atravessa (emojiDeFora). */
-  const canto = figurinha?.url || emojiDeFora(texto, msg.guild?.emojis?.cache)?.url || "";
   /* A previa que o Discord ja' resolveu do link, se ja' chegou. Quando ainda
      nao chegou -- o caso comum, porque ele resolve depois de mandar --, quem
      pendura a imagem e' ilustrarNasOutrasSalas(), na segunda passada. */
@@ -3966,6 +4058,10 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
      nunca do traduzido -- tradutor mexe em URL, e uma letra trocada no id do
      video derruba o player. */
   const video = videoQueODiscordToca(msg.content || "");
+  /* Os emojis de outro servidor, desenhados embaixo da fala. O lugar da
+     imagem e' do GIF do link quando ha' um -- ai' os emojis ficam escritos. */
+  const emojisEmbaixo = midiaLink && !video ? null
+    : await emojisEmbaixoDaFala(emojisDeFora(texto, msg.guild?.emojis?.cache));
 
   /* Da' pra emendar esta fala na anterior?
 
@@ -3991,7 +4087,8 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
        vive presa AO CARTAO, e emendar deixaria o texto novo no cartao de cima
        com a figurinha antiga do lado. Um cartao com duas figurinhas nao existe
        -- o embed tem um canto so'. */
-    arquivos: figurinha ? [...arquivos, figurinha] : arquivos,
+    /* Os emojis de fora tambem: a figura deles e' do cartao novo. */
+    arquivos: [...arquivos, ...(figurinha ? [figurinha] : []), ...(emojisEmbaixo ? [emojisEmbaixo] : [])],
     avisaTodos,
     /* Video exige mensagem NOVA, pela terceira vez pelo mesmo motivo desta
        lista: o Discord desdobra link no ENVIO. Acrescentar a URL editando uma
@@ -4082,7 +4179,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   for (const destino of lista) {
     if (destino.canal_id === origem.canal_id) continue;
 
-    const corpo = traduzido.get(destino.idioma) ?? texto;
+    const corpo = tirarEmojisDoTexto(traduzido.get(destino.idioma) ?? texto, emojisEmbaixo?.ids);
 
     /* A assinatura fica no PE do card, miuda.
 
@@ -4114,7 +4211,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     /* Figurinha sozinha nao tem texto nem anexo, e era exatamente por isto que
        ela nao atravessava: caia neste `continue` e a sala do outro lado nao
        recebia nada. */
-    if (!linhaNova && !arquivos.length && !figurinha) continue;
+    if (!linhaNova && !arquivos.length && !figurinha && !emojisEmbaixo) continue;
 
     const cabecalho = respondendo ? {
       ...respondendo,
@@ -4174,14 +4271,13 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     const montar = (corpoDoCartao, cabecalhoDoCartao) => ({
       color: cor,
       ...(cabecalhoDoCartao ? { author: cabecalhoDoCartao } : {}),
-      /* A figurinha (ou o emoji de outro servidor) vai PEQUENA, no canto do
-         cartao (thumbnail, ~80 px), ao lado da fala -- como a CYRON no
-         lembrete do evento. Como IMAGEM ela
+      /* A figurinha vai PEQUENA, no canto do cartao (thumbnail, ~80 px), ao
+         lado da fala -- como a CYRON no lembrete do evento. Como IMAGEM ela
          saia do tamanho de uma foto e engolia a conversa: um "GG" ocupava
          meia tela em cada sala. O nome entra no corpo quando nao ha' texto,
          e e' ele que segura o cartao quando nao ha' desenho nenhum (as do
          Discord ainda sem GIF) -- sem ele o cartao sairia vazio. */
-      ...(canto ? { thumbnail: { url: canto } } : {}),
+      ...(figurinha?.url ? { thumbnail: { url: figurinha.url } } : {}),
       /* GIF colado como link vira IMAGEM do cartao: dentro da descricao de um
          embed o Discord nao desenha previa nenhuma, e o GIF chegaria do outro
          lado como texto azul. Com a figurinha no canto, o lugar da imagem e'
@@ -4189,7 +4285,8 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
          Com o video indo no content, a previa SAI do cartao: o player que o
          Discord desenha embaixo ja' traz a mesma miniatura, e mantê-la aqui
          mostraria a mesma foto duas vezes, uma delas morta. */
-      ...(midiaLink && !video ? { image: { url: midiaLink } } : {}),
+      ...(midiaLink && !video ? { image: { url: midiaLink } }
+        : (emojisEmbaixo ? { image: { url: emojisEmbaixo.url } } : {})),
       description: `${(corpoDoCartao || (figurinha ? `🎨 ${figurinha.nome}` : "")).slice(0, LIMITE_DO_CARTAO)}` +
         `\n-# [${assinatura}](https://discord.com/users/${msg.author.id})` +
         (selo ? ` · ${selo}` : "") + creditoDaCyron(selo),
@@ -4240,7 +4337,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       const carga = {
         username: nome,
         avatarURL: foto,
-        files: arquivos,
+        files: emojisEmbaixo?.arquivo ? [...arquivos, emojisEmbaixo.arquivo] : arquivos,
         /* As mencoes vivem AQUI, e nao no embed: e' a unica parte da mensagem
            em que o Discord toca sino. Vazio vira undefined -- content vazio o
            Discord recusa. */
@@ -4280,7 +4377,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       }
       if (posta?.id) {
         cartoes.set(destino.canal_id, { id: posta.id, linhas: [linhaNova], falas, cabecalho, traduzido: traduziuAqui,
-          figura: figuraQueFica(cartaoNovo).figura });
+          figura: figuraQueFica(cartaoNovo).figura,
+          /* A faixa de emojis e' um ARQUIVO preso a esta mensagem: remontar o
+             cartao numa emenda arriscaria perder a imagem. Fala seguinte
+             abre cartao proprio. */
+          semEmenda: !!emojisEmbaixo?.arquivo });
         guardarFalas(posta.id, falas);
         lembrarFala(familia, destino.canal_id, posta.id, familiaId, servidorId);
       }

@@ -1095,7 +1095,8 @@ function conferirCartao(onde, embed, componentes = []) {
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
     "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
-    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "emojiDeFora", "espelharMensagem"]);
+    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "TAMANHO_DO_EMOJI_EMBAIXO", "MAX_EMOJIS_EMBAIXO", "NOME_DA_FAIXA_DE_EMOJIS",
+    "emojisDeFora", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
 
   /* Um Discord de brinquedo: salas que lembram qual foi a última mensagem,
      webhooks que guardam o que mandaram, e edição que troca o embed no lugar. */
@@ -1400,40 +1401,85 @@ function conferirCartao(onde, embed, componentes = []) {
   }
 
   /* Emoji de OUTRO servidor: escrito, o Discord grava `:nome:` (medido no
-     servidor de verdade). Ele vai como figura no canto, pelo CDN. */
+     servidor de verdade). Ele vai desenhado EMBAIXO da fala, pequeno — o
+     canto é só da figurinha. */
   {
-    const { emojiDeFora } = carregar(["emojiDeFora"]);
+    const { emojisDeFora, tirarEmojisDoTexto } = carregar(["MAX_EMOJIS_EMBAIXO", "emojisDeFora", "tirarEmojisDoTexto"]);
     const daCasa = new Map([["111111111111111111", {}]]);
-    ok("emoji de fora vira figura do CDN",
-      emojiDeFora("kkk <:pepe:216154654256398347>", daCasa)?.url, "https://cdn.discordapp.com/emojis/216154654256398347.png?size=128");
-    ok("o animado vai como GIF",
-      emojiDeFora("<a:dance:216154654256398348>", daCasa)?.url, "https://cdn.discordapp.com/emojis/216154654256398348.gif?size=128");
-    ok("o emoji deste servidor passa escrito, sem figura", emojiDeFora("oi <:nosso:111111111111111111>", daCasa), null);
-    ok("pula o da casa e pega o primeiro de fora",
-      emojiDeFora("<:nosso:111111111111111111> <:pepe:216154654256398347>", daCasa)?.nome, "pepe");
-    ok("texto sem emoji não inventa figura", emojiDeFora("só texto :pepe:", daCasa), null);
-    ok("texto nenhum não estoura", emojiDeFora(undefined, undefined), null);
+    ok("acha os de fora, na ordem",
+      emojisDeFora("<:aa:216154654256398341> oi <a:bb:216154654256398342>", daCasa).map((e) => `${e.nome}:${e.animado}`).join(" "), "aa:false bb:true");
+    ok("o deste servidor fica escrito, fora da lista", emojisDeFora("oi <:nosso:111111111111111111>", daCasa).length, 0);
+    ok("repetido conta uma vez", emojisDeFora("<:aa:216154654256398341><:aa:216154654256398341>", daCasa).length, 1);
+    ok("no máximo dez", emojisDeFora(Array.from({ length: 15 }, (_, i) => `<:e${i}:2161546542563983${String(i).padStart(2, "0")}>`).join(""), daCasa).length, 10);
+    ok("texto nenhum não estoura", emojisDeFora(undefined, undefined).length, 0);
+    ok("tira do texto só os desenhados",
+      tirarEmojisDoTexto("kkk <:aa:216154654256398341> boa <:nosso:111111111111111111>", ["216154654256398341"]), "kkk boa <:nosso:111111111111111111>");
+    ok("sem nada a tirar, o texto fica igual", tirarEmojisDoTexto("oi  tudo", []), "oi  tudo");
+    ok("emoji sozinho vira texto vazio", tirarEmojisDoTexto("<:aa:216154654256398341>", ["216154654256398341"]), "");
 
+    /* Um emoji só: o endereço do CDN, sem baixar nada — e o animado anima. */
     ultimaFalaDaSala.clear();
     const mundo = montarMundo();
-    await falar(mundo, "<:pepe_laugh:216154654256398347>");
-    verdade("emoji de fora sozinho chega como figura no canto",
-      [...mundo.mensagens.values()].every((m) => m.embed.thumbnail?.url === "https://cdn.discordapp.com/emojis/216154654256398347.png?size=128"));
+    await falar(mundo, "<a:pepe_dance:216154654256398347>");
+    const cartoes = [...mundo.mensagens.values()];
+    ok("emoji de fora sozinho chega nas duas salas", cartoes.length, 2);
+    verdade("desenhado embaixo, como imagem pequena (GIF, porque é animado)",
+      cartoes.every((m) => m.embed.image?.url === "https://cdn.discordapp.com/emojis/216154654256398347.gif?size=48"));
+    verdade("e não no canto", cartoes.every((m) => !m.embed.thumbnail));
+    verdade("sem o :nome: escrito em cima do desenho", cartoes.every((m) => !/pepe_dance/.test(m.embed.description)));
+    verdade("e sem arquivo nenhum", cartoes.every((m) => m.arquivos.length === 0));
 
+    /* Vários: uma faixa só, presa como arquivo e desenhada na imagem do cartão. */
     ultimaFalaDaSala.clear();
+    globalThis.faixaDeEmojis = async (lista) => Buffer.from(`faixa de ${lista.length}`);
     const mundo2 = montarMundo();
-    await falar(mundo2, "<:pepe:216154654256398347>", {
-      stickers: { first: () => ({ name: "gg", format: 1, url: "http://f/gg.png" }) } });
-    verdade("com figurinha junto, a figurinha fica com o canto",
-      [...mundo2.mensagens.values()].every((m) => m.embed.thumbnail?.url === "http://f/gg.png"));
+    await falar(mundo2, "boa <:aa:216154654256398341> <:bb:216154654256398342> <:cc:216154654256398343>");
+    const cartoes2 = [...mundo2.mensagens.values()];
+    verdade("vários viram uma faixa só, embaixo",
+      cartoes2.every((m) => m.embed.image?.url === "attachment://emojis.png"));
+    verdade("presa como arquivo da mensagem",
+      cartoes2.every((m) => m.arquivos.some((a) => a.name === "emojis.png" && String(a.attachment) === "faixa de 3")));
+    verdade("e o texto fica só com as palavras", cartoes2.every((m) => /^boa\n/.test(m.embed.description)));
+    /* A faixa é arquivo da mensagem: a fala seguinte não emenda nela. */
+    await falar(mundo2, "kkk");
+    ok("fala seguinte abre cartão próprio", mundo2.quantas(), 4);
 
+    /* Sem a faixa (sem processador, sem memória): fica o primeiro, sozinho. */
     ultimaFalaDaSala.clear();
+    globalThis.faixaDeEmojis = async () => null;
     const mundo3 = montarMundo();
-    await falar(mundo3, "", { stickers: { first: () => ({ name: "gg", format: 1, url: "http://f/gg.png" }) } });
-    await falar(mundo3, "kkk <:pepe:216154654256398347>");
-    ok("o kkk com emoji emenda no cartão da figurinha", mundo3.quantas(), 2);
-    verdade("e o GG continua no canto",
-      [...mundo3.mensagens.values()].every((m) => m.embed.thumbnail?.url === "http://f/gg.png"));
+    await falar(mundo3, "<:aa:216154654256398341> <:bb:216154654256398342>");
+    const cartoes3 = [...mundo3.mensagens.values()];
+    verdade("sem faixa, o primeiro vai sozinho",
+      cartoes3.every((m) => m.embed.image?.url === "https://cdn.discordapp.com/emojis/216154654256398341.png?size=48"));
+    verdade("e o segundo continua escrito", cartoes3.every((m) => /<:bb:216154654256398342>/.test(m.embed.description)));
+
+    /* Figurinha e emoji juntos: cada um no seu lugar. */
+    ultimaFalaDaSala.clear();
+    const mundo4 = montarMundo();
+    await falar(mundo4, "<:pepe:216154654256398347>", {
+      stickers: { first: () => ({ name: "gg", format: 1, url: "http://f/gg.png" }) } });
+    verdade("a figurinha fica com o canto",
+      [...mundo4.mensagens.values()].every((m) => m.embed.thumbnail?.url === "http://f/gg.png"));
+    verdade("e o emoji vai embaixo",
+      [...mundo4.mensagens.values()].every((m) => m.embed.image?.url === "https://cdn.discordapp.com/emojis/216154654256398347.png?size=48"));
+
+    /* GIF do link manda na imagem: os emojis ficam escritos. */
+    ultimaFalaDaSala.clear();
+    const mundo5 = montarMundo();
+    await falar(mundo5, "https://klipy.com/gifs/x <:pepe:216154654256398347>", {
+      embeds: [{ image: { url: "https://static2.klipy.com/x.gif" } }] });
+    verdade("com GIF de link, a imagem é do GIF",
+      [...mundo5.mensagens.values()].every((m) => m.embed.image?.url === "https://static2.klipy.com/x.gif"));
+
+    /* O emoji deste servidor não muda nada: passa escrito, como sempre. */
+    ultimaFalaDaSala.clear();
+    const mundo6 = montarMundo();
+    mundo6.salas.cache = undefined;
+    await falar(mundo6, "oi <:nosso:111111111111111111>", {
+      guild: { id: "g", channels: { cache: mundo6.salas }, emojis: { cache: daCasa } } });
+    verdade("emoji da casa continua escrito, sem imagem",
+      [...mundo6.mensagens.values()].every((m) => !m.embed.image && /<:nosso:111111111111111111>/.test(m.embed.description)));
   }
 
   /* GIF colado como link CHEGA como imagem do outro lado.
@@ -7341,7 +7387,7 @@ function conferirCartao(onde, embed, componentes = []) {
     /descricao === embed\.description/.test(corrigir));
 
   /* Tirar o link do GIF editando a mensagem tira o GIF das outras salas. */
-  const { imagemSaiuDaFala } = carregar(["figurinhaDe", "imagemSaiuDaFala"]);
+  const { imagemSaiuDaFala } = carregar(["figurinhaDe", "NOME_DA_FAIXA_DE_EMOJIS", "ehImagemDeEmoji", "imagemSaiuDaFala"]);
   const fala = (content, extra = {}) => ({ id: "m1", content, stickers: { first: () => undefined }, ...extra });
   const primeira = [{ msgId: "m1" }];
   const gif = "https://static2.klipy.com/x.gif";
@@ -7360,6 +7406,11 @@ function conferirCartao(onde, embed, componentes = []) {
      link tira o GIF mesmo com figurinha na fala. */
   ok("figurinha no canto + link apagado: o GIF sai",
     imagemSaiuDaFala(comFigurinha("oi"), primeira, gif), true);
+  /* A imagem dos emojis de fora não veio de link: editar o texto não a tira. */
+  ok("emoji de fora desenhado embaixo: fica",
+    imagemSaiuDaFala(fala("oi"), primeira, "https://cdn.discordapp.com/emojis/216154654256398347.png?size=48"), false);
+  ok("a faixa de emojis também fica",
+    imagemSaiuDaFala(fala("oi"), primeira, "https://cdn.discordapp.com/attachments/1/2/emojis.png?ex=1"), false);
   /* A figura que fica numa emenda: canto e imagem são lugares separados,
      e a fala nova só toma o lugar que ela mesma traz. */
   {
@@ -7373,10 +7424,6 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("e o canto continua com a figurinha", r2.embed.thumbnail?.url, "http://f/gg.png");
     ok("a figura lembrada é a que ficou", JSON.stringify(r2.figura),
       JSON.stringify({ thumbnail: { url: "http://f/gg.png" }, image: { url: "http://g/2.gif" } }));
-    const r3 = figuraQueFica({ description: "kkk", thumbnail: { url: "http://e/pepe.png" } }, { thumbnail: { url: "http://f/gg.png" } });
-    ok("o canto é de quem chegou primeiro: o emoji não tira o GG", r3.embed.thumbnail?.url, "http://f/gg.png");
-    ok("canto livre: o emoji da fala nova ocupa",
-      figuraQueFica({ description: "kkk", thumbnail: { url: "http://e/pepe.png" } }, {}).embed.thumbnail?.url, "http://e/pepe.png");
     ok("cartão sem figura nenhuma não inventa uma", JSON.stringify(figuraQueFica({ description: "z" }).embed), JSON.stringify({ description: "z" }));
     ok("de cima vazio não estoura", JSON.stringify(figuraQueFica({ description: "z" }, undefined).figura), "{}");
   }
@@ -7496,7 +7543,8 @@ function conferirCartao(onde, embed, componentes = []) {
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
     "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
-    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "emojiDeFora", "espelharMensagem"]);
+    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "TAMANHO_DO_EMOJI_EMBAIXO", "MAX_EMOJIS_EMBAIXO", "NOME_DA_FAIXA_DE_EMOJIS",
+    "emojisDeFora", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
 
   const salas = new Map([["en", { lastMessageId: null }]]);
   const lista = [{ canal_id: "pt", idioma: "pt", webhook: "pt" },
