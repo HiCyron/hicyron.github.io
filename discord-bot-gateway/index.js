@@ -2254,6 +2254,19 @@ function emendaNestaSala(velho, ultimoDaSala, juntas, traduzidoAgora = null) {
   return ultimoDaSala === velho.id && juntas.length <= LIMITE_DO_CARTAO;
 }
 
+/* A figura de um cartao que recebe emenda: a do cartao novo, e o que faltar
+   vem do de cima. O canto (figurinha) e a imagem (GIF do link) sao lugares
+   separados -- a fala nova so' toma o lugar que ela mesma traz. Devolve o
+   embed pronto e a figura para lembrar na proxima emenda. Pura. */
+function figuraQueFica(embed, deCima = {}) {
+  const figura = {};
+  for (const lugar of ["thumbnail", "image"]) {
+    const url = embed?.[lugar]?.url || deCima?.[lugar]?.url;
+    if (url) figura[lugar] = { url };
+  }
+  return { embed: { ...embed, ...figura }, figura };
+}
+
 /* Onde a fala respondida mora, quando a memoria ja' esqueceu.
 
    Duas perguntas ao banco em vez de uma consulta so' com juncao: a primeira
@@ -2628,10 +2641,13 @@ async function apagarNasOutrasSalas(msgId, canalId, guildId) {
    nao no texto. Quem edita a mensagem e tira o link estava tirando o GIF, e
    do outro lado ele ficava -- a correcao so' trocava o texto. So' vale para a
    primeira fala do cartao (e' dela a imagem) e nunca para figurinha, que nao
-   esta' no texto. */
-function imagemSaiuDaFala(msg, falas, temImagem) {
-  if (!temImagem || falas?.[0]?.msgId !== msg.id) return false;
-  if (figurinhaDe(msg)) return false;
+   esta' no texto. A figurinha agora mora no canto (thumbnail), e a imagem e'
+   so' do link; mas os cartoes de antes da troca ainda trazem a figurinha como
+   imagem, e esses continuam intocados -- `imagem` e' a URL, para saber qual. */
+function imagemSaiuDaFala(msg, falas, imagem) {
+  if (!imagem || falas?.[0]?.msgId !== msg.id) return false;
+  const figurinha = figurinhaDe(msg);
+  if (figurinha?.url && String(imagem) === figurinha.url) return false;
   return !/https?:/i.test(String(msg.content || ""));
 }
 
@@ -2691,7 +2707,7 @@ async function corrigirNasOutrasSalas(msg) {
     if (!embed) continue;
 
     const descricao = remontarCartao(embed.description, atualizadas);
-    const tirarImagem = imagemSaiuDaFala(msg, falas, !!embed.image?.url);
+    const tirarImagem = imagemSaiuDaFala(msg, falas, embed.image?.url || "");
     /* Correcao que nao mudou nada naquela lingua nao vira edicao: o tradutor
        devolve a mesma frase com frequencia (trocar "vc" por "voce" some na
        traducao), e um "editado" sem mudanca nenhuma so' faz quem le voltar
@@ -3773,7 +3789,8 @@ function midiaDeLink(msg) {
    um resultado que muda a cada vez.
 
    NAO traduz nada: o texto ja' atravessou. So' acrescenta a imagem, e so' em
-   cartao que ainda nao tem uma (figurinha e' imagem e manda mais). */
+   cartao que ainda nao tem uma. A figurinha mora no canto (thumbnail) e nao
+   ocupa este lugar; cartao antigo com a figurinha como imagem fica como esta'. */
 async function ilustrarNasOutrasSalas(msg) {
   const midia = midiaDeLink(msg) || await gifDoLink(msg.content).catch(() => "");
   if (!midia) return;
@@ -3797,10 +3814,22 @@ async function ilustrarNasOutrasSalas(msg) {
     const embed = copia?.embeds?.[0];
     if (!embed) continue;
     const atual = embed.toJSON();
-    if (atual.image?.url) continue; // figurinha, ou ja' ilustrado numa passada anterior
-    await clienteDoWebhook(url).editMessage(copiaId, {
+    if (atual.image?.url) continue; // ja' ilustrado (ou cartao antigo, com a figurinha grande)
+    const deu = await clienteDoWebhook(url).editMessage(copiaId, {
       embeds: [{ ...atual, image: { url: midia } }],
-    }).catch((e) => console.error("espelho: nao consegui ilustrar a copia:", e?.message || e));
+    }).then(() => true, (e) => { console.error("espelho: nao consegui ilustrar a copia:", e?.message || e); return false; });
+    if (deu) lembrarImagemDoCartao(copiaId, midia);
+  }
+}
+
+/* A imagem que chegou depois fica anotada no cartao lembrado: a proxima fala
+   emendada remonta o cartao, e sem a anotacao a emenda apagaria o GIF que
+   esta passada acabou de pendurar. */
+function lembrarImagemDoCartao(copiaId, url) {
+  for (const ultima of ultimaFalaDaSala.values()) {
+    for (const cartao of ultima.cartoes?.values?.() || []) {
+      if (cartao.id === copiaId) cartao.figura = { ...(cartao.figura || {}), image: { url } };
+    }
   }
 }
 
@@ -3936,7 +3965,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     /* Figurinha entra aqui junto com o anexo, e pelo mesmo motivo: a imagem
        vive presa AO CARTAO, e emendar deixaria o texto novo no cartao de cima
        com a figurinha antiga do lado. Um cartao com duas figurinhas nao existe
-       -- o embed desenha uma imagem so'. */
+       -- o embed tem um canto so'. */
     arquivos: figurinha ? [...arquivos, figurinha] : arquivos,
     avisaTodos,
     /* Video exige mensagem NOVA, pela terceira vez pelo mesmo motivo desta
@@ -4120,19 +4149,21 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     const montar = (corpoDoCartao, cabecalhoDoCartao) => ({
       color: cor,
       ...(cabecalhoDoCartao ? { author: cabecalhoDoCartao } : {}),
-      /* A figurinha e' a fala inteira quando vem sozinha, entao ela e' a
-         IMAGEM do cartao e nao um anexo pendurado embaixo. O nome entra no
-         corpo so' quando nao ha' imagem para desenhar (as do Discord, em
-         LOTTIE) -- sem ele o cartao sairia completamente vazio. */
-      /* GIF colado como link vira IMAGEM do cartao, pelo mesmo motivo da
-         figurinha: dentro da descricao de um embed o Discord nao desenha
-         previa nenhuma, e o GIF chegaria do outro lado como texto azul. A
-         figurinha manda mais -- quando ha' as duas, ela e' a fala inteira. */
-      /* Com o video indo no content, a previa SAI do cartao: o player que o
+      /* A figurinha vai PEQUENA, no canto do cartao (thumbnail, ~80 px), ao
+         lado da fala -- como a CYRON no lembrete do evento. Como IMAGEM ela
+         saia do tamanho de uma foto e engolia a conversa: um "GG" ocupava
+         meia tela em cada sala. O nome entra no corpo quando nao ha' texto,
+         e e' ele que segura o cartao quando nao ha' desenho nenhum (as do
+         Discord ainda sem GIF) -- sem ele o cartao sairia vazio. */
+      ...(figurinha?.url ? { thumbnail: { url: figurinha.url } } : {}),
+      /* GIF colado como link vira IMAGEM do cartao: dentro da descricao de um
+         embed o Discord nao desenha previa nenhuma, e o GIF chegaria do outro
+         lado como texto azul. Com a figurinha no canto, o lugar da imagem e'
+         dele -- as duas cabem no mesmo cartao.
+         Com o video indo no content, a previa SAI do cartao: o player que o
          Discord desenha embaixo ja' traz a mesma miniatura, e mantê-la aqui
          mostraria a mesma foto duas vezes, uma delas morta. */
-      ...(figurinha?.url ? { image: { url: figurinha.url } }
-        : (midiaLink && !video ? { image: { url: midiaLink } } : {})),
+      ...(midiaLink && !video ? { image: { url: midiaLink } } : {}),
       description: `${(corpoDoCartao || (figurinha ? `🎨 ${figurinha.nome}` : "")).slice(0, LIMITE_DO_CARTAO)}` +
         `\n-# [${assinatura}](https://discord.com/users/${msg.author.id})` +
         (selo ? ` · ${selo}` : "") + creditoDaCyron(selo),
@@ -4151,10 +4182,16 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
            so' conhece texto, cabecalho e assinatura --, entao sem esta linha
            a emenda apagaria a soma que ja' estava no cartao. */
         const pe = peDoCartao.get(velho.id);
+        /* E a figura do cartao de cima tambem fica. O montar() so' conhece a
+           fala NOVA: a figurinha no canto (ou o GIF do link) era da fala de
+           cima, e sem esta linha um "kkk" mandado logo depois de um "GG"
+           apagava a figurinha do cartao em todas as salas. */
+        const figura = figuraQueFica(montar(juntas, cabecalhoQueFica), velho.figura);
         await webhook.editMessage(velho.id, {
-          embeds: [{ ...montar(juntas, cabecalhoQueFica), ...(pe ? { footer: { text: pe } } : {}) }],
+          embeds: [{ ...figura.embed, ...(pe ? { footer: { text: pe } } : {}) }],
         });
-        cartoes.set(destino.canal_id, { id: velho.id, linhas, falas, cabecalho: cabecalhoQueFica, traduzido: velho.traduzido });
+        cartoes.set(destino.canal_id, { id: velho.id, linhas, falas, cabecalho: cabecalhoQueFica,
+          traduzido: velho.traduzido, figura: figura.figura });
         guardarFalas(velho.id, falas);
         /* A fala nova passa a morar no cartao de cima: quem responder a ela
            tem que cair onde o texto dela esta', que agora e' ali.
@@ -4173,6 +4210,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     if (emendou) continue;
 
     try {
+      const cartaoNovo = montar(linhaNova, cabecalho);
       const carga = {
         username: nome,
         avatarURL: foto,
@@ -4181,7 +4219,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
            em que o Discord toca sino. Vazio vira undefined -- content vazio o
            Discord recusa. */
         content: chamados || undefined,
-        embeds: [montar(linhaNova, cabecalho)],
+        embeds: [cartaoNovo],
         /* Cargo continua barrado: os cargos daqui sao os das salas por idioma,
            e repetir um cargo da sala de origem chamaria o publico errado.
            @everyone passa quando -- e so' quando -- passou no original. */
@@ -4215,7 +4253,8 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         posta = await webhook.send(carga);
       }
       if (posta?.id) {
-        cartoes.set(destino.canal_id, { id: posta.id, linhas: [linhaNova], falas, cabecalho, traduzido: traduziuAqui });
+        cartoes.set(destino.canal_id, { id: posta.id, linhas: [linhaNova], falas, cabecalho, traduzido: traduziuAqui,
+          figura: figuraQueFica(cartaoNovo).figura });
         guardarFalas(posta.id, falas);
         lembrarFala(familia, destino.canal_id, posta.id, familiaId, servidorId);
       }

@@ -1095,7 +1095,7 @@ function conferirCartao(onde, embed, componentes = []) {
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
     "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
-    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "espelharMensagem"]);
+    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "espelharMensagem"]);
 
   /* Um Discord de brinquedo: salas que lembram qual foi a última mensagem,
      webhooks que guardam o que mandaram, e edição que troca o embed no lugar. */
@@ -1350,10 +1350,10 @@ function conferirCartao(onde, embed, componentes = []) {
     }
   }
 
-  /* Figurinha abre cartão novo pelo mesmo motivo do anexo: a imagem vive presa
+  /* Figurinha abre cartão novo pelo mesmo motivo do anexo: ela vive presa
      AO CARTÃO, e emendar deixaria o texto novo no cartão de cima com a
      figurinha antiga do lado. Um cartão com duas figurinhas não existe — o
-     embed desenha uma imagem só. */
+     embed tem um canto só. */
   {
     ultimaFalaDaSala.clear();
     const mundo = montarMundo();
@@ -1361,10 +1361,42 @@ function conferirCartao(onde, embed, componentes = []) {
     await falar(mundo, "", { stickers: { first: () => ({ name: "kek", format: 1, url: "http://f/kek.png" }) } });
 
     ok("fala com figurinha sai em cartão novo", mundo.quantas(), 4);
-    const comImagem = [...mundo.mensagens.values()].filter((m) => m.embed.image);
-    ok("e a imagem aparece uma vez em cada sala", comImagem.length, 2);
-    verdade("o cartão de cima continua sem imagem nenhuma",
-      [...mundo.mensagens.values()].some((m) => !m.embed.image && /olha isso/.test(m.embed.description)));
+    const comFigurinha = [...mundo.mensagens.values()].filter((m) => m.embed.thumbnail);
+    ok("e a figurinha aparece uma vez em cada sala", comFigurinha.length, 2);
+    verdade("o cartão de cima continua sem figurinha nenhuma",
+      [...mundo.mensagens.values()].some((m) => !m.embed.thumbnail && !m.embed.image && /olha isso/.test(m.embed.description)));
+  }
+
+  /* O caso inverso: figurinha e logo depois um texto. O texto emenda no
+     cartão da figurinha (mesma pessoa, logo em seguida) — e a emenda
+     remontava o cartão só com a fala nova: o "kkk" apagava o "GG" do canto
+     em todas as salas. */
+  {
+    ultimaFalaDaSala.clear();
+    const mundo = montarMundo();
+    await falar(mundo, "", { stickers: { first: () => ({ name: "gg", format: 1, url: "http://f/gg.png" }) } });
+    await falar(mundo, "kkk boa");
+
+    ok("o texto emenda no cartão da figurinha", mundo.quantas(), 2);
+    verdade("e a figurinha continua no canto depois da emenda",
+      [...mundo.mensagens.values()].every((m) => m.embed.thumbnail?.url === "http://f/gg.png"));
+    verdade("com o texto novo no mesmo cartão",
+      [...mundo.mensagens.values()].every((m) => /kkk boa/.test(m.embed.description)));
+    await falar(mundo, "de novo");
+    verdade("e continua lá na terceira fala também",
+      [...mundo.mensagens.values()].every((m) => m.embed.thumbnail?.url === "http://f/gg.png"));
+  }
+
+  /* O GIF do link, pela mesma emenda: a fala de baixo não traz link, e a
+     imagem de cima não pode sumir por isso. */
+  {
+    ultimaFalaDaSala.clear();
+    const mundo = montarMundo();
+    await falar(mundo, "https://klipy.com/gifs/x", { embeds: [{ image: { url: "https://static2.klipy.com/x.gif" } }] });
+    await falar(mundo, "esse gif kkk");
+    ok("a fala de baixo emenda no cartão do GIF", mundo.quantas(), 2);
+    verdade("e o GIF continua no cartão",
+      [...mundo.mensagens.values()].every((m) => m.embed.image?.url === "https://static2.klipy.com/x.gif"));
   }
 
   /* GIF colado como link CHEGA como imagem do outro lado.
@@ -1383,9 +1415,8 @@ function conferirCartao(onde, embed, componentes = []) {
       cartoes.every((m) => m.embed.image?.url === "https://static2.klipy.com/x.gif"));
   }
 
-  /* Figurinha e link na mesma fala: o embed desenha UMA imagem só, e a
-     figurinha é a fala inteira quando vem sozinha. Se as duas disputassem o
-     mesmo lugar sem uma regra, o resultado dependeria da ordem do código. */
+  /* Figurinha e link na mesma fala: a figurinha vai no canto e o GIF do
+     link é a imagem. Cada uma no seu lugar — nenhuma das duas some. */
   {
     ultimaFalaDaSala.clear();
     const mundo = montarMundo();
@@ -1394,8 +1425,10 @@ function conferirCartao(onde, embed, componentes = []) {
       embeds: [{ image: { url: "https://static2.klipy.com/x.gif" } }],
     });
 
-    verdade("com figurinha e link juntos, a figurinha manda",
-      [...mundo.mensagens.values()].every((m) => m.embed.image?.url === "http://f/kek.png"));
+    verdade("com figurinha e link juntos, a figurinha vai no canto",
+      [...mundo.mensagens.values()].every((m) => m.embed.thumbnail?.url === "http://f/kek.png"));
+    verdade("e o GIF do link continua como imagem",
+      [...mundo.mensagens.values()].every((m) => m.embed.image?.url === "https://static2.klipy.com/x.gif"));
   }
 
   /* Marcar alguém abre cartão novo: editar não toca sino em ninguém. */
@@ -7270,14 +7303,38 @@ function conferirCartao(onde, embed, componentes = []) {
   const { imagemSaiuDaFala } = carregar(["figurinhaDe", "imagemSaiuDaFala"]);
   const fala = (content, extra = {}) => ({ id: "m1", content, stickers: { first: () => undefined }, ...extra });
   const primeira = [{ msgId: "m1" }];
-  ok("link do GIF apagado: a imagem sai", imagemSaiuDaFala(fala("oi"), primeira, true), true);
+  const gif = "https://static2.klipy.com/x.gif";
+  const comFigurinha = (content) => fala(content, { stickers: { first: () => ({ name: "k", format: 1, url: "http://f/k.png" }) } });
+  ok("link do GIF apagado: a imagem sai", imagemSaiuDaFala(fala("oi"), primeira, gif), true);
   ok("link ainda lá: a imagem fica",
-    imagemSaiuDaFala(fala("oi https://klipy.com/gifs/x"), primeira, true), false);
-  ok("cartão sem imagem: nada a tirar", imagemSaiuDaFala(fala("oi"), primeira, false), false);
+    imagemSaiuDaFala(fala("oi https://klipy.com/gifs/x"), primeira, gif), false);
+  ok("cartão sem imagem: nada a tirar", imagemSaiuDaFala(fala("oi"), primeira, ""), false);
   ok("fala emendada embaixo não mexe na imagem de cima",
-    imagemSaiuDaFala(fala("oi"), [{ msgId: "m0" }, { msgId: "m1" }], true), false);
-  ok("figurinha não está no texto: fica",
-    imagemSaiuDaFala(fala("oi", { stickers: { first: () => ({ name: "k", format: 1, url: "u" }) } }), primeira, true), false);
+    imagemSaiuDaFala(fala("oi"), [{ msgId: "m0" }, { msgId: "m1" }], gif), false);
+  /* Cartão de antes da troca: a figurinha era a IMAGEM. Ela não está no
+     texto, então tirar o texto não pode levá-la junto. */
+  ok("cartão antigo com a figurinha grande: fica",
+    imagemSaiuDaFala(comFigurinha("oi"), primeira, "http://f/k.png"), false);
+  /* Cartão novo: a figurinha mora no canto, e a imagem é do link. Tirar o
+     link tira o GIF mesmo com figurinha na fala. */
+  ok("figurinha no canto + link apagado: o GIF sai",
+    imagemSaiuDaFala(comFigurinha("oi"), primeira, gif), true);
+  /* A figura que fica numa emenda: canto e imagem são lugares separados,
+     e a fala nova só toma o lugar que ela mesma traz. */
+  {
+    const { figuraQueFica } = carregar(["figuraQueFica"]);
+    const deCima = { thumbnail: { url: "http://f/gg.png" }, image: { url: "http://g/1.gif" } };
+    const r = figuraQueFica({ description: "x" }, deCima);
+    ok("sem figura nova, fica a de cima", r.embed.thumbnail?.url + " " + r.embed.image?.url, "http://f/gg.png http://g/1.gif");
+    ok("e o texto do cartão novo continua", r.embed.description, "x");
+    const r2 = figuraQueFica({ description: "y", image: { url: "http://g/2.gif" } }, deCima);
+    ok("GIF novo toma o lugar da imagem", r2.embed.image?.url, "http://g/2.gif");
+    ok("e o canto continua com a figurinha", r2.embed.thumbnail?.url, "http://f/gg.png");
+    ok("a figura lembrada é a que ficou", JSON.stringify(r2.figura),
+      JSON.stringify({ thumbnail: { url: "http://f/gg.png" }, image: { url: "http://g/2.gif" } }));
+    ok("cartão sem figura nenhuma não inventa uma", JSON.stringify(figuraQueFica({ description: "z" }).embed), JSON.stringify({ description: "z" }));
+    ok("de cima vazio não estoura", JSON.stringify(figuraQueFica({ description: "z" }, undefined).figura), "{}");
+  }
   verdade("a correção edita a cópia quando a imagem sai",
     /descricao === embed\.description && !tirarImagem/.test(corrigir)
     && /delete novoEmbed\.image/.test(corrigir));
@@ -7394,7 +7451,7 @@ function conferirCartao(onde, embed, componentes = []) {
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
     "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
-    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "espelharMensagem"]);
+    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "espelharMensagem"]);
 
   const salas = new Map([["en", { lastMessageId: null }]]);
   const lista = [{ canal_id: "pt", idioma: "pt", webhook: "pt" },
@@ -7427,7 +7484,11 @@ function conferirCartao(onde, embed, componentes = []) {
   {
     const postas = await mandar({ stickers: { first: () => ({ name: "kek", format: 1, url: "http://f/kek.png" }) } });
     ok("figurinha sozinha chega do outro lado", postas.length, 1);
-    ok("e chega como imagem do cartão", postas[0]?.embeds?.[0]?.image?.url, "http://f/kek.png");
+    /* PEQUENA, no canto, ao lado do texto — como a CYRON no lembrete do
+       evento. Como imagem ela saía do tamanho de uma foto em cada sala. */
+    ok("e chega pequena, no canto do cartão", postas[0]?.embeds?.[0]?.thumbnail?.url, "http://f/kek.png");
+    verdade("e não como imagem grande", !postas[0]?.embeds?.[0]?.image);
+    verdade("com o nome dela ao lado", /🎨 kek/.test(postas[0]?.embeds?.[0]?.description || ""));
     /* Sem isto o cartão sairia com a descrição vazia, e o Discord recusa o
        embed inteiro — a fala sumiria pelo outro caminho. */
     verdade("e o cartão nunca fica sem descrição",
@@ -7439,7 +7500,7 @@ function conferirCartao(onde, embed, componentes = []) {
   {
     const postas = await mandar({ stickers: { first: () => ({ name: "wumpus", format: 3, url: "http://f/w.json" }) } });
     ok("figurinha do Discord chega mesmo assim", postas.length, 1);
-    verdade("sem imagem quebrada pendurada", !postas[0]?.embeds?.[0]?.image);
+    verdade("sem imagem quebrada pendurada", !postas[0]?.embeds?.[0]?.image && !postas[0]?.embeds?.[0]?.thumbnail);
     verdade("e com o nome no corpo", /wumpus/.test(postas[0]?.embeds?.[0]?.description || ""));
   }
 
@@ -7797,7 +7858,7 @@ function conferirCartao(onde, embed, componentes = []) {
  * sem traduzir nada: so' pendura a imagem nos cartoes que ja' foram. */
 {
   const { ilustrarNasOutrasSalas } = carregar([
-    "midiaDeLink", "falasNoCartao", "eACopia", "enderecosDoEspelho", "ilustrarNasOutrasSalas"]);
+    "midiaDeLink", "falasNoCartao", "eACopia", "enderecosDoEspelho", "lembrarImagemDoCartao", "ilustrarNasOutrasSalas"]);
 
   const montar = ({ jaTemImagem = false } = {}) => {
     const editadas = [];
@@ -7848,6 +7909,19 @@ function conferirCartao(onde, embed, componentes = []) {
     const editadas = montar({ jaTemImagem: true });
     await ilustrarNasOutrasSalas(fala([{ image: { url: "https://static2.klipy.com/x.gif" } }]));
     ok("cartão que já tem imagem fica como está", editadas.length, 0);
+  }
+
+  /* A imagem que chegou depois fica anotada no cartão lembrado, senão a
+     próxima fala emendada remontaria o cartão sem ela. */
+  {
+    montar();
+    const cartaoEn = { id: "c-en", linhas: ["texto"], figura: { thumbnail: { url: "http://f/gg.png" } } };
+    ultimaFalaDaSala.clear();
+    ultimaFalaDaSala.set("pt", { cartoes: new Map([["en", cartaoEn]]) });
+    await ilustrarNasOutrasSalas(fala([{ image: { url: "https://static2.klipy.com/x.gif" } }]));
+    ok("o GIF que chegou depois fica anotado no cartão", cartaoEn.figura.image?.url, "https://static2.klipy.com/x.gif");
+    ok("sem perder a figurinha do canto", cartaoEn.figura.thumbnail?.url, "http://f/gg.png");
+    ultimaFalaDaSala.clear();
   }
 }
 
