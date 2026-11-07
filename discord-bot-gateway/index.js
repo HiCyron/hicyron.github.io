@@ -11493,6 +11493,85 @@ const ROSTOS_DA_CYRON = ["pensando", "amei", "coracao", "mundo", "nerd", "estilo
   "aceno", "eita", "chorando"];
 const PASTA_DOS_ROSTOS = fileURLToPath(new URL("./img/figurinhas/rostos/", import.meta.url));
 
+/* ---------------- 🎨 as figurinhas e emojis da CYRON no PROPRIO servidor ----------------
+
+   Os emojis do aplicativo (garantirEmojisDaCyron) so' a CYRON usa. Para as
+   PESSOAS usarem -- no chat, nas reacoes, e ate' para ver se figurinha e emoji
+   atravessam as salas --, eles precisam estar nas vagas do servidor. O admin
+   escreve "instalar figurinhas" no ⚙️-cyron e eu ponho o que couber:
+
+   - os 12 rostos como emoji (:cyron_amei:...);
+   - 8 deles animados (:cyron_amei_anim:...), com um movimento simples;
+   - as figurinhas inteiras nas vagas de figurinha que sobrarem (5 num
+     servidor sem impulso, ate' 60 no nivel 3), na ordem do catalogo.
+
+   Nunca apago nem troco nada do servidor: o que ja' existe com o mesmo nome
+   fica, e vaga ocupada continua ocupada. Rodar de novo so' completa. */
+const PASTA_DAS_ANIMADAS = fileURLToPath(new URL("./img/figurinhas/animadas/", import.meta.url));
+const ANIMADAS_DA_CYRON = ["amei", "aceno", "brilho", "eita", "zzz", "chorando", "piscadinha", "coracao"];
+const VAGAS_DE_FIGURINHA = [5, 15, 30, 60];   // por nivel de impulso, de 0 a 3
+const VAGAS_DE_EMOJI = [50, 100, 150, 250];   // estaticos; os animados tem outro tanto igual
+
+/* O nome da figurinha no Discord: de 2 a 30 letras. Pura. */
+function nomeDeFigurinhaNoServidor(f) {
+  return `CYRON ${f.pt}`.slice(0, 30).trim();
+}
+
+async function instalarExpressoesDaCyron(guild) {
+  const eu = guild.members?.me;
+  if (!eu?.permissions?.has?.(PermissionFlagsBits.ManageGuildExpressions) &&
+      !eu?.permissions?.has?.(PermissionFlagsBits.CreateGuildExpressions)) return { falta: "permissao" };
+  await guild.emojis.fetch().catch(() => null);
+  await guild.stickers.fetch().catch(() => null);
+  const nivel = Math.min(3, Math.max(0, Number(guild.premiumTier) || 0));
+  const feito = { emojis: 0, animados: 0, figurinhas: 0, falhas: 0, semVaga: [] };
+  const motivo = "a administração pediu as figurinhas da CYRON";
+  const jaTem = (nome) => guild.emojis.cache.some((e) => e.name === nome);
+  const criar = (fazer) => fazer.then(() => true, (e) => {
+    console.log("figurinhas: o Discord recusou uma:", e?.message || e);
+    feito.falhas++;
+    return false;
+  });
+
+  let estaticos = VAGAS_DE_EMOJI[nivel] - guild.emojis.cache.filter((e) => !e.animated).size;
+  for (const nome of ROSTOS_DA_CYRON) {
+    if (jaTem(`cyron_${nome}`)) continue;
+    if (estaticos <= 0) { feito.semVaga.push("emojis"); break; }
+    if (await criar(guild.emojis.create({ attachment: `${PASTA_DOS_ROSTOS}${nome}.png`, name: `cyron_${nome}`, reason: motivo }))) {
+      estaticos--; feito.emojis++;
+    }
+  }
+
+  let animados = VAGAS_DE_EMOJI[nivel] - guild.emojis.cache.filter((e) => e.animated).size;
+  for (const nome of ANIMADAS_DA_CYRON) {
+    if (jaTem(`cyron_${nome}_anim`)) continue;
+    if (animados <= 0) { feito.semVaga.push("animados"); break; }
+    if (await criar(guild.emojis.create({ attachment: `${PASTA_DAS_ANIMADAS}${nome}.gif`, name: `cyron_${nome}_anim`, reason: motivo }))) {
+      animados--; feito.animados++;
+    }
+  }
+
+  /* Figurinha do Discord tem que ser 320x320; as da CYRON tem uns 256 e
+     proporcoes diferentes. Sem o sharp (ou sem memoria), fica sem as figurinhas
+     e os emojis continuam valendo. */
+  const sharp = await carregarSharp();
+  let vagas = VAGAS_DE_FIGURINHA[nivel] - guild.stickers.cache.size;
+  if (sharp) {
+    const nomes = new Set(guild.stickers.cache.map((s) => s.name));
+    for (const f of FIGURINHAS) {
+      if (nomes.has(nomeDeFigurinhaNoServidor(f))) continue;
+      if (vagas <= 0) { feito.semVaga.push("figurinhas"); break; }
+      const arquivo = await sharp(`${PASTA_DAS_FIGURINHAS}${f.id}.png`)
+        .resize(320, 320, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+      if (await criar(guild.stickers.create({ file: arquivo, name: nomeDeFigurinhaNoServidor(f), tags: "😄",
+        description: f.pt.slice(0, 100), reason: motivo }))) {
+        vagas--; feito.figurinhas++;
+      }
+    }
+  }
+  return feito;
+}
+
 function emojiPequeno(nome) {
   return EMOJIS_DA_CYRON.get(`rosto_${nome}`) || EMOJIS_DA_CYRON.get(nome);
 }
@@ -15876,6 +15955,30 @@ async function comandoDeConfig(msg, servidor) {
     return true;
   }
 
+  /* "instalar figurinhas": as figurinhas e os emojis da CYRON nas vagas do servidor. */
+  if (/^instalar\s+(as\s+)?(figurinhas|emojis|stickers)\b/.test(texto)) {
+    if (!msg.member?.permissions?.has(PermissionFlagsBits.ManageGuild)) {
+      await msg.reply("🔒 Só quem tem **Gerenciar Servidor** pode mudar isto.");
+      return true;
+    }
+    await msg.channel.sendTyping?.().catch(() => {});
+    const r = await instalarExpressoesDaCyron(msg.guild);
+    if (r.falta === "permissao") {
+      await msg.reply("🔒 Para pôr figurinhas e emojis aqui eu preciso da permissão **Gerenciar expressões**.\n" +
+        "Configurações do servidor → Cargos → **CYRON** → ligue **Gerenciar expressões**, e escreva `instalar figurinhas` de novo.");
+      return true;
+    }
+    const partes = [r.emojis && `**${r.emojis}** emojis`, r.animados && `**${r.animados}** emojis animados`,
+      r.figurinhas && `**${r.figurinhas}** figurinhas`].filter(Boolean);
+    await msg.reply([
+      partes.length ? `🎨 Instalei ${partes.join(", ")} da CYRON neste servidor.` : "🎨 As figurinhas e os emojis da CYRON já estavam todos aqui.",
+      "Emojis: `:cyron_amei:`, `:cyron_aceno_anim:`... · Figurinhas: no botão 😀 → **Figurinhas**.",
+      r.semVaga.includes("figurinhas") ? "_As outras figurinhas não couberam: as vagas de figurinha do servidor acabaram (mais vagas com impulso)._" : "",
+      r.falhas ? `_O Discord recusou ${r.falhas} — tente de novo daqui a pouco._` : "",
+    ].filter(Boolean).join("\n"));
+    return true;
+  }
+
   if (!escolhidos.length) {
     /* Sem canal nenhum: so responde se parecia uma tentativa. A sala e' da
        administracao, e duas pessoas conversando ali nao querem um bot
@@ -16733,6 +16836,7 @@ async function cliquePainel(inter) {
           "**Tradutor por mensagem** é outra coisa, e não precisa de canal nenhum: com ele ligado, qualquer pessoa pode traduzir uma mensagem solta pelo menu de contexto (botão direito → Apps → Translate).",
           "",
           "_Também dá para configurar escrevendo: `#canal1 #canal2` para somar, `remover #canal` para tirar._",
+          "_E `instalar figurinhas` põe as figurinhas e os emojis da CYRON (inclusive animados) nas vagas do servidor._",
         ].join("\n"),
       }],
     });
