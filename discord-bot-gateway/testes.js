@@ -13481,7 +13481,8 @@ function conferirCartao(onde, embed, componentes = []) {
   try {
     const A = carregar(["CONFIG_NA_MEMORIA", "EVENTO_SOBREVIVE", "DURACAO_MAX", "fechouHaMuito",
       "cacheEspelho", "cacheFontes", "cacheReplicas", "cacheComandos", "cacheEventos", "cachePresencas",
-      "escritasNaTabela", "escritasDe", "CACHE_DA_TABELA", "esquecerCacheDe", "eventosDoServidor", "presencasDoEvento"]);
+      "escritasNaTabela", "escritasDe", "CACHE_DA_TABELA", "esquecerCacheDe", "ESPERA_APOS_FALHA", "lerComMemoria",
+      "eventosDoServidor", "presencasDoEvento"]);
     const t0 = Date.parse("2026-10-24T12:00:00Z");
     let pedidos = 0, falhar = false, noMeio = null;
     const eventos = [
@@ -13512,10 +13513,12 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("meia hora depois relê de qualquer jeito (mudança feita por fora)", pedidos, 3);
 
     A.cacheEventos.clear(); pedidos = 0; falhar = true;
-    ok("banco fora: agenda vazia, como antes", await A.eventosDoServidor("s2", t0), []);
+    ok("banco fora e nada guardado: agenda vazia, como antes", await A.eventosDoServidor("s2", t0), []);
     falhar = false;
-    await A.eventosDoServidor("s2", t0);
-    ok("e a falha não fica guardada", pedidos, 2);
+    await A.eventosDoServidor("s2", t0 + 5000);
+    ok("a falha não é martelada a cada minuto do cronômetro", pedidos, 1);
+    ok("e trinta segundos depois tenta de novo", (await A.eventosDoServidor("s2", t0 + 31000)).length, 2);
+    ok("(indo ao banco)", pedidos, 2);
 
     /* A inscrição chega ENQUANTO o cronômetro está lendo: o retrato que volta
        é de antes dela, e não pode ficar meia hora na memória. */
@@ -13543,6 +13546,104 @@ function conferirCartao(onde, embed, componentes = []) {
     /if \(Date\.now\(\) - \(faxinaDaAgenda\.get\(servidor\.id\) \|\| 0\) >= FAXINA_DA_AGENDA\) \{[^]*?quando=lt\./.test(des));
 }
 
+/* ====== LEITURA QUE FALHOU NÃO VIRA VERDADE ======
+ *
+ * Toda memória guardava o vazio quando o banco não respondia: um soluço de
+ * oito segundos virava meia hora de servidor sem salas, sem espelho e sem
+ * cópias, sem erro nenhum. */
+{
+  const M = carregar(["escritasNaTabela", "escritasDe", "ESPERA_APOS_FALHA", "lerComMemoria"]);
+  const cache = new Map();
+  const t0 = Date.parse("2026-11-07T12:00:00Z");
+  const PRAZO = 30 * 60000;
+  let pedidos = 0, falhar = false, resposta = ["sala-pt"];
+  const ler = async () => { pedidos++; if (falhar) throw new Error("supabase: prazo"); return resposta; };
+
+  ok("sem nada guardado e o banco fora: o vazio, como antes",
+    await (async () => { falhar = true; return M.lerComMemoria(cache, "s", PRAZO, ler, { vazio: [], agora: t0 }); })(), []);
+  ok("e não martela o banco a cada mensagem", (await M.lerComMemoria(cache, "s", PRAZO, ler, { vazio: [], agora: t0 + 10000 }), pedidos), 1);
+  falhar = false;
+  ok("trinta segundos depois tenta de novo", await M.lerComMemoria(cache, "s", PRAZO, ler, { vazio: [], agora: t0 + 31000 }), ["sala-pt"]);
+
+  falhar = true; resposta = ["outra"];
+  ok("passado o prazo, banco fora: o último retrato bom, e não o vazio",
+    await M.lerComMemoria(cache, "s", PRAZO, ler, { vazio: [], agora: t0 + 31000 + PRAZO }), ["sala-pt"]);
+  const antes = pedidos;
+  await M.lerComMemoria(cache, "s", PRAZO, ler, { vazio: [], agora: t0 + 41000 + PRAZO });
+  ok("(e também espera trinta segundos para perguntar de novo)", pedidos, antes);
+  falhar = false;
+  ok("o banco volta: a resposta nova", await M.lerComMemoria(cache, "s", PRAZO, ler, { vazio: [], agora: t0 + 62000 + PRAZO }), ["outra"]);
+
+  /* Uma escrita no meio da leitura: devolve, mas não guarda. */
+  const c2 = new Map();
+  await M.lerComMemoria(c2, "x", PRAZO, async () => { M.escritasNaTabela.set("t", (M.escritasNaTabela.get("t") || 0) + 1); return [1]; },
+    { tabela: "t", agora: t0 });
+  ok("leitura que cruzou com uma escrita não fica guardada", c2.size, 0);
+
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  for (const f of ["servidorDoGuild", "canaisEspelho", "fontesReplica", "replicasDoIdioma", "comandosDoDono",
+    "eventosDoServidor", "presencasDoEvento"]) {
+    const corpo = idx.slice(idx.indexOf(`async function ${f}(`), idx.indexOf("\n}\n", idx.indexOf(`async function ${f}(`)));
+    verdade(`${f} passa pela memória que não guarda falha`, /lerComMemoria\(/.test(corpo) && !/catch \{/.test(corpo));
+  }
+  verdade("sem saber o que o dono quer, nenhum comando dele é publicado nem apagado",
+    /const querem = await comandosDoDono\(guild\.id\);\s*if \(cacheComandos\.get\(guild\.id\)\?\.falhou\) return;/.test(idx));
+  const vazioDasFontes = carregar(["CONFIG_NA_MEMORIA", "cacheFontes", "fontesReplica"]);
+  /* lerComMemoria e escritasDe ja' estao no escopo global: o carregar de cima
+     as declara la' (eval indireto). */
+  const sbAntes = globalThis.sb;
+  try {
+    globalThis.sb = async () => { throw new Error("fora"); };
+    const f = await vazioDasFontes.fontesReplica("s-novo");
+    verdade("fontes sem resposta ainda respondem .geraReplica (quem chama não quebra)", f.geraReplica instanceof Set && f.size === 0);
+  } finally {
+    globalThis.sb = sbAntes;
+  }
+}
+
+/* ====== OS ERROS QUE SE REPETIAM SEM SER DEFEITO ====== */
+{
+  const S = carregar(["mensagemSumiu"]);
+  verdade("mensagem apagada antes do seletor (10008)", S.mensagemSumiu({ code: 10008 }));
+  verdade("resposta a mensagem que não existe mais",
+    S.mensagemSumiu({ message: "Invalid Form Body\nmessage_reference[MESSAGE_REFERENCE_UNKNOWN_MESSAGE]: Unknown message" }));
+  verdade("e um erro de verdade continua sendo erro", !S.mensagemSumiu({ message: "Missing Permissions", code: 50013 }));
+
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  const resp = idx.slice(idx.indexOf("async function traduzirEResponder"), idx.indexOf("function mensagemSumiu"));
+  verdade("tópico só em canal de texto ou de anúncio (no chat de voz vai como resposta)",
+    /\[ChannelType\.GuildText, ChannelType\.GuildAnnouncement\]\.includes\(msg\.channel\?\.type\)/.test(resp));
+  verdade("seletor de mensagem apagada não vira erro",
+    /if \(!mensagemSumiu\(e\)\) console\.error\("traducao: nao consegui mandar o seletor:"/.test(resp));
+  verdade("agenda que já era origem (23505) não vira erro",
+    /agendaComoOrigem[^]*?if \(\/\\b23505\\b\/\.test/.test(idx));
+
+  /* Falha solta da passada curta e da batida: log comum; da terceira seguida, erro. */
+  const F = carregar(["FALHAS_TOLERADAS", "falhasSeguidas", "falhouDeNovo", "deuCerto"]);
+  const errosAntes = console.error, logAntes = console.log;
+  const erros = [];
+  console.error = (...p) => erros.push(p.join(" "));
+  console.log = () => {};
+  try {
+    F.falhouDeNovo("passada curta", "espelho: passada curta falhou:", new Error("timeout"));
+    F.falhouDeNovo("passada curta", "espelho: passada curta falhou:", new Error("timeout"));
+    ok("duas falhas seguidas: nenhum cartão", erros.length, 0);
+    F.falhouDeNovo("passada curta", "espelho: passada curta falhou:", new Error("timeout"));
+    ok("a terceira seguida vira erro", erros.length, 1);
+    F.deuCerto("passada curta");
+    F.falhouDeNovo("passada curta", "espelho: passada curta falhou:", new Error("timeout"));
+    ok("um acerto zera a conta", erros.length, 1);
+  } finally {
+    console.error = errosAntes; console.log = logAntes;
+  }
+  verdade("a batida usa a mesma tolerância",
+    /\.then\(\(\) => deuCerto\("batida"\), \(e\) => falhouDeNovo\("batida", "batida: nao consegui bater:", e\)\)/.test(idx));
+  verdade("a passada curta também",
+    /sincronizarRecentes\(\)\.then\(\(\) => deuCerto\("passada curta"\),\s*\(e\) => falhouDeNovo\("passada curta"/.test(idx));
+  verdade("surdo há poucos segundos (reconexão de rotina) não vira cartão",
+    /\(v\.ha >= SILENCIO_ANTES_DE_GRITAR \? console\.error : console\.log\)\(/.test(idx));
+}
+
 /* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======
  *
  * Reparo, montagem, portaria, quadros e cartões eram ~250 pedidos a cada dez
@@ -13560,12 +13661,14 @@ function conferirCartao(onde, embed, componentes = []) {
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
   const u = idx.indexOf("async function umaPassada");
   const passada = idx.slice(u, idx.indexOf("ultimaPassada = Date.now()", u));
-  const portao = passada.match(/if \(vezDaVarreduraCompleta\(comecou\)\) \{([^]*?)\n  \}/)?.[1] || "";
-  for (const f of ["repararInstalacoes", "sincronizarSalas", "garantirConvites", "quadrosDeIdioma", "atualizarCartoes"]) {
-    verdade(`${f} fica na parte de meia em meia hora`, portao.includes(`await ${f}()`));
+  verdade("a decisão é tomada uma vez por volta", /const varreduraCompletaAgora = vezDaVarreduraCompleta\(comecou\);/.test(passada));
+  const portoes = [...passada.matchAll(/if \(varreduraCompletaAgora\) \{([^]*?)\n  \}/g)].map((m) => m[1]).join("\n");
+  for (const f of ["repararInstalacoes", "sincronizarSalas", "garantirConvites", "quadrosDeIdioma", "atualizarCartoes",
+    "montarPainelDoDono"]) {
+    verdade(`${f} fica na parte de meia em meia hora`, portoes.includes(`await ${f}()`));
   }
-  for (const f of ["atualizarEventos", "montarPainelDoDono", "rodarComandosAgendados", "soltarAsInteracoes", "deHoraEmHora"]) {
-    verdade(`${f} continua de dez em dez minutos`, passada.includes(`await ${f}()`) && !portao.includes(f));
+  for (const f of ["atualizarEventos", "rodarComandosAgendados", "soltarAsInteracoes", "deHoraEmHora"]) {
+    verdade(`${f} continua de dez em dez minutos`, passada.includes(`await ${f}()`) && !portoes.includes(f));
   }
 }
 
