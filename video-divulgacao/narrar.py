@@ -36,8 +36,8 @@ def marcar_quebras(fala, palavras):
         if i < 0:
             continue
         pos = i + len(p["texto"])
-        resto = fala[pos:pos + 3].lstrip("\"'”’)")
-        p["quebra"] = bool(resto) and resto[0] in ".,?!…;:"
+        resto = fala[pos:pos + 3].lstrip("\"'”’)」』")
+        p["quebra"] = bool(resto) and resto[0] in ".,?!…;:，。！？；：、"  # inclui a pontuação chinesa
 
 
 def duracao(arquivo):

@@ -30,6 +30,14 @@ em português): a CYRON conta a própria história em primeira pessoa — a alia
 os bots que não davam conta, as traduções erradas, o portal, o bot com GIF de rosas, o chat espelhado,
 o dia em que ganhou o nome e a virada para qualquer servidor. Cada cena tem a data real do histórico
 do projeto, e a expressão da mascote muda conforme a fala (`cara` em `CENAS`, dentro da cena).
+
+Versões asiáticas, nas línguas que mais aparecem entre os jogadores do bot: `roteiro-historia-zh.json`
+(chinês simplificado), `roteiro-historia-id.json` (indonésio) e `roteiro-historia-vi.json` (vietnamita).
+O roteiro traz em `textos` tudo o que aparece escrito na tela e, em `textos.gatilhos`, a palavra da
+narração que faz o papel de cada gatilho em português (`"palavra"` ou `["palavra", n]` para a n-ésima
+vez que ela aparece). `"cjk": true` junta a legenda sem espaços, como se escreve em chinês.
+Depois de narrar, `node checar-gatilhos.mjs roteiro-historia-zh.json:saida-hist-zh` diz se algum
+gatilho não achou a palavra na fala (aí o elemento cairia no meio da cena).
 Vozes: `python3 -m edge_tts --list-voices` (ex.: `id-ID-GadisNeural`, `zh-CN-XiaoxiaoNeural`, `th-TH-PremwadeeNeural`).
 
 No ambiente da nuvem, o `narrar.py` usa sozinho o certificado do proxy (`/root/.ccr/ca-bundle.crt`).
