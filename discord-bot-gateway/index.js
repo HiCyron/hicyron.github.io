@@ -13646,7 +13646,9 @@ async function comandoDiario(inter, agora = Date.now(), sorte = Math.random) {
   const volta = `<t:${Math.floor(proximoDiario(agora) / 1000)}:R>`;
   if (d.ja_pegou) {
     return inter.editReply({ content: `${emojiDaCyron("zzz", "⏳")} Você já pegou a carta de hoje. A próxima chega ${volta}.\n` +
-      `_${emojiDaCyron("zzz", "⏳")} You already got today's card. The next one arrives ${volta}._` });
+      `_${emojiDaCyron("zzz", "⏳")} You already got today's card. The next one arrives ${volta}._\n` +
+      "-# 🗳️ Votar na CYRON dá outra carta agora · Voting for CYRON gives another card now",
+      components: [botaoDeVoto()] });
   }
   const seq = Number(d.seq) || 1;
   const r = sortearRaridade(sorte(), chancesDoDiario(seq));
@@ -13662,6 +13664,7 @@ async function comandoDiario(inter, agora = Date.now(), sorte = Math.random) {
         `\n-# A próxima carta chega ${volta} · Next card ${volta}`,
       thumbnail: { url: `attachment://${p.id}.jpg` } }],
     files: [retratoDoHeroi(p)],
+    components: [botaoDeVoto()],
     allowedMentions: { parse: [] },
   });
 }
@@ -19646,6 +19649,80 @@ async function avisarDiscordBotList({ comandos = false } = {}, buscar = fetch) {
     enviados = lista.length;
   }
   return { ok: true, guilds, comandos: enviados };
+}
+
+/* ---------------- 🗳️ votos no discordbotlist ----------------
+
+   O Google e as IAs indicam bot pelo que acham nas listas, e as listas
+   ordenam por voto. Entao votar tem que valer a pena: quem vota ganha uma
+   carta de heroi e um obrigado no privado, com o botao de votar de novo.
+
+   Sem webhook -- o bot nao abre porta nenhuma, de proposito. A cada 5 min eu
+   pergunto a lista os votos das ultimas 12 h (os 500 mais novos) e pago os
+   que chegaram depois da marca guardada no banco (`voto_dbl_ate`): reinicio
+   nenhum paga o mesmo voto duas vezes. A marca anda ANTES de pagar -- falhar
+   no meio perde um premio, nunca paga dois. */
+const VOTOS_A_CADA = 5 * 60 * 1000;
+const PREMIOS_POR_RODADA = 50;
+
+function linkDeVoto() {
+  return `https://discordbotlist.com/bots/${client?.user?.id || "1498142929041096856"}/upvote`;
+}
+
+/* Os votos que chegaram depois de `desde`, do mais velho ao mais novo. Pura. */
+function votosNovos(lista, desde) {
+  return (Array.isArray(lista) ? lista : [])
+    .map((v) => ({ user: String(v?.user_id || ""), quando: Date.parse(v?.timestamp || "") || 0 }))
+    .filter((v) => /^\d{17,20}$/.test(v.user) && v.quando > desde)
+    .sort((a, b) => a.quando - b.quando);
+}
+
+async function colherVotos(buscar = fetch, agora = Date.now()) {
+  const chave = await chaveDoDbl();
+  if (!chave || !client.user) return 0;
+  const r = await buscar(`${DBL_API}/${client.user.id}/upvotes`, { headers: { Authorization: chave }, signal: AbortSignal.timeout(15000) });
+  if (!r.ok) throw new Error(`upvotes HTTP ${r.status}`);
+  const corpo = await r.json().catch(() => null);
+  const marcas = await ajustes();
+  if (marcas.falhou) return 0;
+  const desde = Number(marcas.voto_dbl_ate) || 0;
+  /* Primeira rodada: a marca nasce agora. Os votos de antes deste recurso
+     existir nao viram uma enxurrada de cartas de uma vez. */
+  if (!desde) { await porAjuste("voto_dbl_ate", String(agora)); return 0; }
+  const novos = votosNovos(corpo?.upvotes, desde);
+  if (!novos.length) return 0;
+  await porAjuste("voto_dbl_ate", String(novos[novos.length - 1].quando));
+  for (const v of novos.slice(-PREMIOS_POR_RODADA)) {
+    await premiarVoto(v.user).catch((e) => console.log("voto: nao consegui premiar:", e?.message || e));
+  }
+  console.log(`voto: ${novos.length} voto(s) novo(s) no discordbotlist`);
+  return novos.length;
+}
+
+async function premiarVoto(userId, sorte = Math.random) {
+  const p = sortearHeroi(sorte()), r = sortearRaridade(sorte());
+  await guardarCarta(userId, p, r);
+  contarUso("voto");
+  const pessoa = await client.users.fetch(userId).catch(() => null);
+  if (!pessoa) return;
+  /* Privado fechado e' escolha da pessoa: a carta ja' esta' no /colecao. */
+  await pessoa.send({
+    embeds: [{ color: r.cor, title: "🗳️ Obrigada pelo voto! · Thanks for voting!",
+      description: `Você ganhou uma carta: ${p.bandeira} **${p.nome}** · ${r.estrelas} ${r.pt}\n` +
+        `_You got a card: ${p.bandeira} **${p.nome}** · ${r.estrelas} ${r.en}_\n\n` +
+        "Dá para votar de novo em 12 horas, e cada voto vale outra carta. Veja todas no `/colecao`.\n" +
+        "_You can vote again in 12 hours, and every vote is another card. See them all in `/colecao`._",
+      thumbnail: { url: `attachment://${p.id}.jpg` } }],
+    files: [retratoDoHeroi(p)],
+    components: [{ type: 1, components: [
+      { type: 2, style: 5, emoji: { name: "🗳️" }, label: "Votar de novo · Vote again", url: linkDeVoto() }] }],
+  }).catch(() => {});
+}
+
+/* O botao que convida a votar, embaixo do /diario: quem pega a carta do dia
+   e' exatamente quem gosta de ganhar mais uma. */
+function botaoDeVoto() {
+  return { type: 1, components: [{ type: 2, style: 5, emoji: { name: "🗳️" }, label: "Votar: +1 carta · Vote: +1 card", url: linkDeVoto() }] };
 }
 
 async function janelaDasChaves() {
@@ -26138,6 +26215,12 @@ client.once("clientReady", () => {
   }, 2 * 60 * 1000);
   /* Os marcos, de hora em hora tambem: a marca no banco garante um anuncio
      por marco, e de hora em hora o dono fica sabendo no mesmo dia. */
+  /* Os votos, de 5 em 5 minutos: o obrigado tem que chegar enquanto a pessoa
+     ainda lembra que votou. */
+  setTimeout(() => {
+    colherVotos().catch((e) => console.log("voto: rodada falhou:", e?.message || e));
+    setInterval(() => colherVotos().catch((e) => console.log("voto: rodada falhou:", e?.message || e)), VOTOS_A_CADA);
+  }, 4 * 60 * 1000);
   setTimeout(() => {
     anunciarMarcos().catch((e) => console.error("marcos: falhei:", e?.message || e));
     setInterval(() => anunciarMarcos().catch((e) => console.error("marcos: falhei:", e?.message || e)),
