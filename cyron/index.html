@@ -730,14 +730,15 @@ function idioma(qual) {
    A linha embaixo das caixas diz isso. Subvender e' o lado certo do erro numa
    pagina de venda -- quem instala tem uma surpresa boa. */
 
-/* As mesmas 20 linguas do bot. Escritas aqui porque esta pagina nao carrega o
+/* As mesmas 22 linguas do bot. Escritas aqui porque esta pagina nao carrega o
    codigo do bot; se a lista de la mudar, esta e' uma copia que envelhece -- e
    e' por isso que os testes conferem que os dois lados batem. */
 var LINGUAS_DEMO = [
   ["en","en"],["pt","pt"],["es","es"],["ar","ar"],["fr","fr"],
   ["de","de"],["it","it"],["ru","ru"],["tr","tr"],["zh-CN","zh"],
   ["ja","ja"],["ko","ko"],["hi","hi"],["id","id"],["vi","vi"],
-  ["th","th"],["pl","pl"],["nl","nl"],["uk","uk"],["tl","tl"]
+  ["th","th"],["pl","pl"],["nl","nl"],["uk","uk"],["tl","tl"],
+  ["zh-TW","zh-tw"],["ms","ms"]
 ];
 
 /* A resposta do clients5 vem em duas formas, e a segunda so' aparece quando o
@@ -770,9 +771,13 @@ function lerTraducao(dados) {
 var PAIS_DA_LINGUA = {
   en:"GB", pt:"BR", es:"ES", ar:"SA", fr:"FR", de:"DE", it:"IT", ru:"RU",
   tr:"TR", "zh-CN":"CN", zh:"CN", ja:"JP", ko:"KR", hi:"IN", id:"ID",
-  vi:"VN", th:"TH", pl:"PL", nl:"NL", uk:"UA", tl:"PH", fa:"IR"
+  vi:"VN", th:"TH", pl:"PL", nl:"NL", uk:"UA", tl:"PH", fa:"IR", ms:"MY"
 };
+/* O chines tradicional leva lanterna, e nao bandeira, como no bot: nas
+   aliancas asiaticas joga gente da China e de Taiwan lado a lado. */
+var ICONE_DA_LINGUA = { "zh-TW": "🏮" };
 function bandeiraDemo(lingua) {
+  if (ICONE_DA_LINGUA[lingua]) return ICONE_DA_LINGUA[lingua];
   var pais = PAIS_DA_LINGUA[lingua];
   if (!pais) return "";
   return String.fromCodePoint(
@@ -827,7 +832,7 @@ function daDireita(lingua) { return ["ar","fa","he","ur"].indexOf(String(lingua 
     es: "¿Alguien entra al oso a las 20h?", fr: "Quelqu'un rejoint l'ours à 20h ?",
     de: "Ist jemand um 20 Uhr beim Bären dabei?", it: "Qualcuno entra nell'orso alle 20?",
     ru: "Кто-нибудь идёт на медведя в 20:00?", tr: "Saat 20'de ayıya katılan var mı?",
-    "zh-CN": "有人晚上8点打熊吗？", ja: "20時に熊に参加する人いる？", ko: "20시에 곰 들어갈 사람?",
+    "zh-CN": "有人晚上8点打熊吗？", "zh-TW": "有人晚上8點打熊嗎？", ms: "Ada sesiapa nak sertai beruang pukul 8 malam?", ja: "20時に熊に参加する人いる？", ko: "20시에 곰 들어갈 사람?",
     id: "Ada yang ikut beruang jam 20?", vi: "Có ai vào gấu lúc 20h không?",
     pl: "Ktoś wchodzi na niedźwiedzia o 20?", nl: "Doet iemand mee met de beer om 20u?",
     uk: "Хтось іде на ведмедя о 20:00?", pt: EXEMPLO

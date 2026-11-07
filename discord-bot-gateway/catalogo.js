@@ -37,8 +37,8 @@ export const CATEGORIAS = [
     emoji: "🌐",
     nome: { pt: "Traduzir", en: "Translate" },
     resumo: {
-      pt: "O que o bot existe para fazer. Da tradução que uma pessoa pede até o servidor inteiro funcionando em vinte línguas ao mesmo tempo.",
-      en: "What the bot exists to do. From a translation one person asks for, all the way to the whole server running in twenty languages at once.",
+      pt: "O que o bot existe para fazer. Da tradução que uma pessoa pede até o servidor inteiro funcionando em vinte e duas línguas ao mesmo tempo.",
+      en: "What the bot exists to do. From a translation one person asks for, all the way to the whole server running in twenty-two languages at once.",
     },
   },
   {
@@ -118,8 +118,8 @@ export const RECURSOS = [
     nome: { pt: "Botão de tradução", en: "Translate button" },
     como: { pt: "Menu 🌐 embaixo da mensagem", en: "🌐 menu under the message" },
     oque: {
-      pt: "Embaixo de um aviso fica um menu com as 20 línguas. Cada um escolhe a sua e recebe a cópia traduzida só para ele — o aviso original não muda, e a sala não enche.",
-      en: "A menu with all 20 languages sits under an announcement. Each person picks theirs and gets a translated copy for their eyes only — the original never changes, and the room stays clean.",
+      pt: "Embaixo de um aviso fica um menu com as 22 línguas. Cada um escolhe a sua e recebe a cópia traduzida só para ele — o aviso original não muda, e a sala não enche.",
+      en: "A menu with all 22 languages sits under an announcement. Each person picks theirs and gets a translated copy for their eyes only — the original never changes, and the room stays clean.",
     },
     prova: "traduzir-msg",
   },
@@ -142,8 +142,8 @@ export const RECURSOS = [
     nome: { pt: "Traduzir no privado", en: "Translate in DMs" },
     como: { pt: "Mandar o texto para o bot", en: "Send the bot any text" },
     oque: {
-      pt: "Cole qualquer texto na conversa privada com o bot e ele oferece a tradução nas 20 línguas. Sem comando, sem servidor, e ninguém mais vê.",
-      en: "Paste any text into a DM with the bot and it offers the translation in 20 languages. No command, no server, and nobody else sees it.",
+      pt: "Cole qualquer texto na conversa privada com o bot e ele oferece a tradução nas 22 línguas. Sem comando, sem servidor, e ninguém mais vê.",
+      en: "Paste any text into a DM with the bot and it offers the translation in 22 languages. No command, no server, and nobody else sees it.",
     },
     prova: "atenderNoPrivado",
   },

@@ -1936,10 +1936,25 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade(`${cod} tem nome na própria língua`, typeof proprio === "string" && proprio.length > 0);
     verdade(`o nome próprio de ${cod} não é o rótulo em português repetido por engano`,
       cod === "pt" || cod === "it" || cod === "tl" || proprio !== emPortugues);
-    verdade(`${cod} continua com bandeira`, /\p{Regional_Indicator}/u.test(bandeira));
+    /* Toda língua tem sinal. É bandeira, menos no chinês tradicional: nas
+       alianças asiáticas joga gente da China e de Taiwan lado a lado, e
+       bandeira no menu de língua é briga pronta — ele leva a lanterna. */
+    verdade(`${cod} continua com bandeira`, /\p{Regional_Indicator}/u.test(bandeira) || (cod === "zh-TW" && bandeira === "🏮"));
   }
 
   ok("o alemão lê Deutsch", nomeNaPropriaLingua("de"), "🇩🇪 Deutsch");
+  ok("o chinês tradicional lê 繁體中文, com a lanterna", nomeNaPropriaLingua("zh-TW"), "🏮 繁體中文");
+  ok("o malaio lê Bahasa Melayu", nomeNaPropriaLingua("ms"), "🇲🇾 Bahasa Melayu");
+  ok("o menu do Discord aceita até 25 opções", LINGUAS_MENU.length <= 25, true);
+  {
+    const M = carregar(["AZURE_IDIOMA", "DEEPL_IDIOMA", "LOCALE_DA_FALA", "localeDaFala"]);
+    ok("a Azure recebe o tradicional como zh-Hant", M.AZURE_IDIOMA["zh-TW"], "zh-Hant");
+    ok("o DeepL também, como ZH-HANT", M.DEEPL_IDIOMA["zh-TW"], "ZH-HANT");
+    ok("e o simplificado vai explícito, ZH-HANS", M.DEEPL_IDIOMA["zh-CN"], "ZH-HANS");
+    ok("o áudio em tradicional é o mandarim de Taiwan", M.localeDaFala("zh-TW"), "zh-TW");
+    ok("o simplificado continua zh-CN", M.localeDaFala("zh-CN"), "zh-CN");
+    ok("o malaio tem voz", M.localeDaFala("ms"), "ms-MY");
+  }
   ok("e o árabe lê no alfabeto dele", nomeNaPropriaLingua("ar"), "🇸🇦 العربية");
   ok("português não muda", nomeNaPropriaLingua("pt"), "🇧🇷 Português");
   ok("idioma que eu não conheço volta como veio", nomeNaPropriaLingua("xx"), "xx");
@@ -2468,7 +2483,10 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("Portugal lê em português", idiomaDaBandeira("🇵🇹"), "pt");
   ok("Emirados lê em árabe", idiomaDaBandeira("🇦🇪"), "ar");
   ok("Áustria lê em alemão", idiomaDaBandeira("🇦🇹"), "de");
-  ok("Taiwan lê em chinês", idiomaDaBandeira("🇹🇼"), "zh-CN");
+  ok("Taiwan lê em chinês tradicional", idiomaDaBandeira("🇹🇼"), "zh-TW");
+  ok("Hong Kong também", idiomaDaBandeira("🇭🇰"), "zh-TW");
+  ok("Singapura escreve o simplificado", idiomaDaBandeira("🇸🇬"), "zh-CN");
+  ok("Malásia lê em malaio", idiomaDaBandeira("🇲🇾"), "ms");
 
   /* País cujo idioma eu não atendo devolve vazio, e o evento morre ali sem
      custar tradução nenhuma. */
@@ -2506,8 +2524,8 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("es-419 vira es", idiomaDoAplicativo("es-419"), "es");
   /* zh-CN é código do meu menu: tem que passar inteiro, e não virar "zh". */
   ok("o chinês simplificado passa inteiro", idiomaDoAplicativo("zh-CN"), "zh-CN");
-  ok("o tradicional cai no simplificado, que é o que eu tenho",
-    idiomaDoAplicativo("zh-TW"), "zh-CN");
+  ok("o tradicional agora é língua própria e passa inteiro",
+    idiomaDoAplicativo("zh-TW"), "zh-TW");
 
   /* Língua que eu não falo não pode virar um código que eu não sei traduzir:
      quem decide o padrão é quem chama, e ele usa "en". */
@@ -5924,6 +5942,10 @@ function conferirCartao(onde, embed, componentes = []) {
   /* Japonês usa kana E han: se o han decidisse primeiro, viraria chinês. */
   ok("japonês com kanji junto continua japonês", linguaProvavel("今日は元気ですか、みなさん"), "ja");
   ok("chinês sem kana", linguaProvavel("大家好今天怎么样"), "zh-CN");
+  /* O tradicional tem letras que o simplificado e o japonês escrevem curto. */
+  ok("chinês tradicional", linguaProvavel("大家好，今天我們一起打熊嗎？"), "zh-TW");
+  ok("o simplificado da mesma frase continua simplificado", linguaProvavel("大家好，今天我们一起打熊吗？"), "zh-CN");
+  ok("japonês com kanji não vira tradicional", linguaProvavel("今日は会議があります"), "ja");
   ok("coreano", linguaProvavel("안녕하세요 오늘 어떠세요"), "ko");
   ok("tailandês", linguaProvavel("สวัสดีครับ วันนี้เป็นอย่างไร"), "th");
   ok("hindi", linguaProvavel("नमस्ते आज आप कैसे हैं"), "hi");
@@ -7828,7 +7850,7 @@ function conferirCartao(onde, embed, componentes = []) {
      não consegue escolher a língua dele — e é justamente ele que o produto
      está tentando convencer. */
   const { LINGUAS_MENU } = carregar(["LINGUAS_MENU"]);
-  const naPagina = [...script.matchAll(/\["([a-z-]+(?:-[A-Z]+)?)","[a-z]+"\]/g)].map((m) => m[1]);
+  const naPagina = [...script.matchAll(/\["([a-z-]+(?:-[A-Z]+)?)","[a-z-]+"\]/g)].map((m) => m[1]);
   ok("a página oferece as mesmas línguas que o bot",
     naPagina.slice().sort(), LINGUAS_MENU.map((l) => l[0]).sort());
   /* E toda língua oferecida tem bandeira: uma sem país viraria uma opção sem
@@ -7870,7 +7892,8 @@ function conferirCartao(onde, embed, componentes = []) {
   /* E a bandeira NÃO pode ter sumido de onde ela funciona. Sem esta, "tirar a
      bandeira" viraria tirar de todo lugar, e o menu e o placar -- que são
      mensagem -- perderiam o único sinal que não precisa de tradução. */
-  const semBandeira = LINGUAS_MENU.map(([c]) => nomeDoIdioma(c)).filter((t) => !temBandeira(t));
+  const semBandeira = LINGUAS_MENU.filter(([c, , sinal]) => !temBandeira(nomeDoIdioma(c)) && !nomeDoIdioma(c).includes(sinal))
+    .map(([c]) => nomeDoIdioma(c));
   ok("mas a mensagem continua com bandeira", semBandeira, []);
 
   /* Vinte idiomas, vinte nomes: dois iguais fariam duas categorias com o mesmo
@@ -8898,7 +8921,7 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("sem repetir quando é a mesma língua", s.nomesDaInteracao("beijo", "en", "en"), ["Kiss"]);
   ok("língua desconhecida cai no inglês", s.nomesDaInteracao("tapa", "xx", ""), ["Slap"]);
   for (const k of Object.keys(s.INTERACOES)) {
-    ok(`${k}: as 20 línguas do menu têm nome`, Object.keys(s.INTERACOES[k].nomes).length, 20);
+    ok(`${k}: as 22 línguas do menu têm nome`, Object.keys(s.INTERACOES[k].nomes).length, 22);
   }
 
   const f = readFileSync(`${aqui}/index.js`, "utf8");
