@@ -13942,7 +13942,7 @@ function conferirCartao(onde, embed, componentes = []) {
   try {
     carregar(["FUNCOES", "funcaoLigada", "BV_TEXTO_PADRAO", "BV_TEXTO_MAX", "textoDeBoasVindas", "LINGUAS_MENU", "nomeNaPropriaLingua"]);
     const B = carregar(["BOAS_VINDAS_NOVO", "BOAS_VINDAS_SALAS_POR_MINUTO", "boasVindasDadas", "boasVindasNoMinuto",
-      "podeBoasVindasNasSalas", "avisoDeChegada", "boasVindasNasSalas"]);
+      "podeBoasVindasNasSalas", "nomeDeQuemChegou", "avisoDeChegada", "boasVindasNasSalas"]);
     const t0 = Date.parse("2026-11-07T12:00:00Z");
     let marcas = {};
     globalThis.ajustes = async () => marcas;
@@ -13967,7 +13967,19 @@ function conferirCartao(onde, embed, componentes = []) {
       await B.boasVindasNasSalas(guild, servidor, membro("1", 3600e3), "zh-CN", t0));
     ok("em todas as salas de conversa", Object.values(postado).map((l) => l.length), [1, 1, 1]);
     const zh = postado["c-zh"][0], pt = postado["c-pt"][0], tr = postado["c-tr"][0];
-    verdade("a menção e o idioma dela, iguais em toda sala", [zh, pt, tr].every((m) => m.content.startsWith("👋 <@1> · ")));
+    /* Na sala dela, a menção que marca. Nas outras, o NOME em link: a menção
+       que não marca ninguém aparecia como "@unknown-user" para quem lia. */
+    verdade("na sala dela, a menção de verdade", zh.content.startsWith("👋 <@1> · "));
+    verdade("nas outras, o nome dela em link para o perfil",
+      [pt, tr].every((m) => m.content.startsWith("👋 [Ana1](<https://discord.com/users/1>) · ")));
+    verdade("o idioma dela igual em toda sala",
+      [zh, pt, tr].every((m) => m.content.split("\n")[0].endsWith(" · " + nomeNaPropriaLingua("zh-CN"))));
+    ok("nome com colchetes não quebra o link",
+      B.nomeDeQuemChegou({ id: "7", displayName: "[Rei](do) Gado" }), "[Rei do Gado](<https://discord.com/users/7>)");
+    ok("sem apelido, o nome da conta, com o _ escapado para não virar itálico",
+      B.nomeDeQuemChegou({ id: "7", user: { username: "ana_7" } }), "[ana\\_7](<https://discord.com/users/7>)");
+    ok("nome em branco vira 'membro'",
+      B.nomeDeQuemChegou({ id: "7", displayName: "  " }), "[membro](<https://discord.com/users/7>)");
     verdade("na sala portuguesa a frase não passa pelo tradutor", /\nAcabou de chegar!/.test(pt.content));
     verdade("na sala turca vem em turco", /\[tr\] Acabou de chegar!/.test(tr.content));
     verdade("a mensagem do admin vem em seguida, na língua da sala, com os marcadores trocados",

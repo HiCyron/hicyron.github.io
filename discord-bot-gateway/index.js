@@ -10388,12 +10388,29 @@ function podeBoasVindasNasSalas(guildId, agora = Date.now()) {
   return true;
 }
 
-/* O aviso de uma sala, ja' na lingua dela. A mencao e o nome do idioma
-   ficam fora do tradutor: a mencao voltaria quebrada, e o nome na propria
-   lingua ("🇨🇳 中文") se le igual em qualquer sala. */
+/* Quem chegou, como as OUTRAS salas leem: o nome dela em link para o perfil.
+
+   Era a mencao (<@id>), e la' ela aparecia como "@unknown-user". A mencao
+   que nao marca ninguem (allowedMentions vazio) nao vem resolvida na
+   mensagem: o aplicativo tem que achar a pessoa na memoria dele, e quem le a
+   sala dos russos nunca viu a moca que acabou de escolher indonesio -- ela
+   nem esta' naquela sala. O nome em link e' o mesmo jeito da assinatura do
+   cartao: aparece igual em qualquer aplicativo, e tocar abre o perfil. Pura. */
+function nomeDeQuemChegou(membro) {
+  const nome = String(membro?.displayName || membro?.user?.globalName || membro?.user?.username || "")
+    .replace(/[[\]()<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 64)
+    .replace(/([*_~`|\\])/g, "\\$1") || "membro";
+  return `[${nome}](<https://discord.com/users/${membro.id}>)`;
+}
+
+/* O aviso de uma sala, ja' na lingua dela. Quem chegou e o nome do idioma
+   ficam fora do tradutor: o link voltaria quebrado, e o nome na propria
+   lingua ("🇨🇳 中文") se le igual em qualquer sala. Na sala DELA vai a mencao
+   de verdade: ali ela e' marcada (e a mencao que marca vem resolvida). */
 async function avisoDeChegada(membro, idiomaDela, sala, modelo, motor) {
   const frase = "Acabou de chegar! Escreva na sua língua e eu traduzo para todo mundo.";
-  const linhas = [`👋 <@${membro.id}> · ${nomeNaPropriaLingua(idiomaDela)}`,
+  const quem = sala.idioma === idiomaDela ? `<@${membro.id}>` : nomeDeQuemChegou(membro);
+  const linhas = [`👋 ${quem} · ${nomeNaPropriaLingua(idiomaDela)}`,
     sala.idioma === "pt" ? frase : await traduzirPara(frase, sala.idioma, motor)];
   if (modelo) {
     const texto = textoDeBoasVindas(modelo, { id: membro.id, nome: membro.displayName || membro.user?.username,
@@ -10405,8 +10422,8 @@ async function avisoDeChegada(membro, idiomaDela, sala, modelo, motor) {
   }
   return {
     content: linhas.filter(Boolean).join("\n").slice(0, 2000),
-    /* Marca so' na sala dela: nas outras ela nem entra, e a mencao serve
-       para os outros verem o nome e responderem. */
+    /* Marca so' na sala dela: nas outras ela nem entra, e o nome serve para
+       os outros verem quem chegou e responderem. */
     allowedMentions: sala.idioma === idiomaDela ? { users: [membro.id] } : { parse: [] },
   };
 }
