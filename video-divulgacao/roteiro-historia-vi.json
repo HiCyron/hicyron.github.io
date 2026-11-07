@@ -1,0 +1,196 @@
+{
+ "cena": "cena-historia.html",
+ "voz": "vi-VN-HoaiMyNeural",
+ "taxa": "+15%",
+ "tom": "+2Hz",
+ "final": 2.0,
+ "textos": {
+  "chips": {
+   "oi": "📔 Nhật ký CYRON",
+   "bots": "🤖 Thử nhiều bot dịch…",
+   "erros": "😱 Dịch sai",
+   "tiago": "💡 Cho đến khi…",
+   "portal": "📅 12/08/2026",
+   "bot": "📅 18/08/2026",
+   "espelho": "📅 22/08/2026",
+   "nome": "📅 22/08/2026",
+   "mundo": "📅 30/08/2026",
+   "hoje": "🌍 Hôm nay",
+   "fim": "📔 Nhật ký CYRON"
+  },
+  "titulo": "Mình ra đời<br>thế nào",
+  "episodio": "Tập 1",
+  "aliancaSub": "Một liên minh trong Kingshot",
+  "comando": "mỗi tin nhắn<br>một lệnh 😩",
+  "erro1Sentido": "(có ai đi rally không?)",
+  "erro1Volta": "= \"có ai đi biểu tình không?\" 🪧",
+  "erro2Sentido": "(mở rương)",
+  "erro2Volta": "= \"mở xe buýt\" 🚌",
+  "tiagoSub": "một R4 quyết định<br>tự tìm cách",
+  "msgs": [
+   [
+    "Budi 🇮🇩",
+    "Ada yang ikut beruang?",
+    "🌐 Có ai đánh gấu không?"
+   ],
+   [
+    "Hans 🇩🇪",
+    "Ich bin dabei!",
+    "🌐 Mình tham gia!"
+   ]
+  ],
+  "evento": "🐻 Gấu · hôm nay 20:00",
+  "eventoSub": "theo giờ của bạn",
+  "botTexto": "🌐 Tối nay ai đánh gấu?",
+  "botSub": "🇧🇷 → 🇻🇳 · tự động dịch",
+  "espelhoSub": "chat gương ✨",
+  "salas": [
+   [
+    "chat-pt",
+    "Alguém no urso às 20h? 🐻",
+    "🇧🇷"
+   ],
+   [
+    "chat-en",
+    "Anyone at the bear at 8pm? 🐻",
+    "🇧🇷 → 🇬🇧"
+   ],
+   [
+    "chat-vi",
+    "8 giờ có ai đánh gấu không? 🐻",
+    "🇧🇷 → 🇻🇳"
+   ]
+  ],
+  "mundoSub": "server nào cũng cài được mình",
+  "linguas": "ngôn ngữ",
+  "chipsLinguas": [
+   "🇻🇳 Tiếng Việt",
+   "🇬🇧 English",
+   "🇨🇳 中文",
+   "🇮🇩 Indonesia",
+   "🇹🇭 ไทย",
+   "🇰🇷 한국어",
+   "🇯🇵 日本語",
+   "🇵🇭 Filipino"
+  ],
+  "botao": "➕ Mời mình vào liên minh",
+  "fimSub": "link ở bio · hẹn gặp ở Tập 2 👋",
+  "gatilhos": {
+   "oi": {
+    "contar": "kể",
+    "surgi": "đời"
+   },
+   "alianca": {
+    "alianca": "liên",
+    "brasil": "brazil",
+    "indonesia": "indonesia",
+    "alemanha": "đức",
+    "filipinas": "philippines",
+    "china": "trung",
+    "arabe": "rập",
+    "ninguem": "chẳng"
+   },
+   "bots": {
+    "testaram": "thử",
+    "comando": "mỗi"
+   },
+   "erros": {
+    "alguem": "hỏi",
+    "manifestacao": "biểu",
+    "baus": "rương",
+    "onibus": "xe"
+   },
+   "tiago": {
+    "r4": "r4",
+    "tiago": "tiago"
+   },
+   "portal": {
+    "portal": "cổng"
+   },
+   "bot": {
+    "bot": "bot",
+    "rosas": "hoa"
+   },
+   "espelho": {
+    "espelhado": "gương",
+    "sala": [
+     "mỗi",
+     1
+    ],
+    "idioma": "phòng",
+    "mesma": [
+     "cùng",
+     1
+    ]
+   },
+   "mundo": {
+    "pedir": "xin",
+    "qualquer": "server"
+   },
+   "hoje": {
+    "falo": "nói",
+    "linguas": "ngôn",
+    "figurinha": "sticker",
+    "emoji": "emoji",
+    "evento": "sự",
+    "lembrete": "nhắc"
+   },
+   "fim": {
+    "chama": "gọi",
+    "link": "link"
+   }
+  }
+ },
+ "cenas": [
+  {
+   "id": "oi",
+   "fala": "Xin chào! Mình là CYRON. Hôm nay mình sẽ kể mình đã ra đời như thế nào."
+  },
+  {
+   "id": "alianca",
+   "fala": "Mọi chuyện bắt đầu từ một liên minh trong Kingshot, tên là TOP Best. Có người từ Brazil, Indonesia, Đức, Philippines, Trung Quốc và thế giới Ả Rập. Mọi người ở cùng nhau, nhưng chẳng ai hiểu ai."
+  },
+  {
+   "id": "bots",
+   "fala": "Họ lập một server trên Discord và thử rất nhiều bot dịch. Nhưng lúc nào cũng vậy: mỗi tin nhắn một lệnh, và cuộc trò chuyện thì lộn xộn hết cả."
+  },
+  {
+   "id": "erros",
+   "fala": "Lại còn dịch sai nữa! Có người hỏi bằng tiếng Bồ Đào Nha: có ai đi rally không? Sang tiếng Đức lại thành: có ai đi biểu tình không? Còn mở rương thì thành mở xe buýt!",
+   "pausa": 0.6
+  },
+  {
+   "id": "tiago",
+   "fala": "Thế là một R4 của liên minh, Tiago, quyết định tự tìm cách."
+  },
+  {
+   "id": "portal",
+   "fala": "Đầu tiên, Tiago làm một cổng riêng cho liên minh, có chat được dịch và giờ sự kiện theo múi giờ của từng người."
+  },
+  {
+   "id": "bot",
+   "fala": "Sau đó là bot trên Discord, tự động dịch chat. Còn gửi cả GIF hoa hồng nữa!"
+  },
+  {
+   "id": "espelho",
+   "fala": "Nhưng Tiago muốn hơn thế: mỗi người nói chuyện bằng ngôn ngữ của mình, như thể ai cũng nói cùng một thứ tiếng. Thế là chat gương ra đời. Mỗi ngôn ngữ một phòng, và cùng một cuộc trò chuyện ở tất cả các phòng."
+  },
+  {
+   "id": "nome",
+   "fala": "Và chính ngày hôm đó, mình có tên: CYRON!",
+   "pausa": 0.6
+  },
+  {
+   "id": "mundo",
+   "fala": "Hiệu quả đến mức các liên minh khác cũng xin dùng. Vậy là mình không còn chỉ của TOP nữa, mà thành một bot mà server nào cũng cài được."
+  },
+  {
+   "id": "hoje",
+   "fala": "Giờ mình nói được hai mươi hai ngôn ngữ, chuyển được sticker, emoji, sự kiện có nhắc nhở, và vẫn học thêm mỗi ngày."
+  },
+  {
+   "id": "fim",
+   "fala": "Đó là câu chuyện của mình. Nếu liên minh của bạn cũng nói nhiều thứ tiếng, hãy gọi mình nhé! Link ở trong bio. Hẹn gặp lại ở tập sau!"
+  }
+ ]
+}

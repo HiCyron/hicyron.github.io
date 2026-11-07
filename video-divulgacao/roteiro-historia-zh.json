@@ -1,0 +1,197 @@
+{
+ "cena": "cena-historia.html",
+ "voz": "zh-CN-XiaoyiNeural",
+ "taxa": "+15%",
+ "tom": "+0Hz",
+ "final": 2.0,
+ "textos": {
+  "chips": {
+   "oi": "📔 CYRON日记",
+   "bots": "🤖 试了好多翻译机器人…",
+   "erros": "😱 翻译错误",
+   "tiago": "💡 直到…",
+   "portal": "📅 2026年8月12日",
+   "bot": "📅 2026年8月18日",
+   "espelho": "📅 2026年8月22日",
+   "nome": "📅 2026年8月22日",
+   "mundo": "📅 2026年8月30日",
+   "hoje": "🌍 现在",
+   "fim": "📔 CYRON日记"
+  },
+  "titulo": "我是怎么<br>诞生的",
+  "episodio": "第1集",
+  "aliancaSub": "Kingshot里的一个联盟",
+  "comando": "每条消息都要<br>输一次指令 😩",
+  "erro1Sentido": "（有人去集结吗？）",
+  "erro1Volta": "= “有人参加游行了吗？” 🪧",
+  "erro2Sentido": "（打开宝箱）",
+  "erro2Volta": "= “打开公交车” 🚌",
+  "tiagoSub": "联盟的一位R4<br>决定自己想办法",
+  "msgs": [
+   [
+    "Budi 🇮🇩",
+    "Ada yang ikut beruang?",
+    "🌐 有人去打熊吗？"
+   ],
+   [
+    "Hans 🇩🇪",
+    "Ich bin dabei!",
+    "🌐 我去！"
+   ]
+  ],
+  "evento": "🐻 打熊 · 今天 20:00",
+  "eventoSub": "按你的时区",
+  "botTexto": "🌐 今晚谁去打熊？",
+  "botSub": "🇧🇷 → 🇨🇳 · 自动翻译",
+  "espelhoSub": "镜像聊天 ✨",
+  "salas": [
+   [
+    "chat-pt",
+    "Alguém no urso às 20h? 🐻",
+    "🇧🇷"
+   ],
+   [
+    "chat-en",
+    "Anyone at the bear at 8pm? 🐻",
+    "🇧🇷 → 🇬🇧"
+   ],
+   [
+    "chat-zh",
+    "晚上8点有人打熊吗？🐻",
+    "🇧🇷 → 🇨🇳"
+   ]
+  ],
+  "mundoSub": "任何服务器都能安装我",
+  "linguas": "种语言",
+  "chipsLinguas": [
+   "🇨🇳 中文",
+   "🏮 繁體中文",
+   "🇬🇧 English",
+   "🇮🇩 Indonesia",
+   "🇻🇳 Tiếng Việt",
+   "🇯🇵 日本語",
+   "🇰🇷 한국어",
+   "🇹🇭 ไทย"
+  ],
+  "botao": "➕ 邀请我加入你的联盟",
+  "fimSub": "链接在简介里 · 第2集见 👋",
+  "gatilhos": {
+   "oi": {
+    "contar": "来讲",
+    "surgi": "诞生"
+   },
+   "alianca": {
+    "alianca": "联盟",
+    "brasil": "巴西",
+    "indonesia": "印尼",
+    "alemanha": "德国",
+    "filipinas": "菲律宾",
+    "china": "中国",
+    "arabe": "阿拉伯",
+    "ninguem": "谁"
+   },
+   "bots": {
+    "testaram": "试",
+    "comando": "消息"
+   },
+   "erros": {
+    "alguem": "有人",
+    "manifestacao": "游行",
+    "baus": "宝箱",
+    "onibus": "公交车"
+   },
+   "tiago": {
+    "r4": "r",
+    "tiago": "tiago"
+   },
+   "portal": {
+    "portal": "专属"
+   },
+   "bot": {
+    "bot": "机器人",
+    "rosas": "玫瑰"
+   },
+   "espelho": {
+    "espelhado": "镜像",
+    "sala": [
+     "每",
+     1
+    ],
+    "idioma": "频道",
+    "mesma": [
+     "同",
+     1
+    ]
+   },
+   "mundo": {
+    "pedir": "纷纷",
+    "qualquer": "任何"
+   },
+   "hoje": {
+    "falo": "说",
+    "linguas": "语言",
+    "figurinha": "传贴纸",
+    "emoji": "表情",
+    "evento": "活动",
+    "lembrete": "提醒"
+   },
+   "fim": {
+    "chama": "找",
+    "link": "链接"
+   }
+  },
+  "cjk": true
+ },
+ "cenas": [
+  {
+   "id": "oi",
+   "fala": "大家好！我是CYRON。今天我来讲讲，我是怎么诞生的。"
+  },
+  {
+   "id": "alianca",
+   "fala": "一切都从Kingshot里的一个联盟开始，它叫TOP Best。成员来自巴西、印尼、德国、菲律宾、中国，还有阿拉伯世界。大家在一起，却谁也听不懂谁。"
+  },
+  {
+   "id": "bots",
+   "fala": "他们在Discord上建了服务器，试了好多翻译机器人。可每次都一样：每条消息都要输一次指令，聊天乱成一团。"
+  },
+  {
+   "id": "erros",
+   "fala": "还经常翻错！有人用葡萄牙语问：有人去集结吗？结果德国人收到的是：有人参加游行了吗？还有，打开宝箱，变成了打开公交车！",
+   "pausa": 0.6
+  },
+  {
+   "id": "tiago",
+   "fala": "就在这时，联盟的一位R4，Tiago，决定自己想办法。"
+  },
+  {
+   "id": "portal",
+   "fala": "首先，Tiago给联盟做了一个专属网站，聊天自动翻译，活动时间也会换成每个人的时区。"
+  },
+  {
+   "id": "bot",
+   "fala": "后来，Discord上有了机器人，能自动翻译聊天，还会发玫瑰花的动图！"
+  },
+  {
+   "id": "espelho",
+   "fala": "但Tiago还想要更多：让每个人都用自己的语言聊天，就像大家说的是同一种语言。于是，镜像聊天诞生了。每种语言一个频道，所有频道都是同一段对话。"
+  },
+  {
+   "id": "nome",
+   "fala": "就在那一天，我有了自己的名字：CYRON！",
+   "pausa": 0.6
+  },
+  {
+   "id": "mundo",
+   "fala": "效果太好了，其他联盟也纷纷来问。于是我不再只属于TOP，变成了任何服务器都能安装的机器人。"
+  },
+  {
+   "id": "hoje",
+   "fala": "现在我会说二十二种语言，能传贴纸、表情、带提醒的活动，而且每天都在学习。"
+  },
+  {
+   "id": "fim",
+   "fala": "这就是我的故事。如果你的联盟也说很多种语言，就来找我吧！链接在简介里。下一集见！"
+  }
+ ]
+}

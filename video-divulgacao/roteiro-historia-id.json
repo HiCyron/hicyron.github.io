@@ -1,0 +1,193 @@
+{
+ "cena": "cena-historia.html",
+ "voz": "id-ID-GadisNeural",
+ "taxa": "+20%",
+ "tom": "+4Hz",
+ "final": 2.0,
+ "textos": {
+  "chips": {
+   "oi": "📔 Diari CYRON",
+   "bots": "🤖 Banyak bot penerjemah…",
+   "erros": "😱 Terjemahan salah",
+   "tiago": "💡 Sampai…",
+   "portal": "📅 12 Agustus 2026",
+   "bot": "📅 18 Agustus 2026",
+   "espelho": "📅 22 Agustus 2026",
+   "nome": "📅 22 Agustus 2026",
+   "mundo": "📅 30 Agustus 2026",
+   "hoje": "🌍 Sekarang",
+   "fim": "📔 Diari CYRON"
+  },
+  "titulo": "Gimana aku<br>lahir",
+  "episodio": "Episode 1",
+  "aliancaSub": "Sebuah aliansi di Kingshot",
+  "comando": "satu perintah untuk<br>setiap pesan 😩",
+  "erro1Sentido": "(ada yang ikut rally?)",
+  "erro1Volta": "= \"ada yang ikut demo?\" 🪧",
+  "erro2Sentido": "(buka peti)",
+  "erro2Volta": "= \"buka bus\" 🚌",
+  "tiagoSub": "salah satu R4<br>cari jalan keluar",
+  "msgs": [
+   [
+    "Lucas 🇧🇷",
+    "Alguém vai no urso?",
+    "🌐 Ada yang ikut beruang?"
+   ],
+   [
+    "Hans 🇩🇪",
+    "Ich bin dabei!",
+    "🌐 Aku ikut!"
+   ]
+  ],
+  "evento": "🐻 Beruang · hari ini 20:00",
+  "eventoSub": "di zona waktumu",
+  "botTexto": "🌐 Siapa ikut beruang malam ini?",
+  "botSub": "🇧🇷 → 🇮🇩 · diterjemahkan otomatis",
+  "espelhoSub": "chat cermin ✨",
+  "salas": [
+   [
+    "chat-pt",
+    "Alguém no urso às 20h? 🐻",
+    "🇧🇷"
+   ],
+   [
+    "chat-en",
+    "Anyone at the bear at 8pm? 🐻",
+    "🇧🇷 → 🇬🇧"
+   ],
+   [
+    "chat-id",
+    "Ada yang ikut beruang jam 8? 🐻",
+    "🇧🇷 → 🇮🇩"
+   ]
+  ],
+  "mundoSub": "server mana pun bisa memasangku",
+  "linguas": "bahasa",
+  "chipsLinguas": [
+   "🇮🇩 Indonesia",
+   "🇲🇾 Melayu",
+   "🇬🇧 English",
+   "🇨🇳 中文",
+   "🇻🇳 Tiếng Việt",
+   "🇵🇭 Filipino",
+   "🇯🇵 日本語",
+   "🇹🇭 ไทย"
+  ],
+  "botao": "➕ Ajak aku ke aliansimu",
+  "fimSub": "link di bio · sampai Ep. 2 👋",
+  "gatilhos": {
+   "oi": {
+    "contar": "cerita",
+    "surgi": "lahir"
+   },
+   "alianca": {
+    "alianca": "aliansi",
+    "brasil": "brasil",
+    "indonesia": "indonesia",
+    "alemanha": "jerman",
+    "filipinas": "filipina",
+    "china": "tiongkok",
+    "arabe": "arab",
+    "ninguem": "nggak"
+   },
+   "bots": {
+    "testaram": "coba",
+    "comando": "satu"
+   },
+   "erros": {
+    "alguem": "tanya",
+    "manifestacao": "demo",
+    "baus": "peti",
+    "onibus": "bus"
+   },
+   "tiago": {
+    "r4": "r4",
+    "tiago": "tiago"
+   },
+   "portal": {
+    "portal": "portal"
+   },
+   "bot": {
+    "bot": "bot",
+    "rosas": "mawar"
+   },
+   "espelho": {
+    "espelhado": "cermin",
+    "sala": "satu",
+    "idioma": [
+     "bahasa",
+     2
+    ],
+    "mesma": "percakapan"
+   },
+   "mundo": {
+    "pedir": "minta",
+    "qualquer": "dipasang"
+   },
+   "hoje": {
+    "falo": "dua",
+    "linguas": "bahasa",
+    "figurinha": "stiker",
+    "emoji": "emoji",
+    "evento": "event",
+    "lembrete": "pengingat"
+   },
+   "fim": {
+    "chama": "panggil",
+    "link": "link"
+   }
+  }
+ },
+ "cenas": [
+  {
+   "id": "oi",
+   "fala": "Halo! Aku CYRON. Hari ini aku mau cerita gimana aku lahir."
+  },
+  {
+   "id": "alianca",
+   "fala": "Semuanya berawal dari sebuah aliansi di Kingshot, namanya TOP Best. Anggotanya dari Brasil, Indonesia, Jerman, Filipina, Tiongkok, dan dunia Arab. Semua kumpul bareng, tapi nggak ada yang saling ngerti."
+  },
+  {
+   "id": "bots",
+   "fala": "Mereka bikin server di Discord dan coba banyak bot penerjemah. Tapi selalu sama: satu perintah untuk setiap pesan, dan obrolannya jadi campur aduk."
+  },
+  {
+   "id": "erros",
+   "fala": "Terjemahannya juga sering salah! Ada yang tanya dalam bahasa Portugis: ada yang ikut rally? Di bahasa Jerman jadinya: ada yang ikut demo? Terus, buka peti malah jadi buka bus!",
+   "pausa": 0.6
+  },
+  {
+   "id": "tiago",
+   "fala": "Saat itulah salah satu R4, Tiago, memutuskan untuk cari jalan keluar."
+  },
+  {
+   "id": "portal",
+   "fala": "Pertama, dia bikin portal khusus aliansi, dengan chat yang diterjemahkan dan jadwal event di zona waktu masing-masing."
+  },
+  {
+   "id": "bot",
+   "fala": "Lalu datang bot di Discord yang menerjemahkan chat sendiri. Bahkan kirim GIF mawar juga!"
+  },
+  {
+   "id": "espelho",
+   "fala": "Tapi dia mau lebih: setiap orang ngobrol dalam bahasanya sendiri, seolah semua bicara bahasa yang sama. Dari situ lahir chat cermin. Satu ruang untuk setiap bahasa, dan percakapan yang sama di semuanya."
+  },
+  {
+   "id": "nome",
+   "fala": "Dan di hari itu, aku dapat namaku: CYRON!",
+   "pausa": 0.6
+  },
+  {
+   "id": "mundo",
+   "fala": "Hasilnya keren banget, sampai aliansi lain ikut minta. Jadi aku bukan cuma milik TOP lagi, aku jadi bot yang bisa dipasang di server mana pun."
+  },
+  {
+   "id": "hoje",
+   "fala": "Sekarang aku bisa dua puluh dua bahasa, bawa stiker, emoji, event dengan pengingat, dan terus belajar setiap hari."
+  },
+  {
+   "id": "fim",
+   "fala": "Itulah ceritaku. Kalau aliansimu juga pakai banyak bahasa, panggil aku! Link-nya ada di bio. Sampai jumpa di episode berikutnya!"
+  }
+ ]
+}
