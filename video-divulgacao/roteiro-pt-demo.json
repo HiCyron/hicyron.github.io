@@ -1,0 +1,21 @@
+{
+  "cena": "cena-demo.html",
+  "voz": "pt-BR-ThalitaMultilingualNeural",
+  "taxa": "+6%",
+  "tom": "+0Hz",
+  "final": 1.8,
+  "textos": {},
+  "cenas": [
+    { "id": "intro", "fala": "Essa é a CYRON trabalhando de verdade, num servidor de aliança com gente de vários países." },
+    { "id": "idioma", "fala": "Quem entra escolhe a língua num menu. Na hora, ganha a sala da língua dele, e todas as salas recebem as boas-vindas." },
+    { "id": "conversa", "fala": "Agora é só conversar. Eu escrevo em português, no meu canal..." },
+    { "id": "espelho", "fala": "e cada um lê na sua língua: inglês, indonésio, chinês. Sem comando nenhum." },
+    { "id": "resposta", "fala": "Quando o Budi responde em indonésio, chega pra mim em português." },
+    { "id": "figurinha", "fala": "Figurinhas e emojis também passam. A figurinha vai pequena no canto, e o emoji de outro servidor vai embaixo." },
+    { "id": "bandeira", "fala": "Em qualquer canal, reagir com a bandeira de um país manda a tradução no seu privado." },
+    { "id": "aviso", "fala": "Nos avisos tem o menu de tradução. Cada um escolhe a língua e recebe uma cópia só pra ele." },
+    { "id": "evento", "fala": "Nos eventos, cada um vê a hora no próprio fuso, e quem se inscreveu recebe o lembrete no privado." },
+    { "id": "painel", "fala": "E tudo se ajusta no canal da administração. Você liga e desliga cada função." },
+    { "id": "cta", "fala": "Agora no beta, tudo isso está de graça. Adicione a CYRON pelo link na bio!" }
+  ]
+}

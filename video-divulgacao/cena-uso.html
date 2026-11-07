@@ -1,0 +1,420 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fontes/noto-sans/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/900.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans-thai/package/500.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b0d1a; }
+  body { font-family: "Noto Sans", "Noto Sans SC", "Noto Sans Thai", "Noto Color Emoji", sans-serif; color: #fff; }
+  #palco { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 900px at 50% 30%, #23295c 0%, #12152e 55%, #090a16 100%); }
+  .luz { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .5; }
+  #etiqueta { position: absolute; top: 52px; left: 0; right: 0; text-align: center; }
+  #etiqueta span { display: inline-block; font-weight: 900; font-size: 40px; padding: 14px 32px; border-radius: 40px;
+    background: rgba(88,101,242,.92); box-shadow: 0 10px 30px rgba(88,101,242,.4); }
+  #etiqueta span.budi { background: rgba(224,115,47,.95); box-shadow: 0 10px 30px rgba(224,115,47,.4); }
+  #fone { position: absolute; left: 60px; top: 150px; width: 960px; height: 1290px; border-radius: 54px;
+    background: #313338; overflow: hidden; box-shadow: 0 40px 90px rgba(0,0,0,.6), 0 0 0 10px #0d0e14, 0 0 0 12px #2a2c3a; }
+  .pag { position: absolute; inset: 0; display: flex; flex-direction: column; background: #313338; }
+  .cab { flex: 0 0 auto; height: 112px; display: flex; align-items: center; gap: 18px; padding: 0 30px;
+    background: #2b2d31; border-bottom: 2px solid #1f2023; font-weight: 700; font-size: 40px; color: #f2f3f5; }
+  .cab .menu { font-size: 44px; color: #b5bac1; padding: 6px 8px; }
+  .cab .h { color: #80848e; font-size: 48px; font-weight: 500; }
+  .rolo { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding-bottom: 10px; }
+  .msg { overflow: hidden; }
+  .msg .in { display: flex; gap: 22px; padding: 14px 30px; }
+  .av { flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 900; font-size: 38px; color: #fff; overflow: hidden; }
+  .av img { width: 100%; height: 100%; object-fit: cover; }
+  .cbody { flex: 1; min-width: 0; }
+  .linha1 { display: flex; align-items: center; gap: 12px; }
+  .nome { font-weight: 700; font-size: 34px; }
+  .app { font-weight: 700; font-size: 21px; background: #5865f2; color: #fff; border-radius: 8px; padding: 2px 9px; }
+  .hora { font-size: 24px; color: #949ba4; }
+  .txt { font-weight: 500; font-size: 36px; line-height: 1.32; color: #dbdee1; margin-top: 4px; }
+  .emb { margin-top: 10px; background: #2b2d31; border-left: 7px solid #5865f2; border-radius: 10px; padding: 18px 22px;
+    display: flex; gap: 18px; max-width: 790px; }
+  .emb .e { flex: 1; min-width: 0; }
+  .emb .tit { font-weight: 700; font-size: 34px; color: #f2f3f5; margin-bottom: 6px; }
+  .emb .d { font-weight: 500; font-size: 34px; line-height: 1.32; color: #dbdee1; }
+  .emb .resp { font-size: 26px; color: #949ba4; margin-bottom: 6px; }
+  .emb .ass { font-size: 25px; color: #949ba4; margin-top: 8px; }
+  .emb .ass b { color: #00a8fc; font-weight: 500; }
+  .emb .canto { width: 140px; height: 140px; object-fit: contain; flex: 0 0 auto; }
+  .emb .baixo { width: 96px; height: 96px; object-fit: contain; display: block; margin-top: 10px; }
+  .sel { margin-top: 14px; max-width: 790px; background: #1e1f22; border-radius: 10px; padding: 20px 24px; font-size: 32px;
+    color: #b5bac1; display: flex; justify-content: space-between; align-items: center; }
+  .bts { display: flex; gap: 12px; margin-top: 12px; }
+  .bt { font-weight: 700; font-size: 30px; padding: 14px 24px; border-radius: 10px; background: #248046; color: #fff; }
+  .bt.azul { background: #5865f2; }
+  .reac { display: flex; gap: 10px; margin-top: 10px; }
+  .reac span { font-size: 30px; padding: 6px 16px; border-radius: 12px; background: #2b2d31; border: 2px solid #3f4147; color: #dbdee1; }
+  .reac span.eu { background: #373a53; border-color: #5865f2; }
+  .efem { font-size: 25px; color: #949ba4; margin-top: 10px; }
+  .efem b { color: #00a8fc; font-weight: 500; }
+  .digitando { flex: 0 0 auto; height: 0; overflow: hidden; padding: 0 34px; font-size: 26px; color: #b5bac1; font-weight: 700; }
+  .entrada { flex: 0 0 auto; margin: 6px 22px 22px; height: 96px; display: flex; align-items: center; gap: 16px; }
+  .entrada .mais { width: 76px; height: 76px; border-radius: 50%; background: #383a40; display: grid; place-items: center; font-size: 46px; color: #b5bac1; }
+  .entrada .caixa { flex: 1; height: 96px; border-radius: 48px; background: #383a40; display: flex; align-items: center; padding: 0 30px;
+    font-size: 34px; color: #949ba4; white-space: nowrap; overflow: hidden; }
+  .entrada .caixa .dig { color: #dbdee1; }
+  .entrada .enviar { width: 86px; height: 86px; border-radius: 50%; background: #5865f2; display: grid; place-items: center; font-size: 40px; }
+  .cursor { display: inline-block; width: 3px; height: 40px; background: #dbdee1; vertical-align: -8px; margin-left: 3px; }
+  .espaco { flex: 0 0 auto; height: 0; }
+  /* teclado */
+  #teclado { position: absolute; left: 0; right: 0; bottom: 0; height: 400px; background: #1b1c20; padding: 18px 10px; z-index: 5; }
+  #veu { z-index: 6; } #gaveta { z-index: 7; } #veu2 { z-index: 8; } #folha { z-index: 9; } #toast { z-index: 10; }
+  .fila { display: flex; justify-content: center; gap: 10px; margin-bottom: 14px; }
+  .tecla { width: 82px; height: 74px; border-radius: 12px; background: #3a3c43; display: grid; place-items: center; font-size: 32px; color: #e8e8ea; }
+  .tecla.larga { width: 460px; } .tecla.on { background: #6d7280; transform: translateY(-6px); }
+  /* lista de canais */
+  #veu, #veu2 { position: absolute; inset: 0; background: #000; opacity: 0; }
+  #gaveta { position: absolute; left: 0; top: 0; bottom: 0; width: 760px; background: #2b2d31; padding: 0 0 20px; }
+  #gaveta .srv { height: 130px; display: flex; align-items: center; gap: 20px; padding: 0 30px; font-weight: 900; font-size: 40px; border-bottom: 2px solid #1f2023; }
+  #gaveta .srv .icone { width: 84px; height: 84px; border-radius: 26px; background: linear-gradient(135deg,#f0a33a,#e04f4f); display: grid; place-items: center; font-size: 44px; }
+  #gaveta .cat { font-size: 25px; font-weight: 700; color: #949ba4; letter-spacing: 2px; padding: 26px 34px 8px; }
+  #gaveta .ch { margin: 4px 18px; padding: 14px 18px; border-radius: 12px; font-size: 36px; color: #949ba4; display: flex; gap: 14px; align-items: center; }
+  #gaveta .ch .h { color: #80848e; }
+  #gaveta .ch.atual { background: #404249; color: #fff; }
+  #gaveta .ch.alvo { background: #4e5058; color: #fff; }
+  #gaveta .novo { font-size: 20px; font-weight: 900; background: #f23f43; color: #fff; border-radius: 8px; padding: 2px 8px; }
+  /* folha de baixo */
+  #folha { position: absolute; left: 0; right: 0; bottom: 0; background: #232428; border-radius: 34px 34px 0 0; padding: 18px 0 34px; }
+  #folha .alca { width: 90px; height: 10px; border-radius: 5px; background: #4e5058; margin: 0 auto 18px; }
+  #folha .ftit { font-size: 30px; font-weight: 700; color: #b5bac1; padding: 0 36px 14px; }
+  #folha .op { padding: 22px 36px; font-size: 36px; color: #dbdee1; border-top: 1px solid #2f3136; }
+  #folha .op.on { background: #404249; color: #fff; }
+  #folha .emojis { display: flex; gap: 14px; padding: 6px 30px 20px; flex-wrap: wrap; }
+  #folha .emojis span { width: 98px; height: 98px; border-radius: 50%; background: #2b2d31; display: grid; place-items: center; font-size: 50px; }
+  #folha .emojis span.on { background: #5865f2; }
+  /* notificacao */
+  #toast { position: absolute; left: 24px; right: 24px; top: 20px; background: #1e1f22; border-radius: 28px; padding: 22px 26px;
+    display: flex; gap: 20px; align-items: center; box-shadow: 0 20px 50px rgba(0,0,0,.6); border: 2px solid #2f3136; }
+  #toast img { width: 86px; height: 86px; border-radius: 50%; }
+  #toast .tt { font-weight: 700; font-size: 32px; } #toast .tx { font-size: 30px; color: #c4c9ce; }
+  /* abertura e fechamento */
+  #intro, #cta { position: absolute; left: 0; right: 0; text-align: center; }
+  #intro .t1 { font-weight: 900; font-size: 92px; line-height: 1.05; margin-top: 30px;
+    background: linear-gradient(90deg, #8fd3ff, #b79bff, #ffd1f5); -webkit-background-clip: text; color: transparent; }
+  #intro .t2 { font-weight: 700; font-size: 44px; color: #c9ccff; margin-top: 20px; }
+  .botao { display: inline-block; font-weight: 900; font-size: 64px; padding: 34px 70px; border-radius: 80px;
+    background: linear-gradient(90deg, #5865f2, #8b5cf6); box-shadow: 0 20px 60px rgba(88,101,242,.55); }
+  .l2 { font-weight: 700; font-size: 50px; margin-top: 44px; color: #ffe27a; }
+  .l3 { font-weight: 500; font-size: 40px; margin-top: 26px; color: #c9ccff; }
+  #legenda { position: absolute; left: 50px; right: 50px; top: 1500px; text-align: center; font-weight: 900;
+    font-size: 70px; line-height: 1.15; text-transform: uppercase; -webkit-text-stroke: 10px #0b0d1a; paint-order: stroke fill; }
+  #legenda span { display: inline-block; margin: 0 9px; }
+  #legenda span.agora { color: #ffd84d; }
+  #dedo { position: absolute; width: 92px; height: 92px; border-radius: 50%; background: rgba(255,255,255,.5);
+    border: 6px solid rgba(255,255,255,.92); pointer-events: none; z-index: 50; opacity: 0; }
+</style></head>
+<body><div id="palco"></div>
+<script>
+const P = document.getElementById("palco");
+let TL = null;
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeIO = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const h = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
+const sem = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const cenaDe = (id) => TL.cenas.find((c) => c.id === id);
+// o instante em que a narracao diz a palavra (a n-esima que comeca assim)
+function w(id, chave, n = 0, d = 0) {
+  const c = cenaDe(id), k = sem(chave);
+  const p = c.palavras.filter((x) => sem(x.texto).startsWith(k))[n];
+  return (p ? p.t0 : c.inicio + (c.fim - c.inicio) / 2) + d;
+}
+const ini = (id) => cenaDe(id).inicio, fimFala = (id) => cenaDe(id).fim;
+
+/* ---------------- gente e pecas ---------------- */
+const CY = "cyron";
+const G = { voce: ["Você", "V", "#5865f2", "#c9cdfb"], budi: ["Budi", "B", "#e0732f", "#f5b183"], mika: ["Mika", "M", "#d9488f", "#f39ac4"],
+  yuki: ["Yuki", "Y", "#2fa39a", "#86dcd5"], adm: ["Admin", "A", "#c9a227", "#f0d77a"] };
+function msg(quem, { t = -1, hora = "Hoje às 19:35", corpo = "", app = false, id = "" } = {}) {
+  const ehCy = quem === CY, g = G[quem] || [];
+  const av = ehCy ? '<div class="av"><img src="img/cyron-og.jpg"></div>' : `<div class="av" style="background:${g[2]}">${g[1]}</div>`;
+  const nome = ehCy ? "CYRON" : g[0], cor = ehCy ? "#fff" : g[3];
+  return `<div class="msg" data-t="${t}" ${id ? `id="${id}"` : ""}><div class="in">${av}<div class="cbody">
+    <div class="linha1"><span class="nome" style="color:${cor}">${nome}</span>${ehCy || app ? '<span class="app">APP</span>' : ""}<span class="hora">${hora}</span></div>
+    ${corpo}</div></div></div>`;
+}
+const txt = (s) => `<div class="txt">${s}</div>`;
+function cartao(texto, { cor = "#5865f2", quem = "", selo = "", canto = "", baixo = "", resp = "", tit = "" } = {}) {
+  return `<div class="emb" style="border-left-color:${cor}"><div class="e">${resp ? `<div class="resp">${resp}</div>` : ""}${tit ? `<div class="tit">${tit}</div>` : ""}
+    <div class="d">${texto}</div>${baixo ? `<img class="baixo" src="${baixo}">` : ""}${quem ? `<div class="ass"><b>${quem}</b>${selo ? " · " + selo : ""} · ᶜʸʳᵒⁿ</div>` : ""}</div>
+    ${canto ? `<img class="canto" src="${canto}">` : ""}</div>`;
+}
+function pagina(id, canal, msgs, { dm = false, entrada = true, placeholder = "" } = {}) {
+  return `<div class="pag" id="pg-${id}"><div class="cab"><span class="menu">☰</span>${dm ? '<span class="h">@</span>' : '<span class="h">#</span>'}${canal}</div>
+    <div class="rolo">${msgs.join("")}</div><div class="digitando"></div>
+    ${entrada ? `<div class="entrada"><span class="mais">+</span><span class="caixa"><span class="dig"></span><span class="ph">${placeholder || (dm ? "Conversar com @" + canal : "Conversar em #" + canal)}</span><span class="cursor"></span></span><span class="enviar">➤</span></div>` : ""}
+    <div class="espaco"></div></div>`;
+}
+
+/* ---------------- a historia, presa as palavras da narracao ---------------- */
+const EV = { paginas: [], rotulos: [], gavetas: [], teclados: [], digitar: [], digitando: [], folhas: [], toasts: [], toques: [], trocas: [] };
+
+function montarHistoria() {
+  const envio = fimFala("escrever") + 0.35;
+  const welcome = txt('👋 <span style="color:#00a8fc">Budi</span> · 🇮🇩 Bahasa Indonesia<br>Acabou de chegar! Escreva na sua língua e eu traduzo para todo mundo.');
+  const minhaFrase = "Alguém entra no urso às 20h? 🐻";
+  const antes = [msg("adm", { hora: "Hoje às 19:05", corpo: txt("Boa noite, aliança! Hoje tem urso às 20h 🐻") }),
+    msg("yuki", { app: true, hora: "Hoje às 19:12", corpo: cartao("Vou chegar um pouco atrasado hoje 🙏", { cor: "#2fa39a", quem: "Yuki", selo: "🇯🇵 → 🇧🇷" }) })];
+  const tResp = w("resposta", "chega"), tMika = w("figurinha", "mandou"), tEmoji = w("figurinha", "emoji");
+  const paginas = [
+    pagina("chat-pt", "chat-pt", [...antes,
+      msg(CY, { t: w("boasvindas", "avisa"), hora: "Hoje às 19:35", corpo: welcome }),
+      msg("voce", { t: envio + 0.1, hora: "Hoje às 19:36", corpo: txt(minhaFrase) }),
+      msg("budi", { t: tResp, app: true, hora: "Hoje às 19:37", corpo: cartao("Bora! Eu vou 🐻🔥", { cor: "#e0732f", quem: "Budi", selo: "🇮🇩 → 🇧🇷", resp: "↪ Você: Alguém entra no urso às 20h?" }) }),
+      msg("mika", { t: tMika, app: true, hora: "Hoje às 19:38", corpo: cartao("🎨 CYRON GG", { cor: "#d9488f", quem: "Mika", selo: "🇯🇵 → 🇧🇷", canto: "img/gg.png" }) }),
+      msg("budi", { t: tEmoji, app: true, hora: "Hoje às 19:38", corpo: cartao("kkk boa", { cor: "#e0732f", quem: "Budi", selo: "🇮🇩 → 🇧🇷", baixo: "img/amei.png" }) })]),
+    ...[["chat-en", "Anyone joining the bear at 8pm? 🐻", "🇧🇷 → 🇬🇧", "Hi everyone! Ready for tonight?"],
+      ["chat-id", "Ada yang ikut beruang jam 8 malam? 🐻", "🇧🇷 → 🇮🇩", "Halo semua! Siap untuk malam ini?"],
+      ["chat-zh", "有人晚上8点打熊吗？🐻", "🇧🇷 → 🇨🇳", "大家好！今晚准备好了吗？"]].map(([c, t, s, oi]) => pagina(c, c, [
+        msg("adm", { app: true, hora: "Hoje às 19:05", corpo: cartao(oi, { cor: "#c9a227", quem: "Admin", selo: "🇧🇷 → " + s.slice(-4) }) }),
+        msg("voce", { t: envio + 0.6, app: true, hora: "Hoje às 19:36", corpo: cartao(t, { cor: "#5865f2", quem: "Você", selo: s }) })])),
+    pagina("geral", "geral", [
+      msg("adm", { hora: "Hoje às 18:20", corpo: txt("Lembrem de doar para a aliança hoje 💎") }),
+      msg("budi", { hora: "Hoje às 18:31", corpo: txt("Siap! 💪") }),
+      msg("yuki", { hora: "Hoje às 19:40", id: "msg-yuki", corpo: txt("明日のイベントは何時からですか？") + '<div class="reac"><span>👍 2</span><span class="eu" id="reac-br" style="display:none">🇧🇷 1</span></div>' })]),
+    pagina("dm", "CYRON", [
+      msg(CY, { hora: "Ontem às 21:02", corpo: txt("Oi! Eu sou a CYRON 👋 Reaja com uma bandeira em qualquer mensagem e eu te mando a tradução aqui.") }),
+      msg(CY, { t: w("bandeira", "privado"), hora: "Hoje às 19:40", corpo: cartao("A que horas começa o evento de amanhã?", { tit: "🇧🇷 Tradução", cor: "#5865f2" }) + '<div class="efem">Yuki em <b>#geral</b></div>' }),
+      msg(CY, { t: w("evento", "lembra"), hora: "Hoje às 19:50", corpo: `<div class="emb" style="border-left-color:#f0a33a"><div class="e"><div class="tit">⏰ Armadilha do Urso</div><div class="d">Começa em 10 minutos! Você se inscreveu.</div></div><img class="canto" src="img/cyron-og.jpg" style="border-radius:12px"></div>` })],
+      { dm: true }),
+    pagina("agenda", "agenda", [
+      msg(CY, { hora: "Hoje às 12:00", corpo: cartao("⚔️ Sábado às 15:00 <span style='color:#949ba4'>(no seu fuso)</span><br>👥 34 inscritos", { tit: "Guerra de alianças", cor: "#e04f4f" }) }),
+      msg(CY, { hora: "Hoje às 19:35", corpo: cartao("🕗 Hoje às 20:00 <span style='color:#949ba4'>(no seu fuso)</span><br>⏳ começa em 25 minutos<br>👥 11 inscritos", { tit: "🐻 Armadilha do Urso", cor: "#f0a33a" }) +
+        '<div class="bts"><span class="bt" id="bt-insc">✅ Me inscrever</span></div>' })], { entrada: false }),
+    pagina("cyron", "⚙️-cyron", [
+      msg(CY, { hora: "Hoje às 19:00", corpo: cartao(`<span id="f-her">🟢</span> 🃏 Heróis aparecendo no chat<br>🟢 ⚔️ Chamada para duelo no chat<br>🟢 🔔 Lembrete de escolher idioma<br>🟢 💬 Tradutor por mensagem<br>🟢 ⬆️ Níveis e XP<br>🟢 👋 Boas-vindas nas salas<br><br><span style="color:#ffe27a">🧪 CYRON em beta: plano Aliança liberado</span>`, { tit: "🧩 Funções", cor: "#5865f2" }) +
+        '<div class="sel"><span>Ligar ou desligar uma função</span><span>▾</span></div>' })], { entrada: false }),
+    // o celular do Budi
+    pagina("b-idioma", "idioma-language", [
+      msg(CY, { hora: "Hoje às 10:00", corpo: cartao("Escolha uma vez e o servidor passa a falar com você na sua língua.", { tit: "🌐 Escolha seu idioma · Pick your language" }) +
+        '<div class="sel"><span>Selecione seu idioma / Select your language</span><span>▾</span></div>' }),
+      msg(CY, { t: w("entrada", "pronto"), hora: "Hoje às 19:34", corpo: cartao("✅ Pronto! Sua língua agora é 🇮🇩 Bahasa Indonesia.<br>Sua sala: <span style='color:#00a8fc'>#chat-id</span>", { cor: "#248046" }) + '<div class="efem">👁 Só você pode ver esta mensagem</div>' })]),
+    pagina("b-avisos", "avisos", [
+      msg("adm", { hora: "Ontem às 17:00", corpo: txt("📣 Urso todo dia às 20h. Quem puder, entra!") }),
+      msg("adm", { hora: "Hoje às 18:00", corpo: txt("📣 Guerra de alianças no sábado, 15h UTC. Todo mundo online!") }),
+      msg(CY, { hora: "Hoje às 18:00", corpo: '<div class="sel"><span>🌐 Ler no seu idioma / Read in your language</span><span>▾</span></div>' }),
+      msg(CY, { t: w("aviso", "copia"), hora: "Hoje às 19:41", corpo: cartao("📣 Perang aliansi hari Sabtu, pukul 15.00 UTC. Semua online!", { cor: "#5865f2", tit: "🇮🇩 Bahasa Indonesia" }) + '<div class="efem">👁 Só você pode ver esta mensagem</div>' })], { entrada: false }),
+  ];
+  const F = document.getElementById("fone");
+  paginas.forEach((p) => F.appendChild(h(p)));
+
+  const seu = "📱 Seu celular 🇧🇷", doBudi = "📱 Celular do Budi 🇮🇩";
+  const pg = (t, id, modo = "corte") => EV.paginas.push({ t, id, modo });
+  const rot = (t, texto, budi = false) => EV.rotulos.push({ t, texto, budi });
+  const toque = (t, alvo, segura = 0) => EV.toques.push({ t, alvo, segura });
+  const gaveta = (abre, toca, alvo) => { EV.gavetas.push({ abre, toca, fecha: toca === null ? null : toca + 0.25, alvo });
+    toque(abre - 0.12, ".pag.atual .menu"); if (toca !== null) { toque(toca, "#ch-" + alvo); pg(toca + 0.05, alvo); } };
+  const folha = (abre, fecha, html, opcao) => EV.folhas.push({ abre, fecha, html, opcao });
+  const troca = (t, sel, fn) => EV.trocas.push({ t, sel, fn });
+
+  // intro: o seu celular entra quando ela fala do servidor
+  pg(-1, "chat-pt"); rot(-1, seu);
+  // entrada (celular do Budi)
+  pg(ini("entrada") - 0.1, "b-idioma", "troca"); rot(ini("entrada") - 0.1, doBudi, true);
+  const tMenu = w("entrada", "menu"), tEsc = w("entrada", "bahasa");
+  toque(tMenu, "#pg-b-idioma .sel");
+  folha(tMenu + 0.15, tEsc + 0.3, `<div class="ftit">Selecione seu idioma / Select your language</div>
+    <div class="op">🇧🇷 Português</div><div class="op">🇬🇧 English</div><div class="op">🇪🇸 Español</div><div class="op" id="op-id">🇮🇩 Bahasa Indonesia</div>
+    <div class="op">🇨🇳 中文</div><div class="op">🇯🇵 日本語</div><div class="op">🇹🇭 ไทย</div>`, { t: tEsc, sel: "#op-id" });
+  toque(tEsc, "#op-id");
+  // boas-vindas: volta para o seu celular; a lista mostra a sala nova
+  pg(ini("boasvindas") - 0.1, "chat-pt", "troca"); rot(ini("boasvindas") - 0.1, seu);
+  const tAbre = w("boasvindas", "abre");
+  EV.gavetas.push({ abre: tAbre, toca: null, fecha: w("boasvindas", "olha") - 0.1, alvo: null }); toque(tAbre - 0.12, ".pag.atual .menu");
+  troca(tAbre + 0.6, "#ch-chat-id", (e, d) => { e.style.display = d ? "flex" : "none"; });
+  // escrever
+  const tEsc2 = w("escrever", "escrevo");
+  toque(tEsc2, "#pg-chat-pt .caixa");
+  EV.teclados.push({ abre: tEsc2 + 0.1, fecha: envio + 0.45 });
+  EV.digitar.push({ pg: "chat-pt", de: w("escrever", "normal"), ate: fimFala("escrever") - 0.05, texto: minhaFrase, envia: envio });
+  toque(envio, "#pg-chat-pt .enviar");
+  // espelho: pula de sala em sala pela lista
+  const tIng = w("espelho", "ingles"), tInd = w("espelho", "indonesio"), tChi = w("espelho", "chines");
+  gaveta(w("espelho", "consigo"), tIng, "chat-en");
+  gaveta(tInd - 0.75, tInd, "chat-id");
+  gaveta(tChi - 0.75, tChi, "chat-zh");
+  // resposta: volta para o canal em portugues e o Budi digita
+  gaveta(ini("resposta") + 0.15, w("resposta", "budi"), "chat-pt");
+  EV.digitando.push({ pg: "chat-pt", de: w("resposta", "responde"), ate: tResp, quem: "Budi" });
+  // figurinha
+  EV.digitando.push({ pg: "chat-pt", de: w("figurinha", "passa"), ate: tMika, quem: "Mika" });
+  EV.digitando.push({ pg: "chat-pt", de: w("figurinha", "emoji") - 1.0, ate: tEmoji, quem: "Budi" });
+  // bandeira: segura o dedo, escolhe o Brasil, a notificacao chega, abre o privado
+  gaveta(w("bandeira", "truque"), w("bandeira", "canal"), "geral");
+  const tSeg = w("bandeira", "seguro"), tBr = w("bandeira", "brasil"), tPriv = w("bandeira", "privado");
+  toque(tSeg, "#msg-yuki .txt", 0.7);
+  folha(tSeg + 0.7, tBr + 0.3, `<div class="ftit">Adicionar reação</div><div class="emojis"><span>👍</span><span>❤️</span><span>😂</span><span>😮</span>
+    <span id="r-br">🇧🇷</span><span>🇬🇧</span><span>🇯🇵</span><span>🇮🇩</span></div><div class="op">↩️ Responder</div><div class="op">📋 Copiar texto</div><div class="op">🔗 Copiar link da mensagem</div>`,
+    { t: tBr, sel: "#r-br" });
+  toque(tBr, "#r-br");
+  troca(tBr + 0.35, "#reac-br", (e, d) => { e.style.display = d ? "inline-block" : "none"; });
+  const toastBand = { de: tPriv, ate: tPriv + 1.6, toque: tPriv + 1.25, html: '<img src="img/cyron-og.jpg"><div><div class="tt">CYRON</div><div class="tx">🇧🇷 Tradução: A que horas começa o evento…</div></div>' };
+  EV.toasts.push(toastBand); toque(toastBand.toque, "#toast"); pg(toastBand.toque + 0.1, "dm", "troca");
+  // aviso (celular do Budi)
+  pg(ini("aviso") - 0.15, "b-avisos", "troca"); rot(ini("aviso") - 0.15, doBudi, true);
+  const tToca = w("aviso", "toca"), tEsc3 = w("aviso", "escolhe");
+  toque(tToca, "#pg-b-avisos .sel");
+  folha(tToca + 0.15, tEsc3 + 0.3, `<div class="ftit">🌐 Ler no seu idioma / Read in your language</div>
+    <div class="op">🇧🇷 Português</div><div class="op">🇬🇧 English</div><div class="op">🇪🇸 Español</div><div class="op" id="op-id2">🇮🇩 Bahasa Indonesia</div><div class="op">🇨🇳 中文</div><div class="op">🇹🇭 ไทย</div>`,
+    { t: tEsc3, sel: "#op-id2" });
+  toque(tEsc3, "#op-id2");
+  // evento (seu celular)
+  pg(ini("evento") - 0.15, "agenda", "troca"); rot(ini("evento") - 0.15, seu);
+  const tIns = w("evento", "inscrever"), tLem = w("evento", "lembra");
+  toque(tIns, "#bt-insc");
+  troca(tIns + 0.12, "#bt-insc", (e, d) => { e.textContent = d ? "✅ Inscrito · 12" : "✅ Me inscrever"; e.className = d ? "bt azul" : "bt"; });
+  const toastEv = { de: tLem, ate: tLem + 1.7, toque: tLem + 1.3, html: '<img src="img/cyron-og.jpg"><div><div class="tt">CYRON</div><div class="tx">⏰ Armadilha do Urso começa em 10 minutos!</div></div>' };
+  EV.toasts.push(toastEv); toque(toastEv.toque, "#toast"); pg(toastEv.toque + 0.1, "dm", "troca");
+  // painel
+  gaveta(w("painel", "controla"), w("painel", "canal"), "cyron");
+  const tMen = w("painel", "menu"), tHer = w("painel", "herois");
+  toque(tMen, "#pg-cyron .sel");
+  folha(tMen + 0.15, tHer + 0.3, `<div class="ftit">Ligar ou desligar uma função</div><div class="op" id="op-her">🃏 Heróis aparecendo no chat</div>
+    <div class="op">⚔️ Chamada para duelo no chat</div><div class="op">🔔 Lembrete de escolher idioma</div><div class="op">💬 Tradutor por mensagem</div><div class="op">⬆️ Níveis e XP</div><div class="op">👋 Boas-vindas nas salas</div>`,
+    { t: tHer, sel: "#op-her" });
+  toque(tHer, "#op-her");
+  troca(tHer + 0.35, "#f-her", (e, d) => { e.textContent = d ? "⚪" : "🟢"; });
+  EV.paginas.sort((a, b) => a.t - b.t); EV.rotulos.sort((a, b) => a.t - b.t);
+}
+
+function montar(tl) {
+  TL = tl;
+  [["#3b4bff", 700, 300, 200], ["#a24bff", 600, 760, 1250], ["#00b3ff", 500, 120, 1500]].forEach(([c, s, x, y], i) => {
+    const b = h(`<div class="luz" style="background:${c};width:${s}px;height:${s}px;left:${x - s / 2}px;top:${y - s / 2}px"></div>`); b.dataset.i = i; P.appendChild(b); });
+  P.appendChild(h('<div id="etiqueta"><span></span></div>'));
+  P.appendChild(h('<div id="fone"></div>'));
+  montarHistoria();
+  const F = document.getElementById("fone");
+  // teclado
+  const filas = ["qwertyuiop", "asdfghjkl", "zxcvbnm"].map((f) => `<div class="fila">${[...f].map((k) => `<span class="tecla" data-k="${k}">${k}</span>`).join("")}</div>`).join("");
+  F.appendChild(h(`<div id="teclado">${filas}<div class="fila"><span class="tecla">123</span><span class="tecla larga" data-k=" ">espaço</span><span class="tecla">↵</span></div></div>`));
+  F.appendChild(h('<div id="veu"></div>'));
+  const canais = [["ENTRADA", ["idioma-language"]], ["CONVERSA", ["chat-pt", "chat-en", "chat-id", "chat-zh"]], ["ALIANÇA", ["avisos", "agenda", "geral"]], ["ADMINISTRAÇÃO", ["⚙️-cyron"]]];
+  F.appendChild(h(`<div id="gaveta"><div class="srv"><span class="icone">🔥</span>Aliança Fênix</div>
+    ${canais.map(([cat, chs]) => `<div class="cat">${cat}</div>${chs.map((c) => `<div class="ch" id="ch-${c === "⚙️-cyron" ? "cyron" : c}"><span class="h">#</span>${c}${c === "chat-id" ? ' <span class="novo">NOVO</span>' : ""}</div>`).join("")}`).join("")}</div>`));
+  F.appendChild(h('<div id="veu2"></div>'));
+  F.appendChild(h('<div id="folha"><div class="alca"></div><div id="fconteudo"></div></div>'));
+  F.appendChild(h('<div id="toast"></div>'));
+  P.appendChild(h(`<div id="intro" style="top:250px"><img src="img/cyron-corpo.webp" style="height:820px"><div class="t1">A CYRON<br>na prática</div><div class="t2">Tradução automática no Discord</div></div>`));
+  P.appendChild(h(`<div id="cta" style="top:330px"><img src="img/aceno.png" style="width:520px"><div style="margin-top:50px"><span class="botao">➕ Adicione a CYRON</span></div>
+    <div class="l2">✨ Grátis durante o beta</div><div class="l3">22 línguas · hicyron.github.io</div></div>`));
+  P.appendChild(h('<div id="dedo"></div>'));
+  P.appendChild(h('<div id="legenda"></div>'));
+  medir();
+}
+// a altura de cada mensagem, para ela "empurrar" as outras ao chegar
+function medir() { document.querySelectorAll(".msg").forEach((m) => { m.style.maxHeight = "none"; m.dataset.h = m.scrollHeight; }); }
+
+function vis(e, op, ty = 0, sc = 1, tx = 0) { e.style.opacity = op; e.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`; e.style.visibility = op <= 0.001 ? "hidden" : "visible"; }
+const ultimo = (lista, t) => { let r = null; for (const x of lista) if (x.t <= t) r = x; return r; };
+const abertura = (t, a, f, dur = 0.32) => f == null ? easeOut(clamp((t - a) / dur)) : Math.min(easeOut(clamp((t - a) / dur)), 1 - easeOut(clamp((t - f) / dur)));
+
+function render(t) {
+  document.querySelectorAll(".luz").forEach((b) => { const i = +b.dataset.i; b.style.transform = `translate(${Math.sin(t * .4 + i * 2) * 60}px,${Math.cos(t * .33 + i) * 50}px)`; });
+  const F = document.getElementById("fone");
+  // qual pagina esta na tela (e a anterior, durante a troca de celular)
+  const atual = ultimo(EV.paginas, t), idx = EV.paginas.indexOf(atual), antes = EV.paginas[idx - 1];
+  const kTroca = atual.modo === "troca" ? easeOut(clamp((t - atual.t) / 0.35)) : 1;
+  F.querySelectorAll(".pag").forEach((p) => {
+    const id = p.id.slice(3); p.classList.toggle("atual", id === atual.id);
+    if (id === atual.id) { p.style.zIndex = 2; vis(p, kTroca, (1 - kTroca) * 40); }
+    else if (antes && id === antes.id && kTroca < 1) { p.style.zIndex = 1; vis(p, 1); }
+    else vis(p, 0);
+  });
+  // mensagens chegando: crescem de altura e empurram as de cima
+  F.querySelectorAll(".msg").forEach((m) => { const tm = +m.dataset.t, alt = +m.dataset.h || 200;
+    if (tm < 0) { m.style.maxHeight = "none"; m.style.opacity = 1; return; }
+    const k = easeIO(clamp((t - tm) / 0.4)); m.style.maxHeight = (alt * k) + "px"; m.style.opacity = clamp((t - tm) / 0.3); });
+  // "fulano esta digitando..."
+  F.querySelectorAll(".pag").forEach((p) => { const d = p.querySelector(".digitando"); const id = p.id.slice(3);
+    const ev = EV.digitando.find((x) => x.pg === id && t >= x.de - 0.2 && t <= x.ate + 0.2);
+    const k = ev ? abertura(t, ev.de, ev.ate, 0.2) : 0; d.style.height = (k * 46) + "px";
+    if (ev) d.textContent = `${ev.quem} está digitando${".".repeat(1 + Math.floor(t * 3) % 3)}`; });
+  // texto sendo digitado e enviado
+  let teclaOn = null;
+  F.querySelectorAll(".pag").forEach((p) => { const id = p.id.slice(3), cx = p.querySelector(".caixa"); if (!cx) return;
+    const ev = EV.digitar.find((x) => x.pg === id && t >= x.de && t < x.envia + 0.05); const dig = cx.querySelector(".dig"), ph = cx.querySelector(".ph");
+    const letras = ev ? [...ev.texto] : [];
+    const n = ev ? Math.round(letras.length * clamp((t - ev.de) / (ev.ate - ev.de))) : 0;
+    dig.textContent = letras.slice(0, n).join(""); ph.style.display = n ? "none" : "inline";
+    const en = p.querySelector(".enviar"); if (en) en.style.opacity = n ? 1 : 0.25;
+    if (ev && n > 0 && n < letras.length && t < ev.ate) teclaOn = sem(letras[n - 1]) || " ";
+    p.querySelector(".cursor").style.opacity = (Math.floor(t * 3) % 2 === 0 && (ev || p.classList.contains("atual"))) ? 1 : 0; });
+  // teclado
+  const tk = Math.max(0, ...EV.teclados.map((x) => abertura(t, x.abre, x.fecha, 0.3)));
+  const tec = document.getElementById("teclado"); tec.style.transform = `translateY(${(1 - tk) * 420}px)`; tec.style.visibility = tk > 0.001 ? "visible" : "hidden";
+  F.querySelectorAll(".pag.atual .espaco").forEach((e) => { e.style.height = (tk * 400) + "px"; });
+  tec.querySelectorAll(".tecla").forEach((k) => k.classList.toggle("on", teclaOn !== null && k.dataset.k === teclaOn.slice(0, 1)));
+  // lista de canais
+  let gk = 0, gev = null;
+  for (const g of EV.gavetas) { const k = abertura(t, g.abre, g.fecha, 0.32); if (k > gk) { gk = k; gev = g; } }
+  const gav = document.getElementById("gaveta"); gav.style.transform = `translateX(${-(1 - gk) * 100}%)`; gav.style.visibility = gk > 0.001 ? "visible" : "hidden";
+  document.getElementById("veu").style.opacity = gk * 0.55;
+  gav.querySelectorAll(".ch").forEach((c) => { const id = c.id.slice(3);
+    c.classList.toggle("atual", id === (atual.id === "cyron" ? "cyron" : atual.id) && !(gev && gev.toca !== null && t >= gev.toca));
+    c.classList.toggle("alvo", !!(gev && gev.alvo === id && gev.toca !== null && t >= gev.toca - 0.1)); });
+  // folha de baixo (menus e reacoes)
+  let fk = 0, fev = null;
+  for (const f of EV.folhas) { const k = abertura(t, f.abre, f.fecha, 0.3); if (k > fk) { fk = k; fev = f; } }
+  const fo = document.getElementById("folha"), fc = document.getElementById("fconteudo");
+  if (fev && fc.dataset.de !== String(fev.abre)) { fc.dataset.de = String(fev.abre); fc.innerHTML = fev.html; }
+  fo.style.transform = `translateY(${(1 - fk) * 105}%)`; fo.style.visibility = fk > 0.001 ? "visible" : "hidden";
+  document.getElementById("veu2").style.opacity = fk * 0.5;
+  if (fev && fev.opcao) { const o = fo.querySelector(fev.opcao.sel); if (o) o.classList.toggle("on", t >= fev.opcao.t); }
+  // notificacao
+  let nk = 0, nev = null;
+  for (const n of EV.toasts) { const k = abertura(t, n.de, n.ate, 0.35); if (k > nk) { nk = k; nev = n; } }
+  const to = document.getElementById("toast");
+  if (nev && to.dataset.de !== String(nev.de)) { to.dataset.de = String(nev.de); to.innerHTML = nev.html; }
+  to.style.transform = `translateY(${-(1 - nk) * 160}%)`; to.style.visibility = nk > 0.001 ? "visible" : "hidden";
+  // estados que mudam com um toque
+  EV.trocas.forEach((x) => { const e = document.querySelector(x.sel); if (e) { const d = t >= x.t; if (e.dataset.d !== String(d)) { e.dataset.d = String(d); x.fn(e, d); } } });
+  // o dedo
+  const dedo = document.getElementById("dedo"); let op = 0;
+  for (const tq of EV.toques) { const dt = t - tq.t, dur = Math.max(0.35, tq.segura);
+    if (dt > -0.5 && dt < dur + 0.25) { const alvo = document.querySelector(tq.alvo); if (!alvo) continue; const r = alvo.getBoundingClientRect();
+      if (r.width === 0) continue;
+      dedo.style.left = (r.left + Math.min(r.width / 2, 260) - 46) + "px"; dedo.style.top = (r.top + r.height / 2 - 46) + "px";
+      if (dt < 0) { op = clamp(1 + dt / 0.5); dedo.style.transform = `scale(${1.35 - 0.35 * op})`; }
+      else if (dt < dur) { op = 1; dedo.style.transform = `scale(${tq.segura ? 0.8 + 0.25 * Math.sin(dt * 9) * 0.3 + 0.1 * (dt / dur) : 0.85})`; }
+      else { op = clamp(1 - (dt - dur) / 0.25); dedo.style.transform = `scale(${0.9 + (dt - dur)})`; } } }
+  dedo.style.opacity = op;
+  // celular entra e sai; rotulo de quem e' o celular
+  const tEntra = w("intro", "servidor") - 0.3, tSai = ini("cta") - 0.2;
+  const fe = easeOut(clamp((t - tEntra) / 0.6)), fs = easeOut(clamp((t - tSai) / 0.5));
+  vis(F, fe * (1 - fs), (1 - fe) * 220 + fs * 220, 1);
+  const r = ultimo(EV.rotulos, t), et = document.getElementById("etiqueta"), sp = et.firstElementChild;
+  sp.textContent = r.texto; sp.className = r.budi ? "budi" : "";
+  const pop = r.t > 0 ? easeOut(clamp((t - r.t) / 0.35)) : 1;
+  vis(et, fe * (1 - fs), 0, 0.85 + 0.15 * pop);
+  // abertura e fechamento
+  const fi = easeOut(clamp((t - 0.1) / 0.6)) * (1 - easeOut(clamp((t - tEntra) / 0.4)));
+  vis(document.getElementById("intro"), fi, Math.sin(t * 2.2) * 8, 0.9 + 0.1 * fi);
+  const fcta = easeOut(clamp((t - ini("cta")) / 0.6));
+  vis(document.getElementById("cta"), fcta, (1 - fcta) * 120 + Math.sin(t * 3) * 6, 1);
+  legenda(t);
+}
+
+function legenda(t) {
+  const L = document.getElementById("legenda");
+  const c = TL.cenas.find((x) => t >= x.inicio - 0.05 && t <= x.fim + 0.25);
+  if (!c || !c.palavras.length) { L.innerHTML = ""; return; }
+  const grupos = []; let a = [];
+  for (const p of c.palavras) { a.push(p); if (p.quebra || a.length === 5) { grupos.push(a); a = []; } }
+  if (a.length) grupos.push(a);
+  let g = grupos.findIndex((gr) => t < gr[gr.length - 1].t1 + 0.08); if (g < 0) g = grupos.length - 1;
+  const chave = c.id + ":" + g;
+  if (L.dataset.chave !== chave) { L.dataset.chave = chave; L.innerHTML = grupos[g].map((p) => `<span>${p.texto}</span>`).join(" "); }
+  [...L.children].forEach((s, i) => { const p = grupos[g][i]; const agora = t >= p.t0 - 0.02 && t < p.t1 + 0.05;
+    s.className = agora ? "agora" : ""; s.style.transform = `scale(${agora ? 1.08 : 1})`; });
+}
+</script></body></html>

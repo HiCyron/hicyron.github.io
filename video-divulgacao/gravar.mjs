@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
 
-const [roteiroArq, pasta, modo] = process.argv.slice(2);
+const [roteiroArq, pasta, modo, instantes] = process.argv.slice(2);
 const roteiro = JSON.parse(readFileSync(roteiroArq, "utf8"));
 const tempos = JSON.parse(readFileSync(path.join(pasta, "tempos.json"), "utf8"));
 const FPS = 30;
@@ -15,19 +15,33 @@ const aqui = path.dirname(new URL(import.meta.url).pathname);
 
 const nav = await chromium.launch();
 const pag = await nav.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
-await pag.goto(pathToFileURL(path.join(aqui, "cena.html")).href);
+await pag.goto(pathToFileURL(path.join(aqui, roteiro.cena || "cena.html")).href);
 await pag.evaluate(([tl, tx]) => window.montar(tl, tx), [tempos, roteiro.textos]);
 // passa por todas as cenas uma vez: as fontes de cada escrita carregam antes de gravar
 for (const c of tempos.cenas) await pag.evaluate((t) => window.render(t), (c.inicio + c.fim) / 2);
 await pag.evaluate(() => document.fonts.ready);
 await pag.waitForTimeout(1500);
+// com as fontes carregadas, a cena mede o que depende do tamanho do texto
+await pag.evaluate(() => { if (typeof window.medir === "function") window.medir(); });
 
 if (modo === "previa") {
   mkdirSync(path.join(pasta, "previa"), { recursive: true });
-  for (const c of tempos.cenas) {
-    const t = Math.min(c.fim, c.inicio + (c.fim - c.inicio) * 0.8);
-    await pag.evaluate((t) => window.render(t), t);
-    await pag.screenshot({ path: path.join(pasta, "previa", `${c.id}.jpg`), type: "jpeg", quality: 80 });
+  if (instantes) {
+    for (const t of instantes.split(",").map(Number)) {
+      for (let k = 12; k >= 0; k--) await pag.evaluate((t) => window.render(t), t - k / 30);
+      await pag.screenshot({ path: path.join(pasta, "previa", `t${t.toFixed(1).padStart(6, "0")}.jpg`), type: "jpeg", quality: 80 });
+    }
+    await nav.close();
+    console.log("prévias prontas");
+    process.exit(0);
+  }
+  for (const [i, c] of tempos.cenas.entries()) {
+    const prox = (tempos.cenas[i + 1] || { inicio: tempos.total }).inicio;
+    for (const fr of [0.35, 0.85]) {
+      const t = c.inicio + (prox - c.inicio) * fr;
+      for (let k = 6; k >= 0; k--) await pag.evaluate((t) => window.render(t), t - k / 30); // anima ate o ponto
+      await pag.screenshot({ path: path.join(pasta, "previa", `${String(i).padStart(2, "0")}-${c.id}-${fr}.jpg`), type: "jpeg", quality: 80 });
+    }
   }
   await nav.close();
   console.log("prévias prontas");

@@ -62,7 +62,7 @@ async def main(roteiro_arq, pasta):
         cenas.append({"id": cena["id"], "inicio": agora, "fim": agora + d,
                       "palavras": [{**p, "t0": p["t0"] + agora, "t1": p["t1"] + agora} for p in palavras]})
         lista.append((mp3, agora))
-        agora += d + PAUSA
+        agora += d + cena.get("pausa", PAUSA)  # cena com ação depois da fala pede respiro maior
     total = agora + roteiro.get("final", 1.2)
     # junta os trechos nos tempos certos, num wav só
     entradas, filtros = [], []

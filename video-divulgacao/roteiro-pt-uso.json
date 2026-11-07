@@ -1,0 +1,22 @@
+{
+  "cena": "cena-uso.html",
+  "voz": "pt-BR-ThalitaMultilingualNeural",
+  "taxa": "+4%",
+  "tom": "+0Hz",
+  "final": 2.0,
+  "textos": {},
+  "cenas": [
+    { "id": "intro", "fala": "Vou te mostrar a CYRON funcionando, do jeito que você usaria no celular. Esse é um servidor de aliança, com gente do Brasil, da Indonésia, do Japão e da China." },
+    { "id": "entrada", "fala": "Quando alguém novo entra, a primeira coisa que vê é o canal de idiomas. O Budi é da Indonésia. Ele toca no menu, escolhe Bahasa Indonesia, e pronto.", "pausa": 0.9 },
+    { "id": "boasvindas", "fala": "Na mesma hora, a CYRON abre a sala dele. E olha o nosso canal em português: ela avisa em todas as salas que chegou gente nova, cada uma na sua língua.", "pausa": 0.6 },
+    { "id": "escrever", "fala": "Agora eu escrevo normal, em português, como numa conversa qualquer. Alguém entra no urso às oito?", "pausa": 1.2 },
+    { "id": "espelho", "fala": "Repara: eu não digitei comando nenhum. Como eu sou administrador, consigo abrir as salas dos outros. Na sala em inglês, a minha mensagem já está lá. Na sala em indonésio também. E na sala em chinês. Sempre com o meu nome.", "pausa": 0.6 },
+    { "id": "resposta", "fala": "Agora o Budi responde, lá na sala dele, em indonésio. E pra mim chega assim: em português, mostrando a quem ele respondeu.", "pausa": 0.6 },
+    { "id": "figurinha", "fala": "Figurinha também passa. A Mika mandou uma, e ela aparece pequena, do lado do texto. E emoji de outro servidor vem desenhado embaixo da mensagem.", "pausa": 0.6 },
+    { "id": "bandeira", "fala": "Agora um truque que funciona em qualquer canal. A Yuki escreveu em japonês. Eu seguro o dedo na mensagem, escolho a bandeira do Brasil, e a tradução chega no meu privado.", "pausa": 1.8 },
+    { "id": "aviso", "fala": "Nos avisos é ainda mais fácil. Embaixo de cada aviso tem um menu. O Budi toca, escolhe indonésio, e recebe uma cópia traduzida que só ele vê.", "pausa": 0.9 },
+    { "id": "evento", "fala": "Nos eventos, cada um vê o horário no próprio fuso. Eu toco em me inscrever, e antes de começar, a CYRON me lembra no privado.", "pausa": 1.8 },
+    { "id": "painel", "fala": "E quem administra controla tudo no canal da CYRON. Abre o menu e liga ou desliga cada função, como os heróis que aparecem no chat.", "pausa": 0.9 },
+    { "id": "cta", "fala": "E agora, no beta, tudo isso é de graça. Adicione a CYRON no seu servidor. O link está na bio!" }
+  ]
+}
