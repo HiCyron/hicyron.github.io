@@ -1,0 +1,22 @@
+{
+  "cena": "cena-historia.html",
+  "voz": "pt-BR-ThalitaMultilingualNeural",
+  "taxa": "+5%",
+  "tom": "+4Hz",
+  "final": 2.0,
+  "textos": {},
+  "cenas": [
+    { "id": "oi", "fala": "Oi! Eu sou a CYRON. Hoje eu vou contar como eu surgi." },
+    { "id": "alianca", "fala": "Tudo começou numa aliança de Kingshot, a TOP Best. Tinha gente do Brasil, da Indonésia, da Alemanha, das Filipinas, da China e do mundo árabe. Todo mundo junto, e ninguém se entendia." },
+    { "id": "bots", "fala": "Eles criaram um servidor no Discord e testaram vários bots de tradução. Mas era sempre a mesma coisa: um comando pra cada mensagem, e a conversa toda misturada." },
+    { "id": "erros", "fala": "E ainda tinha tradução errada! Alguém perguntou: alguém no rally? E em alemão chegou: alguém participou da manifestação? E abre os baús virou abre o ônibus!", "pausa": 0.6 },
+    { "id": "tiago", "fala": "Foi aí que um dos R4, o Tiago, resolveu dar um jeito." },
+    { "id": "portal", "fala": "Primeiro, ele fez um portal só pra aliança, com chat traduzido e o horário dos eventos no fuso de cada um." },
+    { "id": "bot", "fala": "Depois veio o bot no Discord, que traduzia o chat sozinho. E ainda mandava um GIF de rosas!" },
+    { "id": "espelho", "fala": "Mas ele queria mais: que cada um conversasse na própria língua, como se todo mundo falasse a mesma. Assim nasceu o chat espelhado. Uma sala pra cada idioma, e a mesma conversa em todas." },
+    { "id": "nome", "fala": "E foi nesse dia que eu ganhei o meu nome: CYRON!", "pausa": 0.6 },
+    { "id": "mundo", "fala": "Deu tão certo que outras alianças começaram a pedir. Então eu deixei de ser só da TOP, e virei um bot que qualquer servidor pode instalar." },
+    { "id": "hoje", "fala": "Hoje eu falo vinte e duas línguas, levo figurinha, emoji, evento com lembrete, e continuo aprendendo todo dia." },
+    { "id": "fim", "fala": "E essa foi a minha história. Se a sua aliança também fala várias línguas, me chama! O link está na bio. Até o próximo episódio!" }
+  ]
+}

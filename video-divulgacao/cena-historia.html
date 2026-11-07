@@ -1,0 +1,216 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fontes/noto-sans/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/900.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/700.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b0d1a; }
+  body { font-family: "Noto Sans", "Noto Sans SC", "Noto Color Emoji", sans-serif; color: #fff; }
+  #palco { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 900px at 50% 30%, #2a2466 0%, #141633 55%, #090a16 100%); }
+  .luz { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .5; }
+  #chip { position: absolute; top: 60px; left: 0; right: 0; text-align: center; }
+  #chip span { display: inline-block; font-weight: 900; font-size: 40px; padding: 14px 34px; border-radius: 40px;
+    background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.2); }
+  .cena { position: absolute; left: 0; right: 0; top: 170px; height: 1200px; }
+  .ap { position: absolute; will-change: transform, opacity; }
+  .centro { left: 0; right: 0; text-align: center; }
+  .tit { font-weight: 900; font-size: 104px; line-height: 1.05;
+    background: linear-gradient(90deg, #8fd3ff, #b79bff, #ffd1f5); -webkit-background-clip: text; color: transparent; }
+  .sub { font-weight: 700; font-size: 50px; color: #c9ccff; }
+  .bolha { font-weight: 700; font-size: 56px; padding: 22px 36px; border-radius: 44px; background: #2f3577;
+    box-shadow: 0 12px 30px rgba(0,0,0,.35); white-space: nowrap; }
+  .card { background: #1e1f2b; border-radius: 34px; padding: 30px 36px; box-shadow: 0 24px 60px rgba(0,0,0,.5); }
+  .linha { font-size: 38px; font-weight: 500; color: #e6e7ff; line-height: 1.35; }
+  .linha b { font-weight: 700; }
+  .cmd { font-family: ui-monospace, monospace; color: #9aa0c8; font-size: 34px; }
+  .cmd.vermelho { color: #ff6b6b; }
+  .erro { width: 920px; margin: 0 auto; text-align: center; }
+  .erro .de { font-size: 44px; font-weight: 700; }
+  .erro .para { font-size: 40px; font-weight: 500; color: #ffd27a; margin-top: 14px; }
+  .erro .volta { font-size: 42px; font-weight: 900; color: #ff8a8a; margin-top: 14px; }
+  .seta { font-size: 46px; color: #8a8fb8; margin-top: 6px; }
+  .nomegrande { font-weight: 900; font-size: 170px; color: #ffe27a; text-shadow: 0 0 60px rgba(255,226,122,.6); }
+  .fone { margin: 0 auto; width: 780px; height: 800px; text-align: left; border-radius: 50px; background: #15172a; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 10px #0d0e14; }
+  .fone .topo { height: 110px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 40px;
+    background: linear-gradient(90deg, #f0a33a, #e04f4f); }
+  .msgp { margin: 26px 30px 0; padding: 22px 26px; border-radius: 26px; background: #262a45; font-size: 36px; line-height: 1.35; }
+  .msgp small { display: block; font-size: 28px; color: #9ea3cf; margin-top: 6px; }
+  .evento { margin: 26px 30px 0; padding: 24px 26px; border-radius: 26px; background: #3a2f12; border: 3px solid #f0a33a; font-size: 38px; font-weight: 700; }
+  .disc { margin: 0 auto; width: 960px; text-align: left; }
+  .disc .cab { display: flex; align-items: center; gap: 18px; font-weight: 700; font-size: 36px; }
+  .disc .cab img { width: 84px; height: 84px; border-radius: 50%; }
+  .disc .app { font-size: 22px; background: #5865f2; border-radius: 8px; padding: 2px 9px; }
+  .disc .emb { margin-top: 16px; border-left: 8px solid #5865f2; background: #2b2d31; border-radius: 12px; padding: 20px 24px; font-size: 38px; }
+  .rosa { font-size: 120px; }
+  .mini { margin: 0 auto; width: 900px; text-align: left; }
+  .mini .h { font-weight: 700; font-size: 32px; color: #8a8fb8; margin-bottom: 10px; }
+  .mini .t { font-weight: 500; font-size: 40px; }
+  .mini .s { font-size: 26px; color: #9ea3cf; margin-top: 8px; }
+  .letra { font-weight: 900; font-size: 210px; display: inline-block;
+    background: linear-gradient(180deg, #ffffff, #b79bff); -webkit-background-clip: text; color: transparent; }
+  .icone { width: 150px; height: 150px; border-radius: 44px; display: grid; place-items: center; font-size: 76px;
+    box-shadow: 0 14px 34px rgba(0,0,0,.4); }
+  .chipl { font-weight: 700; font-size: 32px; padding: 12px 20px; border-radius: 30px; background: rgba(255,255,255,.1);
+    border: 2px solid rgba(255,255,255,.16); white-space: nowrap; width: 232px; text-align: center; }
+  .numero { font-weight: 900; font-size: 230px; color: #ffe27a; }
+  .botao { display: inline-block; font-weight: 900; font-size: 50px; padding: 28px 50px; border-radius: 80px;
+    background: linear-gradient(90deg, #5865f2, #8b5cf6); box-shadow: 0 20px 60px rgba(88,101,242,.55); }
+  #mascote { position: absolute; will-change: transform, opacity; filter: drop-shadow(0 20px 30px rgba(0,0,0,.45)); }
+  #legenda { position: absolute; left: 50px; right: 50px; top: 1510px; text-align: center; font-weight: 900;
+    font-size: 70px; line-height: 1.15; text-transform: uppercase; -webkit-text-stroke: 10px #0b0d1a; paint-order: stroke fill; }
+  #legenda span { display: inline-block; margin: 0 9px; }
+  #legenda span.agora { color: #ffd84d; }
+</style></head>
+<body><div id="palco"></div>
+<script>
+const P = document.getElementById("palco");
+let TL = null;
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeBack = (x) => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const h = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
+const sem = (s) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const cenaDe = (id) => TL.cenas.find((c) => c.id === id);
+function w(id, chave, n = 0, d = 0) {
+  const c = cenaDe(id); if (!chave) return c.inicio + d;
+  const p = c.palavras.filter((x) => sem(x.texto).startsWith(sem(chave)))[n];
+  return (p ? p.t0 : c.inicio + (c.fim - c.inicio) / 2) + d;
+}
+const fimDe = (id) => { const i = TL.cenas.indexOf(cenaDe(id)); return (TL.cenas[i + 1] || { inicio: TL.total }).inicio; };
+
+/* Cada cena: o chip de cima, a cara da CYRON (no canto ou no centro) e os
+   elementos, cada um surgindo na palavra em que a narracao fala dele:
+   ap(html, estilo, [cena, palavra, n, desloc]). */
+const ap = (html, estilo, quando) => ({ html, estilo, quando });
+const CENAS = {
+  oi: { chip: "📔 Diário da CYRON", cara: [["aceno", "centro"]], itens: [
+    ap(`<div class="tit">Como eu<br>surgi</div>`, "top:720px", ["oi", "contar"]),
+    ap(`<div class="sub">Episódio 1</div>`, "top:980px", ["oi", "surgi", 0, 0.2]) ] },
+  alianca: { chip: "👑 Kingshot · [TOP] Best", cara: [["pensando", "canto"], ["que", "canto", "ninguem"]], itens: [
+    ap(`<div class="sub" style="font-size:58px">Uma aliança de Kingshot</div>`, "top:20px", ["alianca", "alianca"]),
+    ...[["Olá! 🇧🇷", 80, 200, "brasil"], ["Halo! 🇮🇩", 560, 300, "indonesia"], ["Hallo! 🇩🇪", 110, 440, "alemanha"],
+      ["Kumusta! 🇵🇭", 520, 560, "filipinas"], ["你好! 🇨🇳", 140, 700, "china"], ["مرحبا! 🇸🇦", 560, 820, "arabe"]]
+      .map(([t, x, y, p]) => ap(`<div class="bolha">${t}</div>`, `left:${x}px;top:${y}px`, ["alianca", p])),
+    ap(`<div style="font-size:200px">❓</div>`, "left:420px;top:930px", ["alianca", "ninguem"]) ] },
+  bots: { chip: "🤖 Vários bots de tradução…", cara: [["chorando", "canto", "comando"]], itens: [
+    ap(`<div class="card" style="width:900px">
+      <div class="linha"><b style="color:#f5b183">Budi:</b> Ada yang ikut rally?</div>
+      <div class="cmd" id="c1">/translate Ada yang ikut rally?</div>
+      <div class="linha"><b style="color:#9ea3cf">Bot:</b> Is anyone joining the rally?</div><br>
+      <div class="linha"><b style="color:#86dcd5">Hans:</b> Wer kommt heute?</div>
+      <div class="cmd" id="c2">/translate Wer kommt heute?</div>
+      <div class="linha"><b style="color:#9ea3cf">Bot:</b> Who's coming today?</div><br>
+      <div class="linha"><b style="color:#f39ac4">Ana:</b> ??? 😵‍💫</div></div>`, "left:90px;top:120px", ["bots", "testaram"]),
+    ap(`<div class="sub" style="color:#ff8a8a;font-size:54px">um comando pra cada<br>mensagem 😩</div>`, "top:700px", ["bots", "comando"]) ] },
+  erros: { chip: "😱 Tradução errada", cara: [["eita", "canto"], ["choque", "canto", "onibus"]], itens: [
+    ap(`<div class="card erro"><div class="de">🇧🇷 "alguém no rally?"</div><div class="seta">⬇</div>
+      <div class="para">🇩🇪 "Hat jemand an der Kundgebung teilgenommen?"</div></div>`, "top:10px", ["erros", "alguem"]),
+    ap(`<div style="font-size:44px;font-weight:900;color:#ff8a8a">= "alguém participou da manifestação?" 🪧</div>`, "top:330px", ["erros", "manifestacao"]),
+    ap(`<div class="card erro"><div class="de">🇧🇷 "abre os baús"</div><div class="seta">⬇</div>
+      <div class="para">🇩🇪 "öffnet den Bus"</div></div>`, "top:450px", ["erros", "baus"]),
+    ap(`<div style="font-size:52px;font-weight:900;color:#ff8a8a">= "abre o ônibus" 🚌</div>`, "top:770px", ["erros", "onibus"]) ] },
+  tiago: { chip: "💡 Até que…", cara: [["foco", "canto"]], itens: [
+    ap(`<div class="sub" style="font-size:64px">um dos R4 resolveu<br>dar um jeito</div>`, "top:220px", ["tiago", "r4"]),
+    ap(`<div class="nomegrande">Tiago</div>`, "top:520px", ["tiago", "tiago"]) ] },
+  portal: { chip: "📅 12 de agosto de 2026", cara: [["trabalhando", "canto"]], itens: [
+    ap(`<div class="fone"><div class="topo">🛡️ Portal [TOP] Best</div>
+      <div class="msgp"><b>Budi 🇮🇩</b> Ada yang ikut beruang?<small>🌐 Alguém vai no urso?</small></div>
+      <div class="msgp"><b>Hans 🇩🇪</b> Ich bin dabei!<small>🌐 Tô dentro!</small></div>
+      <div class="evento" id="ev">🐻 Urso · hoje 20:00<br><span style="font-size:30px;color:#ffd27a">no seu horário</span></div></div>`, "top:40px", ["portal", "portal"]) ] },
+  bot: { chip: "📅 18 de agosto de 2026", cara: [["amei", "canto", "rosas"]], itens: [
+    ap(`<div class="disc"><div class="card"><div class="cab"><img src="img/cyron-og.jpg">Bot <span class="app">APP</span></div>
+      <div class="emb">🌐 Who's joining the bear tonight?<br><span style="color:#9ea3cf;font-size:30px">🇧🇷 → 🇬🇧 · traduzido sozinho</span></div></div></div>`, "top:120px", ["bot", "bot"]),
+    ...[[300, 600], [440, 560], [580, 600], [370, 700], [510, 700], [440, 800], [230, 720], [650, 720]].map(([x, y], i) =>
+      ap(`<div class="rosa">🌹</div>`, `left:${x}px;top:${y}px`, ["bot", "rosas", 0, i * 0.08])) ] },
+  espelho: { chip: "📅 22 de agosto de 2026", cara: [["uau", "canto"]], itens: [
+    ap(`<div class="sub" style="font-size:58px">o chat espelhado ✨</div>`, "top:0px", ["espelho", "espelhado"]),
+    ...[["chat-pt", "Alguém no urso às 20h? 🐻", "🇧🇷", "sala"], ["chat-en", "Anyone at the bear at 8pm? 🐻", "🇧🇷 → 🇬🇧", "idioma"], ["chat-id", "Ada yang ikut beruang jam 8? 🐻", "🇧🇷 → 🇮🇩", "mesma"]]
+      .map(([c, t, s, p], i) => ap(`<div class="card mini"><div class="h"># ${c}</div><div class="t">${t}</div><div class="s">${s}</div></div>`,
+        `top:${120 + i * 270}px`, ["espelho", p, p === "mesma" ? 1 : 0])) ] },
+  nome: { chip: "📅 22 de agosto de 2026", cara: [["brilho", "centro"]], itens: [
+    ...[..."CYRON"].map((l, i) => ap(`<div class="letra">${l}</div>`, `left:${140 + i * 162}px;top:860px`, ["nome", "cyron", 0, i * 0.1])),
+    ...[[100, 120], [880, 200], [160, 560], [860, 620], [520, 60]].map(([x, y], i) => ap(`<div style="font-size:80px">✨</div>`, `left:${x}px;top:${y}px`, ["nome", "cyron", 0, 0.3 + i * 0.08])) ] },
+  mundo: { chip: "📅 30 de agosto de 2026", cara: [["mundo", "canto"]], itens: [
+    ap(`<div class="sub" style="font-size:56px">qualquer servidor pode me instalar</div>`, "top:0px", ["mundo", "qualquer"]),
+    ...["🛡️", "⚔️", "🐉", "🔥", "🌸", "🦁", "👑", "🌙", "⭐", "🎮", "🏰", "🐺"].map((e, i) => {
+      const cores = ["#5865f2", "#e0732f", "#2fa39a", "#d9488f", "#c9a227", "#8b5cf6"];
+      return ap(`<div class="icone" style="background:${cores[i % 6]}">${e}</div>`, `left:${90 + (i % 4) * 230}px;top:${150 + Math.floor(i / 4) * 220}px`, ["mundo", "pedir", 0, i * 0.14]); }) ] },
+  hoje: { chip: "🌍 Hoje", cara: [["amei", "canto"]], itens: [
+    ap(`<div class="numero" id="num">22</div>`, "top:0px;left:0;right:0;text-align:center", ["hoje", "falo"]),
+    ap(`<div class="sub" style="font-size:56px;margin-top:-20px">línguas</div>`, "top:260px", ["hoje", "linguas"]),
+    ...["🇧🇷 Português", "🇬🇧 English", "🇮🇩 Indonesia", "🇨🇳 中文", "🏮 繁體中文", "🇯🇵 日本語", "🇰🇷 한국어", "🇹🇭 ไทย"].map((c, i) =>
+      ap(`<div class="chipl">${c}</div>`, `left:${60 + (i % 4) * 245}px;top:${420 + Math.floor(i / 4) * 90}px`, ["hoje", "linguas", 0, 0.2 + i * 0.07])),
+    ...[["🎨", "figurinha"], ["😀", "emoji"], ["📆", "evento"], ["🔔", "lembrete"]].map(([e, p], i) =>
+      ap(`<div style="font-size:120px">${e}</div>`, `left:${110 + i * 230}px;top:700px`, ["hoje", p])) ] },
+  fim: { chip: "📔 Diário da CYRON", cara: [["tchau", "centro"]], itens: [
+    ap(`<div><span class="botao">➕ Me chama na sua aliança</span></div>`, "top:860px", ["fim", "chama"]),
+    ap(`<div class="sub">link na bio · até o Ep. 2 👋</div>`, "top:1040px", ["fim", "link"]) ] },
+};
+
+const MONTADO = {};
+function montar(tl) {
+  TL = tl;
+  [["#3b4bff", 700, 300, 200], ["#a24bff", 600, 760, 1250], ["#00b3ff", 500, 120, 1500]].forEach(([c, s, x, y], i) => {
+    const b = h(`<div class="luz" style="background:${c};width:${s}px;height:${s}px;left:${x - s / 2}px;top:${y - s / 2}px"></div>`); b.dataset.i = i; P.appendChild(b); });
+  P.appendChild(h('<div id="chip"><span></span></div>'));
+  for (const [id, def] of Object.entries(CENAS)) {
+    const c = h(`<div class="cena" id="cena-${id}"></div>`);
+    def.itens.forEach((it) => { const e = h(`<div class="ap${/left:/.test(it.estilo) ? "" : " centro"}" style="${it.estilo}">${it.html}</div>`);
+      e.dataset.t = w(...it.quando); c.appendChild(e); });
+    P.appendChild(c); MONTADO[id] = c;
+  }
+  P.appendChild(h('<img id="mascote" src="img/aceno.png">'));
+  P.appendChild(h('<div id="legenda"></div>'));
+}
+
+function vis(e, op, ty = 0, sc = 1, rot = 0) { e.style.opacity = op; e.style.transform = `translateY(${ty}px) scale(${sc}) rotate(${rot}deg)`; e.style.visibility = op <= 0.001 ? "hidden" : "visible"; }
+
+function render(t) {
+  document.querySelectorAll(".luz").forEach((b) => { const i = +b.dataset.i; b.style.transform = `translate(${Math.sin(t * .4 + i * 2) * 60}px,${Math.cos(t * .33 + i) * 50}px)`; });
+  const atual = TL.cenas.find((c, i) => t < (TL.cenas[i + 1] ? TL.cenas[i + 1].inicio : 1e9)) || TL.cenas[TL.cenas.length - 1];
+  const def = CENAS[atual.id];
+  // cenas: a atual entra, as outras somem
+  for (const [id, el] of Object.entries(MONTADO)) {
+    if (id !== atual.id) { vis(el, 0); continue; }
+    const k = easeOut(clamp((t - atual.inicio + 0.15) / 0.4)), sai = easeOut(clamp((t - fimDe(id) + 0.3) / 0.3));
+    vis(el, k * (1 - sai), (1 - k) * 40);
+    el.querySelectorAll(".ap").forEach((e) => { const a = clamp((t - +e.dataset.t) / 0.4);
+      vis(e, easeOut(a), (1 - easeOut(a)) * 50 + Math.sin(t * 2 + (+e.dataset.t)) * 4, 0.7 + 0.3 * easeBack(a)); });
+  }
+  // o contador do "22"
+  const num = document.getElementById("num"); if (num) { const a = clamp((t - w("hoje", "falo")) / 1.2); num.textContent = Math.max(1, Math.round(22 * easeOut(a))); }
+  // a cara da CYRON
+  let cara = def.cara[0];
+  for (const c of def.cara) if (!c[2] || t >= w(atual.id, c[2])) cara = c;
+  const m = document.getElementById("mascote"), src = `img/${cara[0]}.png`;
+  if (!m.src.endsWith(src)) { m.src = src; m.dataset.desde = String(t); }
+  const desde = +m.dataset.desde || 0, pop = easeBack(clamp((t - desde) / 0.35));
+  if (cara[1] === "centro") { m.style.width = "560px"; m.style.left = "260px"; m.style.top = "300px"; }
+  else { m.style.width = "330px"; m.style.left = "700px"; m.style.top = "1110px"; }
+  const ent = easeOut(clamp((t - 0.05) / 0.5)), fimV = easeOut(clamp((t - TL.total + 0.6) / 0.5));
+  vis(m, ent * (1 - fimV), Math.sin(t * 2.4) * 10, 0.85 + 0.15 * pop, Math.sin(t * 1.7) * 3);
+  // chip
+  const ch = document.getElementById("chip"); ch.firstElementChild.textContent = def.chip;
+  const kc = easeOut(clamp((t - atual.inicio + 0.1) / 0.35)); vis(ch, kc, (1 - kc) * -20);
+  legenda(t);
+}
+
+function legenda(t) {
+  const L = document.getElementById("legenda");
+  const c = TL.cenas.find((x) => t >= x.inicio - 0.05 && t <= x.fim + 0.25);
+  if (!c || !c.palavras.length) { L.innerHTML = ""; return; }
+  const grupos = []; let a = [];
+  for (const p of c.palavras) { a.push(p); if (p.quebra || a.length === 5) { grupos.push(a); a = []; } }
+  if (a.length) grupos.push(a);
+  let g = grupos.findIndex((gr) => t < gr[gr.length - 1].t1 + 0.08); if (g < 0) g = grupos.length - 1;
+  const chave = c.id + ":" + g;
+  if (L.dataset.chave !== chave) { L.dataset.chave = chave; L.innerHTML = grupos[g].map((p) => `<span>${p.texto}</span>`).join(" "); }
+  [...L.children].forEach((s, i) => { const p = grupos[g][i]; const agora = t >= p.t0 - 0.02 && t < p.t1 + 0.05;
+    s.className = agora ? "agora" : ""; s.style.transform = `scale(${agora ? 1.08 : 1})`; });
+}
+</script></body></html>
