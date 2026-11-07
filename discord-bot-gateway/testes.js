@@ -13968,6 +13968,68 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o bot lê a lista do arquivo gerado", /import \{ FIGURINHAS_DO_DISCORD \} from "\.\/figurinhas-do-discord\.js";/.test(idx));
 }
 
+/* ====== 🎨 "INSTALAR FIGURINHAS" NO ⚙️-CYRON ======
+ *
+ * Os emojis do aplicativo só a CYRON usa. Para as pessoas usarem (e testarem
+ * se figurinha e emoji atravessam as salas), eles vão para as vagas do
+ * servidor -- sem nunca apagar ou trocar o que já está lá. */
+{
+  const globais = ["PermissionFlagsBits", "carregarSharp", "FIGURINHAS", "PASTA_DAS_FIGURINHAS",
+    "PASTA_DOS_ROSTOS", "PASTA_DAS_ANIMADAS"];
+  const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
+  try {
+    globalThis.PermissionFlagsBits = { ManageGuildExpressions: 1n << 30n, CreateGuildExpressions: 1n << 43n };
+    const sharpReal = (await import("sharp")).default;
+    globalThis.carregarSharp = async () => sharpReal;
+    globalThis.FIGURINHAS = (await import("./figurinhas.js")).FIGURINHAS;
+    globalThis.PASTA_DAS_FIGURINHAS = `${aqui}/img/figurinhas/`;
+    /* As pastas usam import.meta, que o eval não conhece: entram prontas. */
+    globalThis.PASTA_DOS_ROSTOS = `${aqui}/img/figurinhas/rostos/`;
+    globalThis.PASTA_DAS_ANIMADAS = `${aqui}/img/figurinhas/animadas/`;
+    const I = carregar(["ROSTOS_DA_CYRON", "ANIMADAS_DA_CYRON",
+      "VAGAS_DE_FIGURINHA", "VAGAS_DE_EMOJI", "nomeDeFigurinhaNoServidor", "instalarExpressoesDaCyron"]);
+    for (const n of I.ANIMADAS_DA_CYRON) {
+      verdade(`o emoji animado ${n} existe`, existsSync(`${aqui}/img/figurinhas/animadas/${n}.gif`));
+      verdade(`e cabe no limite de 256 KB do Discord`, statSync(`${aqui}/img/figurinhas/animadas/${n}.gif`).size <= 256 * 1024);
+      verdade(`o rosto ${n} também existe`, I.ROSTOS_DA_CYRON.includes(n));
+    }
+    verdade("todo nome de figurinha cabe nos 30 caracteres do Discord",
+      globalThis.FIGURINHAS.every((f) => { const n = I.nomeDeFigurinhaNoServidor(f); return n.length >= 2 && n.length <= 30; }));
+
+    const servidor = (pode, emojisJa = [], figurinhasJa = []) => {
+      const criados = { emojis: [], figurinhas: [] };
+      const colecao = (l) => Object.assign(new Map(l.map((x, i) => [String(i), x])), {
+        filter(fn) { return new Map([...this].filter(([, v]) => fn(v))); }, some(fn) { return [...this.values()].some(fn); },
+        map(fn) { return [...this.values()].map(fn); } });
+      return { criados, premiumTier: 0,
+        members: { me: { permissions: { has: (p) => pode && p === globalThis.PermissionFlagsBits.ManageGuildExpressions } } },
+        emojis: { cache: colecao(emojisJa), fetch: async () => {}, create: async (o) => { criados.emojis.push(o); } },
+        stickers: { cache: colecao(figurinhasJa), fetch: async () => {}, create: async (o) => { criados.figurinhas.push(o); } } };
+    };
+    ok("sem a permissão Gerenciar expressões, diz o que falta", (await I.instalarExpressoesDaCyron(servidor(false))).falta, "permissao");
+
+    const g = servidor(true, [{ name: "cyron_amei", animated: false }]);
+    const r = await I.instalarExpressoesDaCyron(g);
+    ok("os rostos viram emoji (o que já existe com o mesmo nome fica)", r.emojis, I.ROSTOS_DA_CYRON.length - 1);
+    ok("os animados também", r.animados, I.ANIMADAS_DA_CYRON.length);
+    ok("figurinhas: as 5 vagas de um servidor sem impulso", r.figurinhas, 5);
+    verdade("e avisa que as outras não couberam", r.semVaga.includes("figurinhas"));
+    verdade("emoji animado vai com nome próprio", g.criados.emojis.some((e) => e.name === "cyron_amei_anim"));
+    const meta = await sharpReal(g.criados.figurinhas[0].file).metadata();
+    ok("a figurinha vai em 320x320, como o Discord exige", [meta.width, meta.height], [320, 320]);
+    verdade("e abaixo de 512 KB", g.criados.figurinhas.every((f) => f.file.length <= 512 * 1024));
+
+    const cheio = servidor(true, [], [1, 2, 3, 4, 5].map((i) => ({ name: `alheia ${i}` })));
+    ok("vaga de figurinha ocupada continua ocupada (nada do servidor é trocado)",
+      (await I.instalarExpressoesDaCyron(cheio)).figurinhas, 0);
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("o comando mora no ⚙️-cyron e pede Gerenciar Servidor",
+    /if \(\/\^instalar\\s\+\(as\\s\+\)\?\(figurinhas\|emojis\|stickers\)\\b\/\.test\(texto\)\) \{\s*if \(!msg\.member\?\.permissions\?\.has\(PermissionFlagsBits\.ManageGuild\)\)/.test(idx));
+}
+
 /* ====== A PARTE PESADA DA VARREDURA, DE MEIA EM MEIA HORA ======
  *
  * Reparo, montagem, portaria, quadros e cartões eram ~250 pedidos a cada dez
