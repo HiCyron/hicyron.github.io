@@ -20992,14 +20992,22 @@ async function linguaDoDono(guild) {
    Um dono japones abria o painel e via tudo em portugues: o fixado, a
    pergunta do modo, o recibo. Agora vale a lingua que ele escolheu no bot;
    sem escolha, a do servidor. "en-US" nao conta como escolha: e' o que o
-   Discord poe em todo servidor novo, e tomar isso por ingles poria em
-   ingles o painel de quase todo dono brasileiro. Sem nenhuma das duas,
-   portugues, como sempre foi. */
+   Discord poe em todo servidor novo.
+
+   Sem nenhuma das duas, era portugues -- e metade dos servidores ativos nem
+   tem sala em portugues (alemao e ingles; indonesio e ingles; nove linguas
+   da Asia e da Europa). O dono indonesio abria a sala dele e lia portugues.
+   Agora: portugues so' onde ha' sala em portugues (o servidor brasileiro com
+   en-US continua como sempre foi); no resto, e no servidor que acabou de me
+   instalar, ingles -- a lingua que esse publico le. */
 async function linguaDaSalaCyron(guild) {
   const escolhida = await idiomaEscolhido(guild?.ownerId).catch(() => "");
   if (escolhida) return escolhida;
   const local = String(guild?.preferredLocale || "");
-  return local && local !== "en-US" ? idiomaDoAplicativo(local) || "pt" : "pt";
+  if (local && local !== "en-US") return idiomaDoAplicativo(local) || "en";
+  const servidor = guild?.id ? await servidorDoGuild(guild.id).catch(() => null) : null;
+  const salas = servidor ? await canaisEspelho(servidor.id).catch(() => []) : [];
+  return (salas || []).some((s) => s.idioma === "pt") ? "pt" : "en";
 }
 
 /* Um texto meu na lingua pedida, com mencao, canal e emoji protegidos. */

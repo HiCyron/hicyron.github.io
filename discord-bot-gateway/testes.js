@@ -14028,20 +14028,35 @@ function conferirCartao(onde, embed, componentes = []) {
  * pergunta do modo, o recibo, os marcos e o aviso de limite saem na língua
  * dele. */
 {
-  const globais = ["idiomaEscolhido", "traduzirComCache", "traduzirEmbed"];
+  const globais = ["idiomaEscolhido", "traduzirComCache", "traduzirEmbed", "servidorDoGuild", "canaisEspelho"];
   const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
   try {
     let escolhida = "";
+    let salasDoServidor = [];
     globalThis.idiomaEscolhido = async () => escolhida;
+    globalThis.servidorDoGuild = async (id) => (id ? { id: `s-${id}` } : null);
+    globalThis.canaisEspelho = async () => salasDoServidor;
     const L = carregar(["LINGUAS_MENU", "idiomaDoAplicativo", "linguaDaSalaCyron", "porMolde", "falaFixa",
       "componentesNaLingua", "textoNaLingua", "cartaoNaLingua"]);
     escolhida = "ja";
     ok("a língua que o dono escolheu no bot manda", await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "pt-BR" }), "ja");
     escolhida = "";
     ok("sem escolha, a do servidor", await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "ja" }), "ja");
-    ok("o en-US de todo servidor novo não conta: português, como sempre foi",
-      await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "en-US" }), "pt");
-    ok("sem nada, português", await L.linguaDaSalaCyron({ ownerId: "d" }), "pt");
+    /* en-US é o que todo servidor novo tem: não diz nada. Português só onde
+       há sala em português; no resto, inglês — metade dos servidores ativos
+       nem tem sala em português, e o dono indonésio lia o painel em português. */
+    salasDoServidor = [{ idioma: "en" }, { idioma: "pt" }];
+    ok("en-US com sala em português: português, como sempre foi",
+      await L.linguaDaSalaCyron({ id: "g", ownerId: "d", preferredLocale: "en-US" }), "pt");
+    salasDoServidor = [{ idioma: "en" }, { idioma: "id" }];
+    ok("en-US sem sala em português: inglês",
+      await L.linguaDaSalaCyron({ id: "g", ownerId: "d", preferredLocale: "en-US" }), "en");
+    salasDoServidor = [];
+    ok("servidor que acabou de me instalar: inglês",
+      await L.linguaDaSalaCyron({ id: "g", ownerId: "d", preferredLocale: "en-US" }), "en");
+    ok("sem nada, inglês", await L.linguaDaSalaCyron({ ownerId: "d" }), "en");
+    salasDoServidor = [{ idioma: "pt" }];
+    ok("a língua do servidor (não en-US) continua mandando", await L.linguaDaSalaCyron({ id: "g", ownerId: "d", preferredLocale: "id" }), "id");
 
     globalThis.traduzirComCache = async (t, idioma) => `[${idioma}] ${t}`;
     const linhas = [{ type: 1, components: [
