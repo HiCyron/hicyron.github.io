@@ -190,6 +190,28 @@ export function servidoresParaVisao(guilds) {
   })).sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
+/* As conversas no privado (DM): quem mandou mensagem direta para a CYRON. O
+   Discord NAO da uma lista das DMs de um bot; aparece aqui quem falou desde que
+   a CYRON ligou (ou quem a pagina ja' abriu). Mais recente primeiro -- o id do
+   Discord cresce com o tempo, entao o maior lastMessageId e' o mais novo; ids
+   mais longos sao sempre maiores. Pura. */
+export function privadosParaVisao(canais) {
+  const lista = canais?.values ? [...canais.values()] : (canais || []);
+  return lista
+    .filter((c) => c.type === 1) // ChannelType.DM
+    .map((c) => {
+      const u = c.recipient || null;
+      return {
+        id: c.id,
+        usuario: u?.id || c.recipientId || "",
+        nome: u ? (u.globalName || u.username || "?") : "usuário",
+        avatar: u?.displayAvatarURL?.({ size: 64 }) || "",
+        ultima: String(c.lastMessageId || ""),
+      };
+    })
+    .sort((a, b) => (a.ultima.length === b.ultima.length ? b.ultima.localeCompare(a.ultima) : b.ultima.length - a.ultima.length));
+}
+
 /* O que a pagina manda para falar num canal. Pura: devolve o erro, ou os
    campos ja' limpos. */
 export function lerEnvio(corpo) {
@@ -340,11 +362,14 @@ function lerCorpo(req) {
   });
 }
 
-/* O canal pedido, se for de texto e de um servidor onde a CYRON esta. */
+/* O canal pedido, se for de texto: de um servidor onde a CYRON esta, ou uma DM
+   do proprio bot (conversa no privado). Buscar uma DM que nao e' do bot falha
+   no Discord e volta null, entao isto nao abre a porta para canal de ninguem. */
 async function canalDeTexto(id) {
   if (!ehId(id)) return null;
   const c = d.client.channels.cache.get(id) || await d.client.channels.fetch(id).catch(() => null);
-  return c?.guild && c.isTextBased?.() ? c : null;
+  if (!c?.isTextBased?.()) return null;
+  return c.guild || c.type === 1 || c.isDMBased?.() ? c : null;
 }
 
 async function atender(req, res) {
@@ -375,6 +400,16 @@ async function atender(req, res) {
     return responder(res, 200, { servidores: servidoresParaVisao(c.guilds.cache) }, cab);
   }
 
+  if (rota === "GET /visao/privado") {
+    const dms = [...c.channels.cache.values()].filter((ch) => ch.type === 1);
+    /* Garante o nome e a foto de quem falou, buscando quem faltar na memoria.
+       (O recipient de uma DM pode nao estar carregado depois de um reinicio.) */
+    await Promise.all(dms.map(async (ch) => {
+      if (!ch.recipient && ch.recipientId && c.users?.fetch) await c.users.fetch(ch.recipientId).catch(() => {});
+    }));
+    return responder(res, 200, { conversas: privadosParaVisao(c.channels.cache) }, cab);
+  }
+
   if (rota === "GET /visao/canais") {
     const guild = c.guilds.cache.get(url.searchParams.get("g") || "");
     if (!guild) return responder(res, 404, { erro: "a CYRON nao esta nesse servidor" }, cab);
@@ -401,7 +436,7 @@ async function atender(req, res) {
        cima para baixo, como uma conversa. */
     const mensagens = [...lidas.values()].map(mensagemParaVisao).sort((a, b) => a.quando - b.quando);
     return responder(res, 200, {
-      canal: { id: canal.id, nome: canal.name, servidor: canal.guild.id },
+      canal: { id: canal.id, nome: canal.name || "", servidor: canal.guild?.id || null },
       mensagens,
     }, cab);
   }
@@ -419,7 +454,8 @@ async function atender(req, res) {
          @everyone e cargo, nao: um toque errado no celular nao pode chamar um
          servidor inteiro. */
       const enviada = await canal.send({ content: envio.texto, allowedMentions: { parse: ["users"] } });
-      console.log(`visao: o dono ${dono} falou como a CYRON em #${canal.name} (${canal.guild.name})`);
+      const onde = canal.guild ? `#${canal.name} (${canal.guild.name})` : `DM com ${canal.recipient?.username || canal.recipientId || "alguém"}`;
+      console.log(`visao: o dono ${dono} falou como a CYRON em ${onde}`);
       return responder(res, 200, { mensagem: mensagemParaVisao(enviada) }, cab);
     } catch (e) {
       console.error("visao: nao consegui mandar:", e?.message || e);
