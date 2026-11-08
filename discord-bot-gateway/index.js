@@ -7238,8 +7238,8 @@ const ABAS_DO_PAINEL = [
    seria o pior defeito possivel. */
 const FUNCOES = [
   { chave: "herois", emoji: "🃏", nome: "Heróis aparecendo no chat",
-    oque: "Com o chat animado aparece uma carta de herói; quem clicar primeiro leva.",
-    ajuste: (s) => `aparicao-off:${s.id}` },
+    oque: "Começa desligado. Ligue e, com o chat animado, aparece uma carta de herói; quem tocar leva.",
+    padraoDesligado: true, ajuste: (s) => `aparicao-on:${s.id}` },
   { chave: "duelo", emoji: "⚔️", nome: "Chamada para duelo no chat",
     oque: "Uma vez por dia, com o chat animado, eu chamo a sala para um duelo.",
     ajuste: (s) => `duelo-chamada-off:${s.id}` },
@@ -7257,11 +7257,13 @@ const FUNCOES = [
     ajuste: (s) => `boas-vindas-salas-off:${s.id}` },
 ];
 
-/* Ligada ou nao. O ajuste guarda o DESLIGADO ("1"); vazio ou ausente e'
-   ligado -- o mesmo que cada funcao ja' lia. Pura. */
+/* Ligada ou nao. Em geral o ajuste guarda o DESLIGADO ("1"); vazio ou ausente
+   e' ligado -- o mesmo que cada funcao ja' lia. Funcao com `padraoDesligado`
+   e' o contrario: nasce DESLIGADA, e o ajuste guarda o LIGADO ("1"). Pura. */
 function funcaoLigada(f, servidor, marcas) {
   if (f.coluna) return !!servidor?.[f.coluna];
-  return !marcas?.[f.ajuste(servidor)];
+  const v = marcas?.[f.ajuste(servidor)];
+  return f.padraoDesligado ? v === "1" : !v;
 }
 
 async function mudarFuncao(f, servidor, ligar) {
@@ -7271,6 +7273,7 @@ async function mudarFuncao(f, servidor, ligar) {
     cacheServidor.delete(servidor.guild_id);
     return;
   }
+  if (f.padraoDesligado) return porAjuste(f.ajuste(servidor), ligar ? "1" : null);
   await porAjuste(f.ajuste(servidor), ligar ? "" : "1");
 }
 
@@ -13542,10 +13545,12 @@ async function talvezAparecerHeroi(msg, servidor, agora = Date.now(), sorte = Ma
   const lista = conversaNoCanal.get(msg.channel.id) || [];
   const dia = hojeISO();
   if (!podeAparecer(lista, servidor.id, agora, dia)) return false;
+  /* Nasce desligado: so' aparece onde a administracao ligou (painel 🧩 Funcoes).
+     Antes de marcar a cota, para um servidor desligado nao gastar o dia a' toa. */
+  if ((await ajustes())[`aparicao-on:${servidor.id}`] !== "1") return false;
   /* Marca ANTES de qualquer espera: duas mensagens juntas nao viram dois herois. */
   ultimaAparicao.set(servidor.id, agora);
   contarNoDia(aparicoesNoDia, `${servidor.id}|${dia}`, dia);
-  if ((await ajustes())[`aparicao-off:${servidor.id}`] === "1") return false;
   if (await ehOPainel(msg.guild.id)) return false;
   /* Replica so' recebe traducao: ninguem conversa nela. */
   if ((await replicasDoIdioma(servidor.id)).some((c) => c.canal_id === msg.channel.id)) return false;
@@ -13624,7 +13629,7 @@ async function ligarAparicoes(inter, ligar) {
   }
   const servidor = await servidorDoGuild(inter.guildId);
   if (!servidor) return inter.deferUpdate();
-  await porAjuste(`aparicao-off:${servidor.id}`, ligar ? null : "1");
+  await porAjuste(`aparicao-on:${servidor.id}`, ligar ? "1" : null);
   return inter.reply({ flags: 64,
     content: ligar
       ? "🔔 Pronto: os heróis voltam a aparecer quando o chat estiver animado.\n_Done: heroes will show up again when the chat is lively._"
