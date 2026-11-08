@@ -32,7 +32,8 @@ o dia em que ganhou o nome e a virada para qualquer servidor. Cada cena tem a da
 do projeto, e a expressão da mascote muda conforme a fala (`cara` em `CENAS`, dentro da cena).
 
 Versões asiáticas, nas línguas que mais aparecem entre os jogadores do bot: `roteiro-historia-zh.json`
-(chinês simplificado), `roteiro-historia-id.json` (indonésio) e `roteiro-historia-vi.json` (vietnamita).
+(chinês simplificado), `roteiro-historia-id.json` (indonésio) e `roteiro-historia-vi.json` (vietnamita),
+mais `roteiro-historia-en.json` em inglês, a língua com mais jogadores.
 O roteiro traz em `textos` tudo o que aparece escrito na tela e, em `textos.gatilhos`, a palavra da
 narração que faz o papel de cada gatilho em português (`"palavra"` ou `["palavra", n]` para a n-ésima
 vez que ela aparece). `"cjk": true` junta a legenda sem espaços, como se escreve em chinês.

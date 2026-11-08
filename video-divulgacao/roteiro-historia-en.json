@@ -1,0 +1,178 @@
+{
+ "cena": "cena-historia.html",
+ "voz": "en-US-AvaMultilingualNeural",
+ "taxa": "+8%",
+ "tom": "+0Hz",
+ "final": 2.0,
+ "textos": {
+  "chips": {
+   "oi": "📔 CYRON's Diary",
+   "bots": "🤖 So many translation bots…",
+   "erros": "😱 Wrong translation",
+   "tiago": "💡 Until…",
+   "portal": "📅 August 12, 2026",
+   "bot": "📅 August 18, 2026",
+   "espelho": "📅 August 22, 2026",
+   "nome": "📅 August 22, 2026",
+   "mundo": "📅 August 30, 2026",
+   "hoje": "🌍 Today",
+   "fim": "📔 CYRON's Diary"
+  },
+  "titulo": "How I<br>was born",
+  "episodio": "Episode 1",
+  "aliancaSub": "A Kingshot alliance",
+  "comando": "one command for<br>every message 😩",
+  "erro1Sentido": "(anyone in the rally?)",
+  "erro1Volta": "= \"did anyone join the protest?\" 🪧",
+  "erro2Sentido": "(open the chests)",
+  "erro2Volta": "= \"open the bus\" 🚌",
+  "tiagoSub": "one of the R4s<br>decided to fix it",
+  "msgs": [
+   [
+    "Budi 🇮🇩",
+    "Ada yang ikut beruang?",
+    "🌐 Anyone going to the bear?"
+   ],
+   [
+    "Hans 🇩🇪",
+    "Ich bin dabei!",
+    "🌐 I'm in!"
+   ]
+  ],
+  "evento": "🐻 Bear · today 8:00 PM",
+  "eventoSub": "in your time zone",
+  "botSub": "🇧🇷 → 🇬🇧 · translated automatically",
+  "espelhoSub": "the mirrored chat ✨",
+  "mundoSub": "any server can install me",
+  "linguas": "languages",
+  "chipsLinguas": [
+   "🇬🇧 English",
+   "🇪🇸 Español",
+   "🇧🇷 Português",
+   "🇨🇳 中文",
+   "🇮🇩 Indonesia",
+   "🇻🇳 Tiếng Việt",
+   "🇰🇷 한국어",
+   "🇹🇷 Türkçe"
+  ],
+  "botao": "➕ Invite me to your alliance",
+  "fimSub": "link in bio · see you in Ep. 2 👋",
+  "gatilhos": {
+   "oi": {
+    "contar": "tell",
+    "surgi": "born"
+   },
+   "alianca": {
+    "alianca": "alliance",
+    "brasil": "brazil",
+    "indonesia": "indonesia",
+    "alemanha": "germany",
+    "filipinas": "philippines",
+    "china": "china",
+    "arabe": "arab",
+    "ninguem": "nobody"
+   },
+   "bots": {
+    "testaram": "tried",
+    "comando": "command"
+   },
+   "erros": {
+    "alguem": "asked",
+    "manifestacao": "protest",
+    "baus": "chests",
+    "onibus": "bus"
+   },
+   "tiago": {
+    "r4": "r4",
+    "tiago": "tiago"
+   },
+   "portal": {
+    "portal": "portal"
+   },
+   "bot": {
+    "bot": "bot",
+    "rosas": "roses"
+   },
+   "espelho": {
+    "espelhado": "mirrored",
+    "sala": "room",
+    "idioma": [
+     "language",
+     1
+    ],
+    "mesma": [
+     "same",
+     1
+    ]
+   },
+   "mundo": {
+    "pedir": "asking",
+    "qualquer": "any"
+   },
+   "hoje": {
+    "falo": "speak",
+    "linguas": "languages",
+    "figurinha": "stickers",
+    "emoji": "emojis",
+    "evento": "events",
+    "lembrete": "reminders"
+   },
+   "fim": {
+    "chama": "call",
+    "link": "link"
+   }
+  }
+ },
+ "cenas": [
+  {
+   "id": "oi",
+   "fala": "Hi! I'm CYRON. Today I'm going to tell you how I was born."
+  },
+  {
+   "id": "alianca",
+   "fala": "It all started in a Kingshot alliance called TOP Best. There were people from Brazil, Indonesia, Germany, the Philippines, China and the Arab world. Everyone together, and nobody understood each other."
+  },
+  {
+   "id": "bots",
+   "fala": "They made a Discord server and tried lots of translation bots. But it was always the same: one command for every message, and the whole chat was a mess."
+  },
+  {
+   "id": "erros",
+   "fala": "And the translations were wrong! Someone asked in Portuguese: anyone in the rally? And in German it arrived as: did anyone join the protest? And open the chests turned into open the bus!",
+   "pausa": 0.6
+  },
+  {
+   "id": "tiago",
+   "fala": "That's when one of the R4s, Tiago, decided to fix it."
+  },
+  {
+   "id": "portal",
+   "fala": "First, Tiago built a portal just for the alliance, with translated chat and event times in everyone's own time zone."
+  },
+  {
+   "id": "bot",
+   "fala": "Then came the Discord bot, translating the chat all by itself. It even sent a GIF of roses!"
+  },
+  {
+   "id": "espelho",
+   "fala": "But Tiago wanted more: everyone chatting in their own language, as if they all spoke the same one. And so the mirrored chat was born. One room for each language, and the same conversation in all of them."
+  },
+  {
+   "id": "nome",
+   "fala": "And that was the day I got my name: CYRON!",
+   "pausa": 0.6
+  },
+  {
+   "id": "mundo",
+   "fala": "It worked so well that other alliances started asking for it. So I stopped being just TOP's, and became a bot that any server can install."
+  },
+  {
+   "id": "hoje",
+   "fala": "Today I speak twenty-two languages, I carry stickers, emojis, events with reminders, and I keep learning every day."
+  },
+  {
+   "id": "fim",
+   "fala": "And that's my story. If your alliance speaks many languages too, call me in! The link is in the bio. See you in the next episode!"
+  }
+ ]
+}
