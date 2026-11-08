@@ -53,7 +53,13 @@ async def main(roteiro_arq, pasta):
     for i, cena in enumerate(roteiro["cenas"]):
         mp3 = os.path.join(pasta, f"trecho{i:02d}.mp3")
         for tentativa in range(4):
-            palavras = await falar(cena["fala"], voz, taxa, tom, mp3)
+            try:
+                palavras = await falar(cena["fala"], voz, taxa, tom, mp3)
+            except edge_tts.exceptions.NoAudioReceived:  # o serviço às vezes não responde
+                if tentativa == 3:
+                    raise
+                await asyncio.sleep(3 * (tentativa + 1))
+                continue
             d = duracao(mp3)
             # edge-tts às vezes corta o fim: a última palavra tem que caber no áudio
             if palavras and palavras[-1]["t1"] <= d + 0.05:

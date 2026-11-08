@@ -1,0 +1,68 @@
+{
+ "cena": "cena-uso-en.html",
+ "voz": "en-US-AvaMultilingualNeural",
+ "taxa": "+4%",
+ "tom": "+0Hz",
+ "final": 2.0,
+ "textos": {},
+ "cenas": [
+  {
+   "id": "intro",
+   "fala": "Let me show you CYRON at work, just like you'd use it on your phone. This is an alliance server, with players from Indonesia, Japan, China and Latin America."
+  },
+  {
+   "id": "entrada",
+   "fala": "When someone new joins, the first thing they see is the language channel. Budi is from Indonesia. He taps the menu, picks Bahasa Indonesia, and that's it.",
+   "pausa": 0.9
+  },
+  {
+   "id": "boasvindas",
+   "fala": "Right away, CYRON opens his room. And look at our English channel: she announces the newcomer in every room, each one in its own language.",
+   "pausa": 0.6
+  },
+  {
+   "id": "escrever",
+   "fala": "Now I just type normally, in English, like in any chat. Anyone joining the bear at eight?",
+   "pausa": 1.2
+  },
+  {
+   "id": "espelho",
+   "fala": "Notice: I didn't type any command. Since I'm an admin, I can open the other rooms. In the Indonesian room, my message is already there. In the Chinese room too. And in the Spanish room. Always with my name.",
+   "pausa": 0.6
+  },
+  {
+   "id": "resposta",
+   "fala": "Now Budi replies, in his own room, in Indonesian. And here's how it reaches me: in English, showing who he replied to.",
+   "pausa": 0.6
+  },
+  {
+   "id": "figurinha",
+   "fala": "Stickers come through too. Mika sent one, and it shows up small, next to the text. And an emoji from another server is drawn right below the message.",
+   "pausa": 0.6
+  },
+  {
+   "id": "bandeira",
+   "fala": "Now a trick that works in any channel. Yuki wrote in Japanese. I hold my finger on the message, pick the British flag, and the translation lands in my DMs.",
+   "pausa": 1.8
+  },
+  {
+   "id": "aviso",
+   "fala": "Announcements are even easier. Under every announcement there's a menu. Budi taps it, picks Indonesian, and gets a translated copy only he can see.",
+   "pausa": 0.9
+  },
+  {
+   "id": "evento",
+   "fala": "In events, everyone sees the time in their own time zone. I tap sign up, and before it starts, CYRON reminds me in my DMs.",
+   "pausa": 1.8
+  },
+  {
+   "id": "painel",
+   "fala": "And admins control everything in the CYRON channel. Open the menu and turn each feature on or off, like the heroes that pop up in chat.",
+   "pausa": 0.9
+  },
+  {
+   "id": "cta",
+   "fala": "And right now, during the beta, all of this is free. Add CYRON to your server. The link is in the bio!"
+  }
+ ]
+}
