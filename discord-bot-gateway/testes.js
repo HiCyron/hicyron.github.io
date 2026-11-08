@@ -2862,7 +2862,7 @@ function conferirCartao(onde, embed, componentes = []) {
      escopo global). */
   carregar(["FUNCOES", "funcaoLigada"]);
   const ajustesAntesDoPainel = globalThis.ajustes;
-  globalThis.ajustes = async () => ({ "aparicao-off:s1": "1" });
+  globalThis.ajustes = async () => ({});
   for (const aba of ["resumo", "traducao", "funcoes", "uso", "agenda", "plano"]) {
     soTexto(await montarPainel(guild, servidor, "", aba), `a aba ${aba} em português`);
     soTexto(await montarPainel(guild, servidor, "de", aba), `a aba ${aba} em alemão`);
@@ -2870,7 +2870,7 @@ function conferirCartao(onde, embed, componentes = []) {
   }
   {
     const fun = (await montarPainel(guild, servidor, "", "funcoes")).embed.fields;
-    verdade("a aba Funções mostra os heróis desligados (o 🔕 da carta conta)", fun.some((f) => /^⚫ 🃏/.test(f.name)));
+    verdade("a aba Funções mostra os heróis desligados (nascem desligados)", fun.some((f) => /^⚫ 🃏/.test(f.name)));
     verdade("e o duelo ligado (ninguém desligou)", fun.some((f) => /^✅ ⚔️/.test(f.name)));
     verdade("e o tradutor por mensagem como a coluna do servidor diz", fun.some((f) => /^⚫ 💬/.test(f.name)));
   }
@@ -12952,7 +12952,10 @@ function conferirCartao(onde, embed, componentes = []) {
     const msg = (canalId) => ({ channel: canal(canalId), guild: { id: "g1", members: { me: {} } } });
     const sorte = (() => { const seq = [0.1, 0.99, 0.5]; let i = 0; return () => seq[i++ % seq.length]; })();
     globalThis.conversaNoCanal.set("geral", fala(6, 2));
-    ok("conversa animada: o herói aparece", await H.talvezAparecerHeroi(msg("geral"), { id: "srv" }, t0 + 7000, sorte), true);
+    ok("nasce desligado: o herói não aparece", await H.talvezAparecerHeroi(msg("geral"), { id: "srv" }, t0 + 7000, sorte), false);
+    verdade("e desligado nem gasta a cota do dia", H.ultimaAparicao.get("srv") == null);
+    marcas["aparicao-on:srv"] = "1"; // a administração ligou no painel 🧩 Funções
+    ok("ligado e com conversa animada: o herói aparece", await H.talvezAparecerHeroi(msg("geral"), { id: "srv" }, t0 + 7000, sorte), true);
     const [, cartao] = enviadas[0];
     verdade("com a raridade sorteada (lendária, pela sorte)", /Lendário/.test(cartao.embeds[0].description));
     ok("e logo depois não aparece outro (30 min entre um e outro)",
@@ -12960,10 +12963,6 @@ function conferirCartao(onde, embed, componentes = []) {
     H.ultimaAparicao.clear();
     globalThis.conversaNoCanal.set("replica", fala(6, 2));
     ok("réplica só recebe tradução: ali não aparece", await H.talvezAparecerHeroi(msg("replica"), { id: "srv" }, t0 + 7000, sorte), false);
-    H.ultimaAparicao.clear();
-    marcas["aparicao-off:srv"] = "1";
-    ok("a administração desligou: não aparece", await H.talvezAparecerHeroi(msg("geral"), { id: "srv" }, t0 + 7000, sorte), false);
-    delete marcas["aparicao-off:srv"];
     H.ultimaAparicao.clear();
     H.aparicoesNoDia.set("srv|2026-10-11", H.APARICOES_POR_DIA);
     ok("teto do dia por servidor", await H.talvezAparecerHeroi(msg("geral"), { id: "srv" }, t0 + 7000, sorte), false);
@@ -13010,11 +13009,11 @@ function conferirCartao(onde, embed, componentes = []) {
     const respostas = [];
     const adm = (pode) => ({ guildId: "g1", memberPermissions: { has: () => pode }, reply: async (m) => { respostas.push(m); }, deferUpdate: async () => {} });
     await H.ligarAparicoes(adm(false), false);
-    verdade("só quem administra desliga", /Só quem administra/.test(respostas[0].content) && marcas["aparicao-off:srv"] === undefined);
+    verdade("só quem administra mexe", /Só quem administra/.test(respostas[0].content) && marcas["aparicao-on:srv"] === "1");
     await H.ligarAparicoes(adm(true), false);
-    verdade("desligado, com o botão de religar", marcas["aparicao-off:srv"] === "1" && respostas[1].components[0].components[0].custom_id === "heroi:on:x");
+    verdade("desligado, com o botão de religar", marcas["aparicao-on:srv"] == null && respostas[1].components[0].components[0].custom_id === "heroi:on:x");
     await H.ligarAparicoes(adm(true), true);
-    ok("e religado", marcas["aparicao-off:srv"], null);
+    ok("e religado", marcas["aparicao-on:srv"], "1");
 
     /* ---- /diario ---- */
     const respostaDe = () => {
@@ -13947,9 +13946,11 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("a aba existe no menu de abas", F.ABAS_DO_PAINEL.some((a) => a.valor === "funcoes"));
 
   const s = { id: "s1", tradutor_topico: true, niveis_ligado: false };
-  const marcas = { "aparicao-off:s1": "1", "idioma_lembrete_off:s1": "" };
+  const marcas = { "idioma_lembrete_off:s1": "" };
   const ligada = (chave) => F.funcaoLigada(F.FUNCOES.find((f) => f.chave === chave), s, marcas);
-  verdade("heróis desligados pelo 🔕 de antes continuam desligados", !ligada("herois"));
+  verdade("heróis nascem desligados (opt-in)", !ligada("herois"));
+  marcas["aparicao-on:s1"] = "1";
+  verdade("e ligam quando a administração liga", ligada("herois"));
   verdade("o que ninguém desligou está ligado", ligada("duelo"));
   verdade("lembrete religado (vazio) está ligado", ligada("lembrete"));
   verdade("coluna ligada", ligada("topico"));
@@ -13968,7 +13969,7 @@ function conferirCartao(onde, embed, componentes = []) {
 
   /* As chaves que a aba grava são as que cada função lê. */
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
-  verdade("os heróis leem aparicao-off", /ajustes\(\)\)\[`aparicao-off:\$\{servidor\.id\}`\] === "1"/.test(idx));
+  verdade("os heróis só aparecem onde ligaram (opt-in)", /ajustes\(\)\)\[`aparicao-on:\$\{servidor\.id\}`\] !== "1"/.test(idx));
   verdade("a chamada do duelo lê duelo-chamada-off", /a\[`duelo-chamada-off:\$\{servidor\.id\}`\] === "1"/.test(idx));
   verdade("o lembrete lê idioma_lembrete_off", /!!marcas\[`idioma_lembrete_off:\$\{servidor\.id\}`\]/.test(idx));
   verdade("os níveis leem niveis_ligado", /if \(!servidor\?\.niveis_ligado \|\| msg\.author\?\.bot\) return;/.test(idx));
