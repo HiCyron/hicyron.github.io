@@ -3,25 +3,31 @@
 User-agent: *
 Allow: /
 Disallow: /painel.html
+Disallow: /visao.html
 
 User-agent: GPTBot
 Allow: /
 Disallow: /painel.html
+Disallow: /visao.html
 
 User-agent: OAI-SearchBot
 Allow: /
 Disallow: /painel.html
+Disallow: /visao.html
 
 User-agent: ClaudeBot
 Allow: /
 Disallow: /painel.html
+Disallow: /visao.html
 
 User-agent: PerplexityBot
 Allow: /
 Disallow: /painel.html
+Disallow: /visao.html
 
 User-agent: Google-Extended
 Allow: /
 Disallow: /painel.html
+Disallow: /visao.html
 
 Sitemap: https://hicyron.github.io/sitemap.xml

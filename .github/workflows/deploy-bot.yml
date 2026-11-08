@@ -55,6 +55,25 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy --remote-only
 
+      # Endereco publico para a Visao da CYRON (visao.js, [http_service] no
+      # fly.toml). O bot viveu anos sem endereco nenhum -- so' fala com o
+      # Discord --, entao o app pode nao ter IP. Sem IP, a Visao nao chega no
+      # bot. Pede um IPv4 compartilhado (gratis) e um IPv6 so' quando nao ha'
+      # nenhum: rodar de novo nao cria endereco repetido. Falha aqui nao
+      # reprova o deploy -- o bot traduz do mesmo jeito; so' a Visao espera.
+      - name: Endereço público para a Visão
+        working-directory: discord-bot-gateway
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if flyctl ips list --json 2>/dev/null | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin) else 1)'; then
+            echo "O app já tem endereço público."
+          else
+            echo "Sem endereço: pedindo um IPv4 compartilhado e um IPv6."
+            flyctl ips allocate-v4 --shared || true
+            flyctl ips allocate-v6 || true
+          fi
+
       # Deploy verde com o bot desligado.
       #
       # `fly deploy` NAO liga uma maquina que ja estava parada: ele troca a

@@ -30,6 +30,7 @@ import { ligarAlianca, COMANDOS_DA_ALIANCA, comandoDaAlianca, boasVindasDaAlianc
   seletorNasBoasVindas, rosasDaAlianca } from "./alianca.js";
 import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSuporte, PREFIXO_LER,
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO } from "./suporte.js";
+import { ligarVisao } from "./visao.js";
 import { fileURLToPath } from "node:url";
 
 /* A fonte da imagem traduzida vai JUNTO com o bot, e nao e' a da maquina: a
@@ -26460,6 +26461,12 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    aparece no status, exatamente o oposto de sumir em silencio. E como o
    token e' lido a cada partida, arrumar o segredo ja e' o suficiente pra
    voltar sozinho, sem ninguem precisar mandar subir. */
+/* A Visao da CYRON (visao.js): a janela do dono para ver e falar como o bot,
+   pelo login dele no Discord, sem o token sair daqui. Liga antes do login
+   para a porta ja' estar aberta quando o Fly conferir; antes do Discord
+   responder, a lista de servidores so' vem vazia. */
+ligarVisao({ client, ehDono });
+
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);
   console.error("Confira o segredo DISCORD_BOT_TOKEN. Saindo com erro pra forcar reinicio.");

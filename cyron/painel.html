@@ -391,10 +391,15 @@ window.addEventListener("hashchange", function () {
 });
 
 function trocar(code) {
+  /* Login que começou na Visão da CYRON (visao.html): o Discord só devolve
+     para este endereço, então eu recebo, guardo o login nesta aba e mando
+     de volta. Quem decide se a pessoa vê alguma coisa lá é o bot. */
+  var visao = false;
+  try { visao = sessionStorage.getItem("cyron-visao") === "1"; sessionStorage.removeItem("cyron-visao"); } catch (e) { /* segue normal */ }
   fetch(FUNCAO, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code: code, redirect_uri: VOLTA }),
+    body: JSON.stringify({ code: code, redirect_uri: VOLTA, visao: visao }),
   })
     .then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (j) {
@@ -403,6 +408,10 @@ function trocar(code) {
       });
     })
     .then(function (dados) {
+      if (visao) {
+        try { sessionStorage.setItem("cyron-visao-token", dados.token || ""); } catch (e) { /* idem */ }
+        return location.replace("./visao.html");
+      }
       var g = "";
       try { g = sessionStorage.getItem("cyron-volta") || ""; sessionStorage.removeItem("cyron-volta"); } catch (e) { /* idem */ }
       if (g) history.replaceState(null, "", VOLTA + "#g=" + g);

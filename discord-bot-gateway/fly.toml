@@ -47,3 +47,19 @@ primary_region = "gru"
 [[restart]]
   policy = "always"
   retries = 10
+
+# A Visao da CYRON (visao.js): a pagina cyron/visao.html conversa com o bot
+# por este endereco publico, https://top-best-discord-bot.fly.dev.
+#
+# auto_stop_machines = "off" e min_machines_running = 1 sao o ponto mais
+# importante deste bloco. O bot NAO recebe visita pela porta -- ele vive do
+# gateway do Discord. Com o desligar-por-ociosidade do Fly ligado, a maquina
+# seria parada minutos depois de cada visita a Visao, e a CYRON pararia de
+# traduzir em todos os servidores. A porta e' uma janela; a casa fica acesa.
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
