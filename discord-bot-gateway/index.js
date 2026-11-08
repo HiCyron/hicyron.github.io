@@ -2310,6 +2310,26 @@ function emojisDeFora(texto, daCasa) {
   return [...achados.values()];
 }
 
+/* So' emoji, sem palavra nenhuma? Na mensagem original o Discord mostra assim
+   o emoji GRANDE; dentro do cartao, todo emoji escrito sai pequeno, ate' o
+   deste servidor. Precisa de ao menos um emoji personalizado: os comuns
+   (😂) nao tem imagem no CDN para desenhar. Pura. */
+const EMOJI_PERSONALIZADO = /<a?:\w{2,32}:\d{15,25}>/g;
+function soEmoji(texto) {
+  const t = String(texto || "");
+  if (!t.match(EMOJI_PERSONALIZADO)) return false;
+  return t.replace(EMOJI_PERSONALIZADO, "")
+    .replace(/[\s‍️]|\p{Extended_Pictographic}|\p{Emoji_Modifier}|\p{Regional_Indicator}/gu, "") === "";
+}
+
+/* Os emojis que vao desenhados embaixo da fala: os de fora sempre (escritos,
+   virariam `:nome:`); os deste servidor so' quando a fala e' so' emoji --
+   ai' chegam do tamanho que sairam. Com palavra junto, o da casa fica
+   escrito no meio da frase, como estava na original. Pura. */
+function emojisParaDesenhar(texto, daCasa) {
+  return emojisDeFora(texto, soEmoji(texto) ? null : daCasa);
+}
+
 function urlDoEmoji(e, animado = e.animado) {
   return `https://cdn.discordapp.com/emojis/${e.id}.${animado ? "gif" : "png"}?size=${TAMANHO_DO_EMOJI_EMBAIXO}`;
 }
@@ -2829,7 +2849,7 @@ async function corrigirNasOutrasSalas(msg) {
 
     /* Cartao com os emojis desenhados embaixo: a correcao tambem nao os
        escreve de volta (escritos, virariam `:nome:` em cima do desenho). */
-    const desenhados = ehImagemDeEmoji(embed.image?.url) ? emojisDeFora(novo, msg.guild?.emojis?.cache).map((e) => e.id) : [];
+    const desenhados = ehImagemDeEmoji(embed.image?.url) ? emojisParaDesenhar(novo, msg.guild?.emojis?.cache).map((e) => e.id) : [];
     if (desenhados.length) {
       for (const f of atualizadas) if (f.msgId === msg.id) f.texto = tirarEmojisDoTexto(f.texto, desenhados);
     }
@@ -4074,7 +4094,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   /* Os emojis de outro servidor, desenhados embaixo da fala. O lugar da
      imagem e' do GIF do link quando ha' um -- ai' os emojis ficam escritos. */
   const emojisEmbaixo = midiaLink && !video ? null
-    : await emojisEmbaixoDaFala(emojisDeFora(texto, msg.guild?.emojis?.cache));
+    : await emojisEmbaixoDaFala(emojisParaDesenhar(texto, msg.guild?.emojis?.cache));
 
   /* Da' pra emendar esta fala na anterior?
 

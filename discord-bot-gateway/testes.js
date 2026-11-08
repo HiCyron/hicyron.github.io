@@ -1096,7 +1096,7 @@ function conferirCartao(onde, embed, componentes = []) {
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
     "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
     "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "TAMANHO_DO_EMOJI_EMBAIXO", "MAX_EMOJIS_EMBAIXO", "NOME_DA_FAIXA_DE_EMOJIS",
-    "emojisDeFora", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
+    "emojisDeFora", "EMOJI_PERSONALIZADO", "soEmoji", "emojisParaDesenhar", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
 
   /* Um Discord de brinquedo: salas que lembram qual foi a última mensagem,
      webhooks que guardam o que mandaram, e edição que troca o embed no lugar. */
@@ -1480,6 +1480,33 @@ function conferirCartao(onde, embed, componentes = []) {
       guild: { id: "g", channels: { cache: mundo6.salas }, emojis: { cache: daCasa } } });
     verdade("emoji da casa continua escrito, sem imagem",
       [...mundo6.mensagens.values()].every((m) => !m.embed.image && /<:nosso:111111111111111111>/.test(m.embed.description)));
+
+    /* Fala que é SÓ emoji: na original o Discord mostra grande, e escrito no
+       cartão sairia pequeno — mesmo o deste servidor (visto no celular: o
+       emoji da CYRON enviado grande chegava miúdo). Aí ele vai desenhado. */
+    const { soEmoji, emojisParaDesenhar } = carregar(["MAX_EMOJIS_EMBAIXO", "emojisDeFora", "EMOJI_PERSONALIZADO", "soEmoji", "emojisParaDesenhar"]);
+    ok("só um emoji da casa é só emoji", soEmoji("<:nosso:111111111111111111>"), true);
+    ok("vários, com espaço e quebra de linha", soEmoji(" <:nosso:111111111111111111>\n<a:bb:216154654256398342> "), true);
+    ok("emoji comum junto ainda é só emoji", soEmoji("😂 <:nosso:111111111111111111> 👍🏽 ❤️"), true);
+    ok("bandeira junto também", soEmoji("🇧🇷<:nosso:111111111111111111>"), true);
+    ok("com palavra não é", soEmoji("oi <:nosso:111111111111111111>"), false);
+    ok("só emoji comum não conta (não tem imagem para desenhar)", soEmoji("😂😂"), false);
+    ok("vazio não é", soEmoji(""), false);
+    ok("só emoji: o da casa entra no desenho", emojisParaDesenhar("<:nosso:111111111111111111>", daCasa).map((e) => e.id).join(), "111111111111111111");
+    ok("com palavra: o da casa fica escrito", emojisParaDesenhar("oi <:nosso:111111111111111111>", daCasa).length, 0);
+    ok("com palavra: o de fora continua desenhado",
+      emojisParaDesenhar("oi <:nosso:111111111111111111> <:aa:216154654256398341>", daCasa).map((e) => e.id).join(), "216154654256398341");
+
+    ultimaFalaDaSala.clear();
+    const mundo7 = montarMundo();
+    mundo7.salas.cache = undefined;
+    await falar(mundo7, "<:nosso:111111111111111111>", {
+      guild: { id: "g", channels: { cache: mundo7.salas }, emojis: { cache: daCasa } } });
+    const cartoes7 = [...mundo7.mensagens.values()];
+    ok("emoji da casa sozinho chega nas duas salas", cartoes7.length, 2);
+    verdade("desenhado embaixo, grande como saiu",
+      cartoes7.every((m) => m.embed.image?.url === "https://cdn.discordapp.com/emojis/111111111111111111.png?size=48"));
+    verdade("e não escrito pequeno no texto", cartoes7.every((m) => !/<:nosso:/.test(m.embed.description)));
   }
 
   /* GIF colado como link CHEGA como imagem do outro lado.
@@ -7566,7 +7593,7 @@ function conferirCartao(onde, embed, componentes = []) {
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
     "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
     "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "TAMANHO_DO_EMOJI_EMBAIXO", "MAX_EMOJIS_EMBAIXO", "NOME_DA_FAIXA_DE_EMOJIS",
-    "emojisDeFora", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
+    "emojisDeFora", "EMOJI_PERSONALIZADO", "soEmoji", "emojisParaDesenhar", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
 
   const salas = new Map([["en", { lastMessageId: null }]]);
   const lista = [{ canal_id: "pt", idioma: "pt", webhook: "pt" },
