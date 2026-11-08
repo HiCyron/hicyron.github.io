@@ -25,6 +25,10 @@ digitando…", os menus abrem de baixo, a notificação chega e é tocada, e cad
 na palavra em que a narração fala dele (a cena lê o tempo de cada palavra no `tempos.json`).
 Prévia em instantes escolhidos: `node gravar.mjs roteiro-pt-uso.json saida-uso previa 17.3,36.7,81.1`.
 
+**CYRON in action** (`roteiro-en-uso.json` + `cena-uso-en.html`, ~2 min, em inglês): o mesmo vídeo para o
+público de fora. Quem assiste é o celular 🇬🇧 que escreve no #chat-en, as salas espelhadas são em
+indonésio, chinês e espanhol, e todo o Discord da cena (canais, horários, menus, botões) está em inglês.
+
 **Diário da CYRON — Ep. 1: Como eu surgi** (`roteiro-historia-pt.json` + `cena-historia.html`, ~1 min 37 s,
 em português): a CYRON conta a própria história em primeira pessoa — a aliança [TOP] Best de Kingshot,
 os bots que não davam conta, as traduções erradas, o portal, o bot com GIF de rosas, o chat espelhado,
