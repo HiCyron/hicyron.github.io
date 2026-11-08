@@ -14421,6 +14421,11 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("canal que ela não vê vem marcado", !lista[1].ler && !lista[1].escrever);
   ok("os servidores vêm em ordem alfabética",
     V.servidoresParaVisao(new Map([["2", { id: "2", name: "Zeta", memberCount: 3 }], ["1", { id: "1", name: "Alfa", memberCount: 9 }]])).map((s) => s.nome).join(","), "Alfa,Zeta");
+  ok("as DMs vêm da mais recente para a mais antiga, e só as DMs",
+    V.privadosParaVisao(new Map([
+      ["a", { id: "a", type: 1, recipient: { username: "ana" }, recipientId: "1", lastMessageId: "100" }],
+      ["b", { id: "b", type: 1, recipient: { globalName: "Bia" }, recipientId: "2", lastMessageId: "900" }],
+      ["c", { id: "c", type: 0, name: "não-é-dm" }]])).map((x) => x.nome).join(","), "Bia,ana");
 
   /* O servidor de verdade, numa porta qualquer, com um Discord de brinquedo. */
   const enviadas = [];
@@ -14431,10 +14436,20 @@ function conferirCartao(onde, embed, componentes = []) {
       ["m1", { id: "m1", createdTimestamp: 1, author: { id: "a", username: "b" }, content: "primeira", embeds: [] }]]) },
     send: async (o) => { enviadas.push(o); return { id: "m3", createdTimestamp: 3, author: { id: "bot", username: "CYRON", bot: true }, content: o.content, embeds: [] }; },
   };
+  /* Uma conversa no privado (DM): sem servidor, com um destinatário. */
+  const dmFalso = {
+    id: "333333333333333333", type: 1, isTextBased: () => true, isDMBased: () => true,
+    recipient: { id: "u9", username: "budi", globalName: "Budi", displayAvatarURL: () => "http://budi" },
+    recipientId: "u9", lastMessageId: "500",
+    messages: { fetch: async () => new Map([
+      ["d1", { id: "d1", createdTimestamp: 5, author: { id: "u9", username: "budi" }, content: "oi, CYRON", embeds: [] }]]) },
+    send: async (o) => { enviadas.push(o); return { id: "d2", createdTimestamp: 6, author: { id: "bot", username: "CYRON", bot: true }, content: o.content, embeds: [] }; },
+  };
   const clienteFalso = {
     user: { id: "bot", tag: "CYRON#0089" },
     guilds: { cache: new Map([["g", { id: "g", name: "Servidor", memberCount: 5, members: { me: {} }, channels: { cache: new Map() } }]]) },
-    channels: { cache: new Map([[canalFalso.id, canalFalso]]), fetch: async () => null },
+    channels: { cache: new Map([[canalFalso.id, canalFalso], [dmFalso.id, dmFalso]]), fetch: async () => null },
+    users: { cache: new Map(), fetch: async () => null },
   };
   const perguntas = [];
   const buscar = async (url, o) => {
@@ -14465,6 +14480,12 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("menção a pessoa toca; @everyone e cargo não", JSON.stringify(enviadas[0].allowedMentions), JSON.stringify({ parse: ["users"] }));
     ok("quem não é dono não fala", (await pedir("/visao/enviar", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
     ok("canal que não existe: 404", (await pedir("/visao/mensagens?c=222222222222222222", "token-do-dono-123")).status, 404);
+    const pv = await (await pedir("/visao/privado", "token-do-dono-123")).json();
+    ok("as conversas no privado aparecem com o nome de quem falou", pv.conversas.map((x) => x.nome).join(","), "Budi");
+    const dmLidas = await (await pedir("/visao/mensagens?c=333333333333333333", "token-do-dono-123")).json();
+    ok("as mensagens de uma DM (sem servidor) são lidas", dmLidas.mensagens.map((x) => x.texto).join(","), "oi, CYRON");
+    const dmEnv = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "333333333333333333", texto: "oi! aqui é a CYRON" }) });
+    ok("o dono responde no privado como a CYRON", (await dmEnv.json()).mensagem.texto, "oi! aqui é a CYRON");
     ok("a saúde responde sem login", (await pedir("/saude")).status, 200);
   } finally { srv.close(); }
 
