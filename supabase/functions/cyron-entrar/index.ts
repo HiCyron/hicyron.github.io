@@ -24,6 +24,7 @@ const CLIENT_SECRET = Deno.env.get("DISCORD_CLIENT_SECRET") ?? "";
 const ORIGENS = new Set([
   "https://hicyron.github.io",
   "https://portal-alianca.github.io",
+  "https://tiagofernando113.github.io",
   "http://localhost:8000",
   "http://127.0.0.1:8000",
 ]);
@@ -123,12 +124,24 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ erro: "login ainda nao configurado" }), { status: 500, headers: cab });
   }
 
-  let code = "", redirect_uri = "";
+  let code = "", redirect_uri = "", visao = false, revogar = "";
   try {
     const corpo = await req.json();
     code = String(corpo?.code ?? "");
     redirect_uri = String(corpo?.redirect_uri ?? "");
+    visao = corpo?.visao === true;
+    revogar = String(corpo?.revogar ?? "");
   } catch { /* cai na validacao abaixo */ }
+
+  /* "Sair" do app: devolve ao Discord o login que a pagina guardava. Quem tem
+     o token pode revoga-lo, e revogar nao da acesso a coisa nenhuma. */
+  if (revogar) {
+    if (!/^[A-Za-z0-9._~+/=-]{10,200}$/.test(revogar)) {
+      return new Response(JSON.stringify({ erro: "token invalido" }), { status: 400, headers: cab });
+    }
+    await devolverToken(revogar);
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: cab });
+  }
 
   if (!code || !redirect_uri) {
     return new Response(JSON.stringify({ erro: "faltou o code" }), { status: 400, headers: cab });
@@ -164,6 +177,16 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ erro: "o Discord nao respondeu" }), { status: 502, headers: cab });
   }
   if (!token) return new Response(JSON.stringify({ erro: "login expirou, tente de novo" }), { status: 401, headers: cab });
+
+  /* O app (TiagoFernando113/Appcyron) precisa do login por mais que os dois
+     segundos desta troca: e' com ele que a pagina prova ao bot, a cada pedido,
+     quem esta olhando. So' neste modo o token volta para a pagina em vez de
+     ser devolvido ao Discord aqui -- e quem decide o que a pessoa ve e' o bot
+     (ehDono), nao esta funcao. O token e' da propria pessoa, so' com "quem e'
+     voce"; o "Sair" do app o devolve pelo bloco `revogar` acima. */
+  if (visao) {
+    return new Response(JSON.stringify({ token }), { status: 200, headers: cab });
+  }
 
   try {
     const como = { headers: { Authorization: `Bearer ${token}` } };
