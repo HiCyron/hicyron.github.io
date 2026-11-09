@@ -411,9 +411,13 @@ async function atender(req, res) {
   }
 
   if (rota === "GET /visao/privado") {
+    /* Do BANCO quando o index entrega a lista guardada: assim as conversas
+       sobrevivem a reinicio (o Discord nao devolve as DMs de um bot ao ligar). */
+    if (typeof d.listarPrivados === "function") {
+      return responder(res, 200, { conversas: await d.listarPrivados() }, cab);
+    }
+    /* Sem o banco: so' o que esta no cache desde que o bot ligou. */
     const dms = [...c.channels.cache.values()].filter((ch) => ch.type === 1);
-    /* Garante o nome e a foto de quem falou, buscando quem faltar na memoria.
-       (O recipient de uma DM pode nao estar carregado depois de um reinicio.) */
     await Promise.all(dms.map(async (ch) => {
       if (!ch.recipient && ch.recipientId && c.users?.fetch) await c.users.fetch(ch.recipientId).catch(() => {});
     }));

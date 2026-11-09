@@ -14474,7 +14474,8 @@ function conferirCartao(onde, embed, componentes = []) {
     return { ok: false, json: async () => ({}) };
   };
   const srv = V.ligarVisao({ client: clienteFalso, ehDono: async (id) => id === "dono", buscar,
-    numerosDoDono: async () => ({ servidores: { ativos: 7 }, marca: "painel-do-dono" }) }, 0);
+    numerosDoDono: async () => ({ servidores: { ativos: 7 }, marca: "painel-do-dono" }),
+    listarPrivados: async () => [{ id: "333333333333333333", usuario: "u9", nome: "Budi (guardado)", avatar: "", ultima: "2026-11-09T00:00:00Z" }] }, 0);
   await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
   const base = `http://127.0.0.1:${srv.address().port}`;
   const pedir = (c, t, o = {}) => fetch(base + c, { ...o,
@@ -14496,7 +14497,7 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("quem não é dono não fala", (await pedir("/visao/enviar", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
     ok("canal que não existe: 404", (await pedir("/visao/mensagens?c=222222222222222222", "token-do-dono-123")).status, 404);
     const pv = await (await pedir("/visao/privado", "token-do-dono-123")).json();
-    ok("as conversas no privado aparecem com o nome de quem falou", pv.conversas.map((x) => x.nome).join(","), "Budi");
+    ok("as conversas no privado vêm do banco (sobrevivem a reinício)", pv.conversas.map((x) => x.nome).join(","), "Budi (guardado)");
     const dmLidas = await (await pedir("/visao/mensagens?c=333333333333333333", "token-do-dono-123")).json();
     ok("as mensagens de uma DM (sem servidor) são lidas", dmLidas.mensagens.map((x) => x.texto).join(","), "oi, CYRON");
     const dmEnv = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "333333333333333333", texto: "oi! aqui é a CYRON" }) });
@@ -14569,7 +14570,7 @@ function conferirCartao(onde, embed, componentes = []) {
        aqui mora só o motor. Os testes da página rodam lá. */
   }
 
-  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono \}\)/.test(fonte));
+  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, listarPrivados \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));
   verdade("e NUNCA desliga a máquina por falta de visita", /auto_stop_machines = "off"/.test(fly) && /min_machines_running = 1/.test(fly));
@@ -14612,6 +14613,24 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("os erros guardados aparecem", n.erros, 2);
   verdade("a série tem 14 dias", n.serie14.length === 14 && n.dias14.length === 14);
   verdade("só lê o banco, não escreve", true);
+}
+
+/* ====== as DMs guardadas, para a lista do app sobreviver a reinício ====== */
+{
+  const gravado = [];
+  globalThis.sbPost = async (tabela, corpo, prefer) => { gravado.push([tabela, corpo, prefer]); };
+  globalThis.sb = async (q) => q.startsWith("cyron_dm")
+    ? [{ user_id: "u1", canal_id: "c1", nome: "Ana", avatar: "http://a", ultima: "2026-11-09T01:00:00Z" }]
+    : [];
+  const P = carregar(["lembrarPrivado", "listarPrivados"]);
+  await P.lembrarPrivado({ author: { id: "u1", username: "ana", globalName: "Ana", displayAvatarURL: () => "http://a" }, channelId: "c1" });
+  ok("guarda a DM de gente como upsert em cyron_dm",
+    [gravado[0][0], gravado[0][1].user_id, gravado[0][1].canal_id, gravado[0][2]].join(), "cyron_dm,u1,c1,resolution=merge-duplicates");
+  await P.lembrarPrivado({ guild: { id: "g" }, author: { id: "x" }, channelId: "c2" });
+  await P.lembrarPrivado({ author: { id: "bot", bot: true }, channelId: "c3" });
+  ok("não guarda mensagem de servidor nem do próprio bot", gravado.length, 1);
+  const lista = await P.listarPrivados();
+  ok("lê as conversas guardadas no formato do app", [lista[0].id, lista[0].usuario, lista[0].nome], ["c1", "u1", "Ana"]);
 }
 
 function NA_CONTA_DO_FONTE() {

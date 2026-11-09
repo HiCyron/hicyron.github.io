@@ -23214,9 +23214,32 @@ async function resumoDaIA() {
     (hoje.tokens ? ` · ${Math.round(hoje.tokens / 1000)}k tokens (${Math.round((100 * hoje.emCache) / Math.max(1, hoje.entrada))}% da entrada em cache)` : "");
 }
 
+/* As DMs de um bot NÃO voltam do Discord quando ele liga: a lista do app só
+   teria quem falou desde o último reinício, e a cada deploy as conversas
+   "sumiam". Então guardo cada uma no banco quando alguém fala, e leio de lá —
+   assim a lista sobrevive a todo reinício. A conversa continua sendo aberta
+   pelo canal_id (channels.fetch funciona mesmo depois de reiniciar). */
+async function lembrarPrivado(msg) {
+  if (msg.guild || msg.author?.bot) return; // só DM de gente
+  await sbPost("cyron_dm", {
+    user_id: msg.author.id,
+    canal_id: msg.channelId,
+    nome: msg.author.globalName || msg.author.username || "usuário",
+    avatar: msg.author.displayAvatarURL?.({ size: 64 }) || "",
+    ultima: new Date().toISOString(),
+  }, "resolution=merge-duplicates").catch((e) => console.error("privado: não guardei a conversa:", e?.message || e));
+}
+
+/* As conversas guardadas, mais recentes primeiro, para a Visão do dono. */
+async function listarPrivados() {
+  const linhas = await sb("cyron_dm?select=user_id,canal_id,nome,avatar,ultima&order=ultima.desc&limit=200").catch(() => []);
+  return (linhas || []).map((l) => ({ id: l.canal_id, usuario: l.user_id, nome: l.nome || "usuário", avatar: l.avatar || "", ultima: l.ultima || "" }));
+}
+
 async function atenderNoPrivado(msg) {
   const texto = String(msg.content || "").trim();
   contarUso("privado");
+  lembrarPrivado(msg).catch(() => {}); // sem await: não segura a resposta
   /* O ESCOLHIDO, não o de palpite: é ele que decide se a conversa abre
      perguntando a língua ou já se apresentando nela. */
   const escolhido = await idiomaEscolhido(msg.author.id);
@@ -26564,7 +26587,7 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    estar aberta quando o Fly conferir; antes do Discord responder, a lista de
    servidores so' vem vazia. O app vive em repo proprio (TiagoFernando113/Appcyron);
    o bot so' empresta o motor. */
-ligarVisao({ client, ehDono, numerosDoDono });
+ligarVisao({ client, ehDono, numerosDoDono, listarPrivados });
 
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);
