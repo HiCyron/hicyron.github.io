@@ -14708,7 +14708,10 @@ function conferirCartao(onde, embed, componentes = []) {
 
   const montar = () => {
     const salas = new Map(["pt", "en", "es", "w"].map((id) => [id, {
-      id, lastMessageId: null, messages: { fetch: async (mid) => ({ id: mid, channel: { id } }) } }]));
+      id, lastMessageId: null, messages: { fetch: async (o) => {
+        buscas.push(o);
+        return { id: typeof o === "object" ? o.message : o, channel: { id } };
+      } } }]));
     const mensagens = new Map();
     let seq = 0;
     globalThis.clienteDoWebhook = (url) => ({
@@ -14740,8 +14743,8 @@ function conferirCartao(onde, embed, componentes = []) {
   globalThis.procurarFamilia = async () => null;
   globalThis.lembrarFala = (familia, canalId, msgId) => { if (canalId && msgId) familia.set(canalId, msgId); };
   globalThis.anotarUso = () => {};
-  const topicos = [];
-  globalThis.topicoNaSalaMundo = async (m) => { topicos.push(m.id); };
+  const topicos = [], textosDoTopico = [], buscas = [];
+  globalThis.topicoNaSalaMundo = async (m, texto) => { topicos.push(m.id); textosDoTopico.push(texto); };
   const tick = () => new Promise((r) => setTimeout(r, 0));
 
   const lista = [
@@ -14789,7 +14792,7 @@ function conferirCartao(onde, embed, componentes = []) {
     const naoTraduz = globalThis.porQueNaoTraduzir;
     globalThis.porQueNaoTraduzir = () => "curto";
     globalThis.vantajosoTraduzir = (t) => String(t || "").trim().length >= 12;
-    ultimaFalaDaSala.clear(); topicos.length = 0;
+    ultimaFalaDaSala.clear(); topicos.length = 0; textosDoTopico.length = 0; buscas.length = 0;
     const m = montar();
     await falar(m, lista[0], "ok");
     await tick();
@@ -14798,6 +14801,10 @@ function conferirCartao(onde, embed, componentes = []) {
     await tick();
     ok("a 🌍 emenda como a sala inglesa: um cartão cada", [m.na("en").length, m.na("w").length], [1, 1]);
     ok("cartão que nasceu curto ganha o tópico quando a emenda o torna legível", topicos, [m.na("w")[0]?.[0]]);
+    /* O caso do primeiro teste de verdade: pela memória do discord.js o cartão
+       emendado ainda era o de antes ("Plan"), curto, e o tópico desistia. */
+    ok("o tópico decide pelo cartão INTEIRO, já com a emenda", textosDoTopico, ["ok\no rally começa às nove, tragam poções"]);
+    verdade("e busca o cartão direto no Discord, não na memória", buscas.every((b) => b && b.force === true));
     globalThis.porQueNaoTraduzir = naoTraduz;
     globalThis.vantajosoTraduzir = (t) => !globalThis.porQueNaoTraduzir(t);
   }
@@ -14933,7 +14940,7 @@ function conferirCartao(onde, embed, componentes = []) {
   const card = { webhookId: "wh", url: "https://discord.com/channels/g/100000/200000",
     embeds: [{ description: "Rally at nine\n-# [Ana](https://discord.com/users/1)" }] };
   globalThis.client = { channels: { fetch: async (id) => {
-    if (id === "100000") return { guildId: "g", messages: { fetch: async (m) => (m === "200000" ? card : null) } };
+    if (id === "100000") return { guildId: "g", messages: { fetch: async (o) => (o?.message === "200000" && o.force ? card : null) } };
     if (id === "500000") return { guildId: "outro", messages: { fetch: async () => card } };
     return null;
   } } };

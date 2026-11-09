@@ -991,8 +991,10 @@ function textoAoVivo(m) {
 /* Pendura o topico numa mensagem da sala 🌍 -- cartao do espelho ou fala de
    gente. O seletor dele nao guarda texto nenhum: le a mensagem no clique
    (lerAoVivo), entao emenda, correcao e apagar ja' valem sozinhos. */
-async function topicoNaSalaMundo(msg) {
-  const texto = textoAoVivo(msg);
+async function topicoNaSalaMundo(msg, textoConhecido = "") {
+  /* Quem acabou de montar o cartao ja' sabe o texto dele; ler da mensagem e'
+     o plano B (a fala de gente escrita na propria 🌍). */
+  const texto = textoConhecido || textoAoVivo(msg);
   if (!msg?.channel?.id || !vantajosoTraduzir(texto, TEXTO_MAXIMO)) return;
   if (!cabeTopicoNaSalaMundo(msg.channel.id)) return;
   await traduzirEResponder(msg, texto, { aoVivo: true });
@@ -1016,7 +1018,8 @@ async function lerAoVivo(inter, id) {
   if (!(aqui === canalId || (aqui === msgId && pai === canalId))) return null;
   const canal = await client.channels.fetch(canalId).catch(() => null);
   if (!canal || canal.guildId !== inter.guildId) return null;
-  const m = await canal.messages?.fetch(msgId).catch(() => null);
+  /* Do Discord, nao da memoria: e' o cartao COMO ESTA', com a emenda. */
+  const m = await canal.messages?.fetch({ message: msgId, force: true }).catch(() => null);
   if (!m) return null;
   return { texto: textoAoVivo(m), link: m.url };
 }
@@ -4501,7 +4504,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         /* Na sala 🌍: cartao que nasceu curto ("ok") ficou sem topico; se a
            emenda o tornou legivel de verdade, o topico nasce agora. */
         const topicoAgora = destino.mundo && !velho.topico && vantajosoTraduzir(juntas, TEXTO_MAXIMO);
-        if (topicoAgora && salaDestino) paraOTopico.push({ sala: salaDestino, id: velho.id });
+        if (topicoAgora && salaDestino) paraOTopico.push({ sala: salaDestino, id: velho.id, texto: juntas });
         cartoes.set(destino.canal_id, { id: velho.id, linhas, falas, cabecalho: cabecalhoQueFica,
           traduzido: velho.traduzido, figura: figura.figura, topico: velho.topico || topicoAgora });
         guardarFalas(velho.id, falas);
@@ -4567,7 +4570,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       if (posta?.id) {
         /* Cartao novo na sala 🌍 ganha o topico 🌐 -- se tiver o que ler. */
         const topico = !!destino.mundo && vantajosoTraduzir(linhaNova, TEXTO_MAXIMO);
-        if (topico && salaDestino) paraOTopico.push({ sala: salaDestino, id: posta.id });
+        if (topico && salaDestino) paraOTopico.push({ sala: salaDestino, id: posta.id, texto: linhaNova });
         cartoes.set(destino.canal_id, { id: posta.id, linhas: [linhaNova], falas, cabecalho, traduzido: traduziuAqui,
           figura: figuraQueFica(cartaoNovo).figura, topico,
           /* A faixa de emojis e' um ARQUIVO preso a esta mensagem: remontar o
@@ -4631,10 +4634,15 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   /* O topico 🌐 da sala 🌍, por ultimo e sem segurar quem chamou: a fala ja'
      chegou em todas as salas, e o topico e' o extra de uma delas. O cartao
      saiu por webhook (que devolve so' o id), entao a mensagem inteira -- a que
-     sabe abrir topico -- vem do canal. */
-  for (const { sala, id } of paraOTopico) {
-    Promise.resolve(sala.messages?.fetch?.(id))
-      .then((m) => m && topicoNaSalaMundo(m))
+     sabe abrir topico -- vem do canal.
+
+     Direto do Discord (force), e decidindo pelo texto que o espelho acabou de
+     montar. Pela memoria do discord.js o cartao EMENDADO ainda era o de antes
+     da emenda ("Plan", curto demais): o topico desistia calado, e o primeiro
+     teste de verdade terminou sem topico nenhum. */
+  for (const { sala, id, texto: doCartao } of paraOTopico) {
+    Promise.resolve(sala.messages?.fetch?.({ message: id, force: true }))
+      .then((m) => m && topicoNaSalaMundo(m, doCartao))
       .catch((e) => console.error("mundo: nao consegui pendurar o topico:", e?.message || e));
   }
 }
