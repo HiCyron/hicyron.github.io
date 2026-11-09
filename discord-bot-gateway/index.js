@@ -4744,6 +4744,13 @@ function venceEm(quando, agora = Date.now()) {
   return t && t > agora ? t : 0;
 }
 
+/* Durante o beta, o pagamento e os planos ficam OCULTOS: todo servidor ja' usa
+   tudo de graca (planoDe devolve "pago"), entao mostrar preco e botao de
+   assinar so' confunde -- e some com a promessa "e' gratis". O aviso de beta
+   continua aparecendo (o painel diz que e' temporario). Ligar a cobranca de
+   volta e' so' desligar o beta: esta funcao volta a devolver true sozinha. */
+function mostrarPagamento() { return !(BETA || venceEm(BETA_ATE)); }
+
 /* Idiomas que alguem escolheu e que nao couberam no plano.
 
    Mora em memoria de proposito: e' um retrato do momento, recalculado a cada
@@ -7381,7 +7388,7 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
 
      Pior que o erro: ele so' aparece na combinacao exata dos dois, entao
      testar cada botao sozinho nunca acharia. */
-  const situacao = [
+  const situacao = !mostrarPagamento() ? [] : [
     /* Botao de link (estilo 5) nao gera interacao: o Discord abre a URL e
        pronto. Por isso ele nao tem custom_id e nao passa por cliquePainel. */
     /* Nao ofereco assinatura a quem ja tem uma.
@@ -7417,7 +7424,7 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
       ? []
       : [{ type: 2, custom_id: "cyron:codigo", style: 1, emoji: { name: "🎟️" }, label: "Ativar código" }]),
   ];
-  const teste = podeTestar(servidor)
+  const teste = mostrarPagamento() && podeTestar(servidor)
     ? [{ type: 2, custom_id: "cyron:teste", style: 3, emoji: carinha("amei", "🎁"), label: "Testar 7 dias grátis" }]
     : [];
   /* Pro, Alianca, Pix e codigo sao quatro; o teste e' o quinto e ultimo que
@@ -7427,8 +7434,9 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
   if (aba === "plano" && (situacao.length || teste.length)) {
     linhas.push({ type: 1, components: [...situacao, ...teste].slice(0, 5) });
   }
-  /* Linha propria: a de cima ja' pode chegar a cinco. */
-  if (aba === "plano") {
+  /* Linha propria: a de cima ja' pode chegar a cinco. No beta nao ha o que
+     indicar (todo mundo ja' tem tudo), entao a linha some junto com o resto. */
+  if (aba === "plano" && mostrarPagamento()) {
     linhas.push({ type: 1, components: [
       { type: 2, custom_id: "cyron:indicar", style: 2, emoji: carinha("coracao", "🤝"), label: "Indique e ganhe" },
     ] });
@@ -17078,6 +17086,12 @@ async function cliquePainel(inter) {
     return inter.reply({ flags: 64, content: "🔒 Só quem tem **Gerenciar Servidor** pode mexer aqui." });
   }
 
+  /* No beta nao se vende nada: um clique num botao antigo de pagar/testar/codigo
+     recebe o aviso do beta, e nao uma cobranca. */
+  if (!mostrarPagamento() && (acao === "pix" || acao.startsWith("pix:") || acao === "teste" || acao === "codigo")) {
+    return inter.reply({ flags: 64, content: "🧪 A CYRON está em beta: está tudo liberado de graça, sem precisar pagar nem testar. Quando o beta acabar, o aviso aparece no painel antes." });
+  }
+
   /* O gratis e' de todos; teste, Pix e codigo pedem o servidor de suporte.
      Quem paga precisa ter onde reclamar se algo der errado -- e e' la'. */
   if (acao === "pix") {
@@ -22403,6 +22417,19 @@ async function telaDoPasso(idioma, n) {
 }
 
 async function telaDosPlanos(idioma) {
+  /* No beta nao ha plano a vender: a tela de planos vira o aviso de beta. */
+  if (!mostrarPagamento()) {
+    return {
+      embeds: [{ color: COR_OK, ...(await traduzirEmbed({
+        title: "🧪 Tudo liberado no beta",
+        description: "Enquanto a CYRON está em beta, está **tudo de graça**: as salas por idioma, imagem e áudio, sem plano nenhum.\n\n" +
+          "Quando o beta acabar, o aviso aparece aqui com antecedência, antes de qualquer coisa mudar.",
+      }, idioma, MOTOR_AUTO)) }],
+      components: [await traduzirLinha({ type: 1, components: [
+        { type: 2, style: 2, custom_id: PASSO.inicio, emoji: { name: "↩️" }, label: "Voltar ao começo" },
+      ] }, idioma)],
+    };
+  }
   const linhas = [];
   for (const l of botoesDosPlanos()) linhas.push(await traduzirLinha(l, idioma));
   return {
@@ -22501,8 +22528,12 @@ function menuDeTemas() {
 
 async function telaDeAjuda(idioma, tema = null) {
   const escolhido = tema && TEMAS[tema];
+  /* No beta, "Quanto custa" responde a verdade do beta, sem tabela de preço. */
+  const descBeta = tema === "preco" && !mostrarPagamento()
+    ? "Agora a CYRON está em **beta**, e está **tudo de graça** — inclusive as salas por idioma, imagem e áudio. Quando o beta acabar, o aviso aparece aqui com antecedência; o plano grátis (tradução por bandeira e botão) nunca vence."
+    : null;
   const embed = escolhido
-    ? { title: escolhido.titulo, description: escolhido.texto }
+    ? { title: escolhido.titulo, description: descBeta || escolhido.texto }
     : {
       title: "💬 Tudo bem",
       description: (await iaPronta())
