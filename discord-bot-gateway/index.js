@@ -785,13 +785,16 @@ async function fecharTopico(topico, autorId) {
     .catch((e) => console.error("traducao: nao consegui arquivar o topico:", e?.message || e));
 }
 
-async function traduzirEResponder(msg, texto) {
+async function traduzirEResponder(msg, texto, { aoVivo = false } = {}) {
   if (!vantajosoTraduzir(texto, TEXTO_MAXIMO)) return;
 
   /* O seletor vale pra qualquer idioma, inclusive portugues: metade da
      alianca nao le portugues, e pular significaria que os recados da casa
-     eram justamente os que ninguem de fora conseguia ler. */
-  const id = await guardarPraTraduzir(texto, msg.url).catch(() => null);
+     eram justamente os que ninguem de fora conseguia ler.
+
+     Ao vivo (sala 🌍), o seletor carrega o endereco da mensagem em vez de um
+     texto guardado: ela e' lida no clique, como estiver. */
+  const id = aoVivo ? idAoVivo(msg) : await guardarPraTraduzir(texto, msg.url).catch(() => null);
   if (!id) return;
 
   const corpo = {
@@ -886,13 +889,145 @@ client.on("threadUpdate", async (antes, depois) => {
 const CONFIG_NA_MEMORIA = 30 * 60 * 1000;
 const cacheEspelho = new Map(); // servidorId -> { v, t }
 async function canaisEspelho(servidorId) {
-  return lerComMemoria(cacheEspelho, servidorId, CONFIG_NA_MEMORIA, async () =>
+  return lerComMemoria(cacheEspelho, servidorId, CONFIG_NA_MEMORIA, async () => {
     /* So idioma que TEM sala de conversa entra aqui. Depois que a linha passou
        a significar "este idioma existe" em vez de "esta sala existe", uma
        linha sem canal virou possivel -- e ela chegaria no espelharMensagem
        como um destino de webhook nulo. */
-    await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&canal_id=not.is.null&select=canal_id,idioma,webhook,categoria_id`) || [],
-  { vazio: [], tabela: "discord_chat_espelho" });
+    const salas = await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&canal_id=not.is.null&select=canal_id,idioma,webhook,categoria_id`) || [];
+    /* A sala 🌍 entra como mais uma irma. E' por aqui que ela ganha de graca
+       tudo o que o espelho ja' sabe fazer: a fala que chega, a correcao, o
+       apagar, a soma das reacoes, a figurinha -- todos leem esta lista. */
+    /* Erro 4xx (tabela que ainda nao existe, filtro recusado) vira "nao ha'
+       sala 🌍": ela e' um extra, e um extra quebrado nao pode calar o espelho
+       inteiro. Banco fora do ar sobe, e o lerComMemoria segura o ultimo
+       retrato bom -- leitura que falhou nao vira verdade. */
+    const mundo = await salaMundoDe(servidorId).catch((e) => {
+      if (/supabase 4\d\d/.test(String(e?.message || e))) return null;
+      throw e;
+    });
+    return mundo?.canal_id && mundo.webhook ? [...salas, linhaDaSalaMundo(mundo)] : salas;
+  }, { vazio: [], tabela: "discord_chat_espelho" });
+}
+
+/* ---------------- a sala 🌍: para quem nao coube no plano ----------------
+
+   O plano limita os IDIOMAS (Pro: cinco). Quem escolhe o sexto nao ganha
+   sala -- e nao tem como ganhar uma emprestada: o Discord mostra um texto so'
+   por canal, igual para todo mundo, entao nao existe "a sala inglesa que
+   aparece em turco pro Emre". Cada lingua precisa da sua.
+
+   A sala 🌍 e' o lugar dessas pessoas. Ela e' uma irma do espelho como as
+   outras -- recebe a conversa, e o que se escreve nela vai para todas as
+   salas, traduzido --, com duas diferencas:
+
+   - LE em ingles, a lingua franca de quem joga: quem fala turco, tailandes ou
+     vietnamita num servidor de outras linguas quase sempre le ingles.
+   - Como ORIGEM ela nao tem lingua: o que se escreve ali pode ser qualquer
+     uma, entao vai traduzido para TODAS as salas, inclusive a inglesa.
+
+   E cada fala ali ganha o topico 🌐 com o seletor: e' nele que a pessoa le no
+   idioma DELA. O topico mora so' nesta sala, e de proposito -- ligado no
+   servidor inteiro ele penduraria um topico embaixo de cada frase de cada
+   sala, e quem conversa na propria lingua veria a magia virar bagunca.
+
+   Nao gasta vaga de idioma do plano; gasta um canal e um cargo. */
+const NOME_SALA_MUNDO = "🌍-world-chat";
+const NOME_CARGO_MUNDO = "🌍 world chat";
+const IDIOMA_DA_SALA_MUNDO = "en";
+
+/* A lingua em que a sala LE (o que ela recebe) e a lingua em que ela ESCREVE
+   (de onde vem o que nasce nela). Nas salas de idioma as duas sao a mesma; a
+   🌍 le ingles e escreve "qualquer uma" -- vazio, que nao bate com sala
+   nenhuma, e por isso a fala dela vai traduzida para todas. */
+function idiomaQueLe(sala) {
+  return sala?.mundo ? IDIOMA_DA_SALA_MUNDO : sala?.idioma;
+}
+function idiomaQueEscreve(sala) {
+  return sala?.mundo ? "" : sala?.idioma;
+}
+
+/* A linha da sala 🌍 deste servidor, ou null se nao ha'. Qualquer erro sobe:
+   quem le decide o que ele significa -- o espelho trata 4xx como "nao ha'"
+   (canaisEspelho), e a varredura nao cria sala nenhuma sem leitura limpa,
+   senao um banco engasgado viraria uma 🌍 nova a cada passada. */
+async function salaMundoDe(servidorId) {
+  const r = await sb(`discord_sala_mundo?servidor_id=eq.${encodeURIComponent(servidorId)}` +
+    "&select=servidor_id,canal_id,webhook,role_id");
+  return r?.[0] || null;
+}
+
+/* Como a sala 🌍 aparece na lista das irmas. `idioma` e' o que ela le, para
+   quem nao sabe dela (boas-vindas, figurinha) a tratar como uma sala inglesa
+   -- que e' o que ela parece por dentro. Quem precisa saber, olha `mundo`. */
+function linhaDaSalaMundo(m) {
+  return { canal_id: m.canal_id, idioma: IDIOMA_DA_SALA_MUNDO, webhook: m.webhook, categoria_id: null, mundo: true };
+}
+
+/* O topico 🌐 nas falas da sala 🌍, com teto por sala: numa conversa animada
+   sao dezenas de falas por minuto, e cada topico custa uns quatro pedidos ao
+   Discord. Passando do teto a fala chega igual, so' sem topico -- e a
+   bandeira continua traduzindo qualquer mensagem. */
+const TOPICOS_POR_MINUTO_NA_SALA_MUNDO = 20;
+const topicosNaSalaMundo = new Map(); // canalId -> [quando]
+function cabeTopicoNaSalaMundo(canalId, agora = Date.now()) {
+  const lista = (topicosNaSalaMundo.get(canalId) || []).filter((t) => agora - t < 60_000);
+  if (lista.length >= TOPICOS_POR_MINUTO_NA_SALA_MUNDO) { topicosNaSalaMundo.set(canalId, lista); return false; }
+  lista.push(agora);
+  topicosNaSalaMundo.set(canalId, lista);
+  return true;
+}
+
+/* O que um topico da sala 🌍 traduz: a mensagem como ela esta' AGORA. No
+   cartao do espelho e' o corpo sem a assinatura (a fala emendada vem junto);
+   na fala de gente, o que ela escreveu -- e nao o embed, que ali seria a
+   previa de um link. */
+function textoAoVivo(m) {
+  const desc = m?.webhookId ? m.embeds?.[0]?.description : "";
+  if (desc) return desc.slice(0, desc.length - caudaDoCartao(desc).length).trim();
+  return String(m?.content || "").trim();
+}
+
+/* Pendura o topico numa mensagem da sala 🌍 -- cartao do espelho ou fala de
+   gente. O seletor dele nao guarda texto nenhum: le a mensagem no clique
+   (lerAoVivo), entao emenda, correcao e apagar ja' valem sozinhos. */
+async function topicoNaSalaMundo(msg) {
+  const texto = textoAoVivo(msg);
+  if (!msg?.channel?.id || !vantajosoTraduzir(texto, TEXTO_MAXIMO)) return;
+  if (!cabeTopicoNaSalaMundo(msg.channel.id)) return;
+  await traduzirEResponder(msg, texto, { aoVivo: true });
+}
+
+/* O endereco que o seletor ao vivo carrega: canal e mensagem, sem banco. */
+function idAoVivo(msg) {
+  return `c${msg.channel.id}.${msg.id}`;
+}
+
+/* O clique no seletor ao vivo. So' le a mensagem que abriu o topico onde o
+   clique aconteceu (topico aberto numa mensagem tem o id dela) -- ou o canal
+   onde o seletor caiu como resposta, quando nao deu pra abrir topico. O id no
+   botao nao escolhe, sozinho, mensagem nenhuma fora dali. */
+async function lerAoVivo(inter, id) {
+  const [canalId, msgId] = String(id).slice(1).split(".");
+  if (!/^\d{5,25}$/.test(canalId || "") || !/^\d{5,25}$/.test(msgId || "")) return null;
+  const aqui = inter.channelId;
+  const pai = inter.channel?.parentId ??
+    (await client.channels.fetch(aqui).catch(() => null))?.parentId;
+  if (!(aqui === canalId || (aqui === msgId && pai === canalId))) return null;
+  const canal = await client.channels.fetch(canalId).catch(() => null);
+  if (!canal || canal.guildId !== inter.guildId) return null;
+  const m = await canal.messages?.fetch(msgId).catch(() => null);
+  if (!m) return null;
+  return { texto: textoAoVivo(m), link: m.url };
+}
+
+/* O topico de uma fala que saiu. Topico aberto numa mensagem tem o MESMO id
+   dela, entao nao precisa de registro nenhum para acha-lo. O seletor ao vivo
+   ja' nao le fala apagada (lerAoVivo nao a encontra), mas o topico vazio
+   ficaria de lixo na lista da sala -- um por fala apagada, para sempre. */
+async function apagarTopicoDaSalaMundo(msgId) {
+  const topico = await client.channels.fetch(msgId).catch(() => null);
+  if (topico?.isThread?.()) await topico.delete("a fala do tópico foi apagada").catch(() => {});
 }
 
 /* Google barra o endpoint classico quando a chamada sai do Supabase, mas o
@@ -2732,8 +2867,12 @@ async function apagarNasOutrasSalas(msgId, canalId, guildId) {
   const familia = ondeMoraAFala.get(msgId) || await procurarFamilia(msgId);
   if (!familia || familia.size < 2 || eACopia(familia, msgId, canalId)) return;
 
-  const { enderecos } = await enderecosDoEspelho(guildId);
+  const { enderecos, salas } = await enderecosDoEspelho(guildId);
   if (!enderecos.size) return;
+
+  /* Na sala 🌍 cada fala tem topico: ele sai junto com a fala. */
+  const salaMundo = (salas || []).find((s) => s.mundo)?.canal_id;
+  if (salaMundo && canalId === salaMundo) await apagarTopicoDaSalaMundo(msgId);
 
   for (const [sala, copiaId] of familia) {
     if (copiaId === msgId) continue; // a original, que ja' foi
@@ -2770,6 +2909,7 @@ async function apagarNasOutrasSalas(msgId, canalId, guildId) {
        fechar, e que nao tem conserto depois. */
     await clienteDoWebhook(url).deleteMessage(copiaId)
       .catch(() => { /* ja' apagada, ou o cartao morreu antes */ });
+    if (sala === salaMundo) await apagarTopicoDaSalaMundo(copiaId);
     guardarFalas(copiaId, null);
     peDoCartao.delete(copiaId);
   }
@@ -2815,9 +2955,10 @@ async function corrigirNasOutrasSalas(msg) {
 
   const termos = termosDoServidor(servidor);
   const motor = motorDe(servidor);
+  /* As mesmas linguas do envio: o que cada sala LE, o que a origem ESCREVE. */
   const alvos = [...new Set(salas
-    .filter((s) => s.canal_id !== origem.canal_id && s.idioma !== origem.idioma)
-    .map((s) => s.idioma))];
+    .filter((s) => s.canal_id !== origem.canal_id && idiomaQueLe(s) !== idiomaQueEscreve(origem))
+    .map((s) => idiomaQueLe(s)))];
 
   /* Mesma regra do envio: o que nao vale traduzir atravessa como esta'. */
   const vale = !porQueNaoTraduzir(texto, TEXTO_MAXIMO, 2);
@@ -2840,7 +2981,7 @@ async function corrigirNasOutrasSalas(msg) {
     if (!url || !falas?.some((f) => f.msgId === msg.id)) continue;
 
     const daSala = salas.find((s) => s.canal_id === sala);
-    const novo = traduzido.get(daSala?.idioma) ?? texto;
+    const novo = traduzido.get(idiomaQueLe(daSala)) ?? texto;
     const atualizadas = falas.map((f) => (f.msgId === msg.id ? { ...f, texto: novo } : f));
 
     const canal = await client.channels.fetch(sala).catch(() => null);
@@ -4169,9 +4310,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
      E passa a usar traduzirLongo, que corta em pedacos de 1500 nas quebras de
      linha: acima de 1500 uma chamada so' e' recusa na certa em qualquer
      tradutor. */
+  /* Pelo que cada sala LE e pelo que a origem ESCREVE: a sala 🌍 le ingles,
+     e o que nasce nela nao tem lingua conhecida -- vai para todas. */
   const alvos = [...new Set(lista
-    .filter((d) => d.canal_id !== origem.canal_id && d.idioma !== origem.idioma)
-    .map((d) => d.idioma))];
+    .filter((d) => d.canal_id !== origem.canal_id && idiomaQueLe(d) !== idiomaQueEscreve(origem))
+    .map((d) => idiomaQueLe(d)))];
   const motivo = texto ? porQueNaoTraduzir(texto, TEXTO_MAXIMO, 2) : "curto";
   const vale = !motivo;
   /* Conta em TRADUCOES PERDIDAS, nao em falas: a fala e' uma, mas quem ficou
@@ -4209,11 +4352,15 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   }
 
   const cartoes = new Map(); // canal de destino -> { id, linhas, cabecalho }
+  /* As falas que chegaram na sala 🌍 nesta passada: o topico delas e'
+     pendurado depois do laco, para nao atrasar a entrega nas outras salas. */
+  const paraOTopico = [];
 
   for (const destino of lista) {
     if (destino.canal_id === origem.canal_id) continue;
+    const le = idiomaQueLe(destino);
 
-    const corpo = tirarEmojisDoTexto(traduzido.get(destino.idioma) ?? texto, emojisEmbaixo?.ids);
+    const corpo = tirarEmojisDoTexto(traduzido.get(le) ?? texto, emojisEmbaixo?.ids);
 
     /* A assinatura fica no PE do card, miuda.
 
@@ -4277,7 +4424,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
                         : [{ msgId: msg.id, texto: linhaNova }];
     /* Se esta sala nao pediu traducao (mesmo idioma da origem), o estado e' o
        da fala anterior -- senao toda fala na propria lingua abriria cartao. */
-    const traduziuAqui = idiomas.includes(destino.idioma) ? traduzidoMesmo.has(destino.idioma) : null;
+    const traduziuAqui = idiomas.includes(le) ? traduzidoMesmo.has(le) : null;
+    /* A sala 🌍 emenda como as outras, e precisa: a familia da fala guarda UM
+       cartao por sala, e se so' ela abrisse cartao novo, apagar a primeira
+       frase de uma rajada deixaria o cartao dela de pe ali. O topico dela le o
+       cartao AO VIVO, entao a frase emendada tambem fica legivel nele. */
     const emendavel = emendaNestaSala(velho, salaDestino?.lastMessageId, juntas, traduziuAqui);
 
     /* A assinatura fica no PE do card, miuda.
@@ -4301,7 +4452,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
        No corpo do embed, e nao no rodape: o rodape e' o canto certo, mas la'
        o Discord nao desenha link nenhum -- o nome apareceria morto, e a
        assinatura existe justamente pra ser tocada. */
-    const selo = seloDeOrigem(origem.idioma, destino.idioma, traduziuAqui === true);
+    const selo = seloDeOrigem(idiomaQueEscreve(origem), le, traduziuAqui === true);
     const montar = (corpoDoCartao, cabecalhoDoCartao) => ({
       color: cor,
       ...(cabecalhoDoCartao ? { author: cabecalhoDoCartao } : {}),
@@ -4347,8 +4498,12 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         await webhook.editMessage(velho.id, {
           embeds: [{ ...figura.embed, ...(pe ? { footer: { text: pe } } : {}) }],
         });
+        /* Na sala 🌍: cartao que nasceu curto ("ok") ficou sem topico; se a
+           emenda o tornou legivel de verdade, o topico nasce agora. */
+        const topicoAgora = destino.mundo && !velho.topico && vantajosoTraduzir(juntas, TEXTO_MAXIMO);
+        if (topicoAgora && salaDestino) paraOTopico.push({ sala: salaDestino, id: velho.id });
         cartoes.set(destino.canal_id, { id: velho.id, linhas, falas, cabecalho: cabecalhoQueFica,
-          traduzido: velho.traduzido, figura: figura.figura });
+          traduzido: velho.traduzido, figura: figura.figura, topico: velho.topico || topicoAgora });
         guardarFalas(velho.id, falas);
         /* A fala nova passa a morar no cartao de cima: quem responder a ela
            tem que cair onde o texto dela esta', que agora e' ali.
@@ -4385,8 +4540,8 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       /* O 📝 so' quando ha' imagem e ha' quem leia; o 🎧 so' quando ha'
          audio e ha' quem ouca. Os dois na mesma fileira. */
       const botoes = [
-        ...(visaoDoDono && arquivos.some(ehImagemAnexo) ? botaoDeLerImagem(destino.idioma)[0].components : []),
-        ...(falaDoDono && arquivos.some(ehAudioAnexo) ? botaoDeOuvir(destino.idioma, origem.idioma)[0].components : []),
+        ...(visaoDoDono && arquivos.some(ehImagemAnexo) ? botaoDeLerImagem(le)[0].components : []),
+        ...(falaDoDono && arquivos.some(ehAudioAnexo) ? botaoDeOuvir(le, idiomaQueEscreve(origem))[0].components : []),
       ];
       const comBotao = botoes.length > 0;
       if (comBotao) carga.components = [{ type: 1, components: botoes }];
@@ -4410,8 +4565,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         posta = await webhook.send(carga);
       }
       if (posta?.id) {
+        /* Cartao novo na sala 🌍 ganha o topico 🌐 -- se tiver o que ler. */
+        const topico = !!destino.mundo && vantajosoTraduzir(linhaNova, TEXTO_MAXIMO);
+        if (topico && salaDestino) paraOTopico.push({ sala: salaDestino, id: posta.id });
         cartoes.set(destino.canal_id, { id: posta.id, linhas: [linhaNova], falas, cabecalho, traduzido: traduziuAqui,
-          figura: figuraQueFica(cartaoNovo).figura,
+          figura: figuraQueFica(cartaoNovo).figura, topico,
           /* A faixa de emojis e' um ARQUIVO preso a esta mensagem: remontar o
              cartao numa emenda arriscaria perder a imagem. Fala seguinte
              abre cartao proprio. */
@@ -4468,6 +4626,16 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
      ficou mais tempo sem falar. */
   while (ultimaFalaDaSala.size > MAX_SALAS_LEMBRADAS) {
     ultimaFalaDaSala.delete(ultimaFalaDaSala.keys().next().value);
+  }
+
+  /* O topico 🌐 da sala 🌍, por ultimo e sem segurar quem chamou: a fala ja'
+     chegou em todas as salas, e o topico e' o extra de uma delas. O cartao
+     saiu por webhook (que devolve so' o id), entao a mensagem inteira -- a que
+     sabe abrir topico -- vem do canal. */
+  for (const { sala, id } of paraOTopico) {
+    Promise.resolve(sala.messages?.fetch?.(id))
+      .then((m) => m && topicoNaSalaMundo(m))
+      .catch((e) => console.error("mundo: nao consegui pendurar o topico:", e?.message || e));
   }
 }
 
@@ -4770,7 +4938,7 @@ const cargoTrocado = new Map();    // servidorId -> [nome do cargo velho] que vi
    Uma vez por partida do bot, por idioma. Repetir de dez em dez minutos
    transformaria o aviso em barulho, e barulho a gente aprende a ignorar --
    inclusive quando ele passa a ser importante. */
-async function avisarDoTeto(guild, servidor, naoCoube, limite) {
+async function avisarDoTeto(guild, servidor, naoCoube, limite, mundo = null) {
   if (!servidor.canal_config) return;
   const novos = naoCoube.filter(([idioma]) => umaVezPorProcesso(`teto:${servidor.id}:${idioma}`));
   if (!novos.length) return;
@@ -4812,10 +4980,14 @@ async function avisarDoTeto(guild, servidor, naoCoube, limite) {
         "",
         quem,
         "",
-        `Você está usando **${limite.idiomas} de ${limite.idiomas}** idiomas. Essas pessoas escolheram o idioma delas ` +
-        "e não receberam canal nenhum — para elas parece que o bot não funcionou.",
+        `Você está usando **${limite.idiomas} de ${limite.idiomas}** idiomas, e essas pessoas escolheram um que não tem sala.`,
         "",
-        "Para resolver: suba de plano, ou peça a elas que escolham um dos idiomas que já existem aqui.",
+        mundo?.canal_id
+          ? `Enquanto isso elas conversam em <#${mundo.canal_id}>: a conversa chega lá em inglês, o que elas ` +
+            "escrevem vai traduzido para todas as salas, e cada mensagem tem um tópico 🌐 para ler no idioma delas."
+          : "Elas continuam lendo tudo pela tradução por bandeira.",
+        /* No beta o preco fica escondido (mostrarPagamento): sem "suba de plano". */
+        ...(mostrarPagamento() ? ["", "Para cada uma ganhar a sala do próprio idioma: suba de plano."] : []),
       ].join("\n"),
     allowedMentions: { parse: [] },
   }, lingua, motor)).catch((e) => console.error("limite: nao consegui avisar:", e?.message || e));
@@ -5037,6 +5209,69 @@ async function garantirCanalDeChat(guild, sala, categoriaId) {
   sala.webhook = webhook.url;
   console.log(`espelho: sala de conversa criada para ${sala.idioma} (#${canal.name})`);
   return sala;
+}
+
+/* O topico (a descricao) da sala 🌍. Em ingles, a lingua que ela le -- quem
+   chega nela, por definicao, nao fala nenhuma das linguas que tem sala. */
+const TOPICO_SALA_MUNDO = "🌍 For languages that don't have their own room here. What you write here reaches " +
+  "every room translated. Open the 🌐 thread on any message to read it in your language.";
+
+/* As portas da sala 🌍: fechada pra todo mundo, aberta pro cargo dela. As
+   mesmas tres da sala de idioma, com as mesmas permissoes. */
+function portasDaSalaMundo(guild, cargoId) {
+  return [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    { id: cargoId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory] },
+    { id: client.user.id, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageWebhooks] },
+  ];
+}
+
+/* Monta a sala 🌍: cargo, canal fechado, webhook e a linha no banco. A mesma
+   regra da sala de idioma: se nao ficou gravado, nao fica de pe -- uma sala
+   sem linha seria recriada na passada seguinte, e o servidor ganharia uma
+   🌍 nova a cada dez minutos. Devolve a linha. */
+async function garantirSalaMundo(guild, servidorId, atual) {
+  const existente = atual?.role_id && guild.roles.cache.get(atual.role_id);
+  const cargo = existente ||
+    await criarCargoDeIdioma(guild, NOME_CARGO_MUNDO, "sala para quem fala um idioma que não coube no plano");
+
+  /* Desfaz TUDO o que esta chamada criou, o cargo inclusive: sem isso, uma
+     gravacao que falha deixaria um cargo orfao por passada -- seis por hora,
+     no servidor de um cliente. Cargo que ja' existia fica. */
+  let canal = null;
+  try {
+    canal = await guild.channels.create({
+      name: NOME_SALA_MUNDO,
+      type: ChannelType.GuildText,
+      rateLimitPerUser: SEGUNDOS_ENTRE_FALAS,
+      topic: TOPICO_SALA_MUNDO,
+      permissionOverwrites: portasDaSalaMundo(guild, cargo.id),
+      reason: "sala para quem fala um idioma que não coube no plano",
+    });
+    const webhook = await canal.createWebhook({ name: "CYRON espelho" });
+    await sbPost("discord_sala_mundo?on_conflict=servidor_id",
+      { servidor_id: servidorId, canal_id: canal.id, webhook: webhook.url, role_id: cargo.id },
+      "resolution=merge-duplicates");
+    console.log(`mundo: sala 🌍 criada em ${guild.name} (#${canal.name})`);
+    return { servidor_id: servidorId, canal_id: canal.id, webhook: webhook.url, role_id: cargo.id };
+  } catch (e) {
+    if (canal) await canal.delete("não consegui registrar a sala 🌍; desfazendo").catch(() => {});
+    if (!existente) await cargo.delete("não consegui montar a sala 🌍; desfazendo").catch(() => {});
+    throw new Error(`sala 🌍 desfeita: ${e?.message || e}`);
+  }
+}
+
+/* Cargo da sala 🌍 apagado na mao: a sala fica sem chave e quem estava nela
+   fica de fora. Cria de novo e refecha as portas -- o mesmo conserto que o
+   cargo de idioma tem. */
+async function consertarCargoDaSalaMundo(guild, servidorId, mundo) {
+  if (!mundo?.canal_id || (mundo.role_id && guild.roles.cache.has(mundo.role_id))) return mundo;
+  const cargo = await criarCargoDeIdioma(guild, NOME_CARGO_MUNDO, "cargo da sala 🌍 sumiu");
+  const canal = await guild.channels.fetch(mundo.canal_id).catch(() => null);
+  if (canal) await canal.permissionOverwrites.set(portasDaSalaMundo(guild, cargo.id), "fechando a sala 🌍");
+  await sbPatch(`discord_sala_mundo?servidor_id=eq.${encodeURIComponent(servidorId)}`, { role_id: cargo.id });
+  console.log(`mundo: cargo da sala 🌍 recriado em ${guild.name}`);
+  return { ...mundo, role_id: cargo.id };
 }
 
 /* Passada curta: so quem mexeu no idioma agorinha.
@@ -6204,6 +6439,18 @@ async function sincronizarUmGuild(guild) {
         console.log(`idioma: ${sala.idioma} perdeu ${Object.keys(limpa).join(" e ")}, vai ser refeito`);
       }
 
+      /* A sala 🌍, lida a parte. So' pode ser criada se a LEITURA deu certo:
+         banco engasgado nao pode virar "nao existe" e uma segunda 🌍 no
+         servidor. Apagada na mao, a linha esvazia e ela volta se ainda fizer
+         falta -- como a sala de idioma. */
+      let mundo = null, mundoLido = true;
+      try { mundo = await salaMundoDe(servidorId); } catch { mundoLido = false; }
+      if (mundo?.canal_id && !vivos.has(mundo.canal_id)) {
+        await sbPatch(`discord_sala_mundo?servidor_id=eq.${encodeURIComponent(servidorId)}`, { canal_id: null, webhook: null });
+        mundo = { ...mundo, canal_id: null, webhook: null };
+        console.log(`mundo: a sala 🌍 de ${guild.name} sumiu; volta se ainda fizer falta`);
+      }
+
       /* So idioma que esta no seletor vira sala. Um valor estranho no banco
          nao pode virar canal no servidor de ninguem. */
       const validos = new Set(LINGUAS_MENU.map(([c]) => c));
@@ -6244,6 +6491,7 @@ async function sincronizarUmGuild(guild) {
         if (sala.canal_id) orcamento.resta -= 1;
         if (sala.categoria_id) orcamento.resta -= 1;
       }
+      if (mundo?.canal_id) orcamento.resta -= 1;
 
       /* Idioma sem cargo e' porta sem chave: ou nasceu antes desta ideia, ou
          alguem apagou o cargo na mao. Cria de novo e refecha o que estiver
@@ -6267,6 +6515,10 @@ async function sincronizarUmGuild(guild) {
           console.error("espelho: nao consegui fechar a sala de", sala.idioma, e?.message || e);
         }
       }
+      mundo = await consertarCargoDaSalaMundo(guild, servidorId, mundo).catch((e) => {
+        console.error("mundo: nao consegui consertar o cargo da sala 🌍:", e?.message || e);
+        return mundo;
+      });
 
       /* Idioma com gente de verdade passa a existir, do mais falado pro menos
          -- e ate o teto do plano.
@@ -6293,7 +6545,19 @@ async function sincronizarUmGuild(guild) {
         esperando.set(servidorId, naoCoube.map(([idioma, quantos]) => ({ idioma, quantos })));
         console.log(`limite: ${guild.name} está no teto de ${limite.idiomas} idiomas (plano ${planoDe(servidor)}); ` +
           `${naoCoube.length} esperando: ${naoCoube.map(([i, n]) => `${i}(${n})`).join(", ")}`);
-        await avisarDoTeto(guild, servidor, naoCoube, limite);
+        /* Quem nao coube ganha a sala 🌍 -- antes do aviso, que aponta pra
+           ela. So' onde ha' salas por idioma (no gratis nao ha' conversa
+           espelhada para ela entrar) e so' com a leitura confirmada. */
+        if (pago && limite.idiomas > 0 && mundoLido && !mundo?.canal_id && podeCriarCanal(orcamento, guild, limite)) {
+          mundo = await garantirSalaMundo(guild, servidorId, mundo).catch((e) => {
+            console.error("mundo: nao consegui montar a sala 🌍:", e?.message || e);
+            return mundo;
+          });
+          /* Ja': se a varredura cair daqui pra frente, o espelho nao pode
+             passar meia hora sem saber da sala nova. */
+          cacheEspelho.delete(servidorId);
+        }
+        await avisarDoTeto(guild, servidor, naoCoube, limite, mundo);
       } else {
         esperando.delete(servidorId);
       }
@@ -6331,6 +6595,11 @@ async function sincronizarUmGuild(guild) {
       /* Cargo de sala e' exclusivo: entrar numa e' sair das outras, senao a
          pessoa passaria a ver a mesma conversa repetida em dois idiomas. */
       const cargosDeSala = new Set([...porIdioma.values()].map((s) => s.role_id).filter(Boolean));
+      /* O cargo da sala 🌍 entra na mesma regra de exclusividade: quem nao
+         coube fica com ele, e no dia em que a lingua dela ganhar sala (o plano
+         subiu, alguem saiu) ele sai sozinho e entra o cargo da lingua. */
+      const cargoMundo = mundo?.canal_id && mundo.role_id && guild.roles.cache.has(mundo.role_id) ? mundo.role_id : null;
+      if (cargoMundo) cargosDeSala.add(cargoMundo);
 
       /* Quem eu nao alcanco.
 
@@ -6455,7 +6724,9 @@ async function sincronizarUmGuild(guild) {
       else cargoTrocado.delete(servidorId);
       for (const [, membro] of membros) {
         if (membro.user.bot) continue;
-        const querido = porIdioma.get(porPessoa.get(membro.id))?.role_id || null;
+        const lingua = porPessoa.get(membro.id);
+        const querido = porIdioma.get(lingua)?.role_id ||
+          (cargoMundo && lingua && !porIdioma.has(lingua) ? cargoMundo : null);
 
         const precisaMexer = [...cargosDeSala].some((c) =>
           (c === querido) !== membro.roles.cache.has(c));
@@ -21726,6 +21997,95 @@ async function responder(inter, embed, { efemera = true, idioma, componentes } =
   return inter.reply({ ...carga, flags: efemera ? 64 : undefined });
 }
 
+/* Onde a lingua escolhida cai NESTE servidor, no instante do clique.
+
+   - "tem": a lingua ja' existe aqui.
+   - "vai-ter": ainda nao existe, mas cabe no plano -- a varredura cria agora.
+   - "cheio": nao existe e o plano ja' esta' no teto de idiomas.
+   - "sem-salas": este servidor nao monta sala por idioma (plano sem salas,
+     ou modo ferramentas).
+
+   E' a mesma conta da varredura (teto menos as linguas que ja' existem), feita
+   antes -- para a resposta do clique nao prometer "sua categoria aparece em um
+   minuto" a quem nunca vai ver categoria nenhuma. Era o que acontecia: a
+   pessoa do sexto idioma lia a promessa, esperava, e concluia que o bot
+   estava quebrado. */
+function situacaoDoIdioma(idioma, linguasAqui, tetoDeIdiomas, criaSalas) {
+  if (!criaSalas) return "sem-salas";
+  if (linguasAqui.includes(idioma)) return "tem";
+  if (!(tetoDeIdiomas > 0)) return "sem-salas";
+  return linguasAqui.length < tetoDeIdiomas ? "vai-ter" : "cheio";
+}
+
+/* O seletor so' com as linguas que TEM sala aqui. Mesmo custom_id do seletor
+   de sempre: escolher uma delas e' escolher idioma, e cai no mesmo caminho. */
+function menuDasLinguasDaqui(linguas) {
+  const opcoes = LINGUAS_MENU.filter(([c]) => linguas.includes(c)).slice(0, 25);
+  if (!opcoes.length) return [];
+  const select = new StringSelectMenuBuilder()
+    .setCustomId("escolher-idioma")
+    .setPlaceholder("💬 Salas daqui / Rooms here")
+    .addOptions(opcoes.map(([value, label, emoji, proprio]) => ({
+      label: proprio && proprio !== label ? `${proprio} · ${label}` : label, value, emoji })));
+  return [new ActionRowBuilder().addComponents(select)];
+}
+
+/* A resposta de quem escolheu uma lingua que nao coube no plano -- na lingua
+   DELA, e com o que ela pode fazer AGORA, em vez de um "nao cabe" seco:
+
+   - a sala 🌍, onde ela conversa com todo mundo;
+   - as salas que ja' existem, num menu, para quem entende uma delas;
+   - a bandeira, que traduz qualquer mensagem sem depender de sala nenhuma.
+
+   A prosa passa pelo tradutor; a mencao do canal e os nomes das linguas
+   entram DEPOIS, por fora -- o tradutor quebra <#id>, e cada lingua ja' vem
+   escrita do jeito de quem a fala. */
+async function telaIdiomaSemVaga(idioma, linguasAqui, mundoCanal, motor = MOTOR_AUTO) {
+  const prosa = {
+    title: "🌐 Idioma salvo — mas ainda não há sala para ele aqui",
+    description: `Este servidor já usa todos os idiomas do plano dele, então ${nomeDoIdioma(idioma)} ` +
+      "ainda não tem sala própria. Você não fica de fora:",
+    fields: [
+      { name: "🌍 Sala para outros idiomas",
+        value: (mundoCanal ? "" : "Ela aparece na sua lista de canais em instantes. ") +
+          "A conversa de todas as salas chega lá, e o que você escrever vai traduzido para todo mundo. " +
+          "Cada mensagem tem um tópico 🌐 para ler no seu idioma." },
+      { name: "💬 Salas que já existem aqui",
+        value: "Entende uma delas? Escolha no menu abaixo e entre na conversa dela." },
+      { name: "🏳️ Tradutor de bandeira",
+        value: "Reaja com a bandeira do seu país em qualquer mensagem e eu te mando a tradução no privado." },
+    ],
+  };
+  const t = await traduzirEmbed(prosa, idioma, motor).catch(() => prosa);
+  const f = t.fields?.length === 3 ? t.fields : prosa.fields;
+  const lista = linguasAqui.map((c) => nomeNaPropriaLingua(c)).join(" · ");
+  return {
+    embeds: [{
+      color: COR, title: t.title, description: t.description,
+      fields: [
+        { name: f[0].name, value: ((mundoCanal ? `<#${mundoCanal}>\n` : "") + f[0].value).slice(0, 1024) },
+        { name: f[1].name, value: (lista ? `${lista}\n${f[1].value}` : f[1].value).slice(0, 1024) },
+        { name: f[2].name, value: f[2].value.slice(0, 1024) },
+      ],
+    }],
+    components: menuDasLinguasDaqui(linguasAqui),
+  };
+}
+
+/* Servidor sem salas por idioma: a lingua fica salva (eu falo com a pessoa
+   nela) e a bandeira e' o caminho -- sem prometer categoria que nao vem. */
+async function telaIdiomaSemSalas(idioma, motor = MOTOR_AUTO) {
+  const prosa = {
+    title: "🌐 Idioma salvo!",
+    description: `A partir de agora eu falo com você em ${nomeDoIdioma(idioma)}. ` +
+      "Este servidor não tem salas por idioma, mas você lê tudo mesmo assim:",
+    fields: [{ name: "🏳️ Tradutor de bandeira",
+      value: "Reaja com a bandeira do seu país em qualquer mensagem e eu te mando a tradução no privado." }],
+  };
+  const t = await traduzirEmbed(prosa, idioma, motor).catch(() => prosa);
+  return { embeds: [{ color: COR_OK, ...t }], components: [] };
+}
+
 /* Seletor de idioma: no hall de entrada, nas boas-vindas e no convite. */
 async function cliqueEscolherIdioma(inter) {
   contarUso("idioma", inter.guildId);
@@ -21772,12 +22132,31 @@ async function cliqueEscolherIdioma(inter) {
     await inter.message.edit({ embeds: [traduzido] }).catch(() => {});
   }
 
-  await responder(inter, {
-    color: COR_OK,
-    title: "🌐 Idioma salvo!", ...fotoDaCyron("amei"),
-    description: `A partir de agora o servidor fala com você em **${nomeDoIdioma(idioma)}**. ` +
-      "Sua categoria aparece em até um minuto.",
-  }, { idioma });
+  /* Onde essa lingua cai aqui. Leitura que falha vira lista vazia, e lista
+     vazia da' "vai-ter" -- a resposta de sempre. Na duvida, o caminho antigo. */
+  const servidor = await servidorDoGuild(inter.guildId).catch(() => null);
+  const linguasAqui = servidor
+    ? ((await sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&select=idioma`)
+        .catch(() => null)) || []).map((s) => s.idioma)
+    : [];
+  const situacao = servidor
+    ? situacaoDoIdioma(idioma, linguasAqui, limitesDo(servidor).idiomas, criaSalasDeTraducao(servidor))
+    : "tem";
+
+  if (situacao === "cheio") {
+    const mundo = await salaMundoDe(servidor.id).catch(() => null);
+    await inter.editReply(await telaIdiomaSemVaga(idioma, linguasAqui, mundo?.canal_id,
+      await motorDoGuild(inter.guildId).catch(() => MOTOR_AUTO)));
+  } else if (situacao === "sem-salas") {
+    await inter.editReply(await telaIdiomaSemSalas(idioma, await motorDoGuild(inter.guildId).catch(() => MOTOR_AUTO)));
+  } else {
+    await responder(inter, {
+      color: COR_OK,
+      title: "🌐 Idioma salvo!", ...fotoDaCyron("amei"),
+      description: `A partir de agora o servidor fala com você em **${nomeDoIdioma(idioma)}**. ` +
+        "Sua categoria aparece em até um minuto.",
+    }, { idioma });
+  }
 
   /* Monta a categoria dele agora, com a pessoa olhando -- e' o momento em que
      ela decide se o bot funciona. */
@@ -21934,7 +22313,11 @@ async function cliqueTraduzirMsg(inter) {
 
   salvarIdiomaJogador(inter.user.id, idioma).catch(() => {});
 
-  const r = await sb(`discord_msg_traducao?id=eq.${id}&select=texto,link`).catch(() => null);
+  /* "c<canal>.<mensagem>" e' o seletor ao vivo da sala 🌍; numero e' texto
+     guardado no banco, como sempre foi. */
+  const r = id.startsWith("c")
+    ? [await lerAoVivo(inter, id).catch(() => null)]
+    : await sb(`discord_msg_traducao?id=eq.${id}&select=texto,link`).catch(() => null);
   const texto = r?.[0]?.texto;
   const link = r?.[0]?.link;
 
@@ -23992,6 +24375,9 @@ client.on("messageCreate", async (msg) => {
          FALA que some. A pessoa do outro lado ve a conversa com buraco e nao
          tem como saber. Vale mais deixar passar. */
       await espelharMensagem(msg, espelho, origem, texto, motorDe(servidor), servidorId, termosDoServidor(servidor));
+      /* Na sala 🌍 quem le esta' numa lingua diferente a cada fala: o topico
+         🌐 e' o que deixa o turco ler o que o tailandes acabou de escrever. */
+      if (origem.mundo) await topicoNaSalaMundo(msg).catch(() => {});
       return;
     }
 
