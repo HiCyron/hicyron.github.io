@@ -22086,6 +22086,25 @@ async function telaIdiomaSemSalas(idioma, motor = MOTOR_AUTO) {
   return { embeds: [{ color: COR_OK, ...t }], components: [] };
 }
 
+/* A resposta de quem escolheu idioma DENTRO de um servidor quando a lingua
+   NAO vai virar sala ali ("cheio" ou "sem-salas"); null quando vai -- ai' cada
+   porta responde do seu jeito. Sao duas portas (o menu e o /mylanguage), e a
+   regra e' uma so': o /mylanguage salvava calado e a pessoa do sexto idioma
+   nunca ficava sabendo da sala 🌍. Leitura que falha da' lista vazia, e lista
+   vazia da' "vai-ter": na duvida, o caminho de sempre. */
+async function telaDaEscolhaSemSala(guildId, idioma) {
+  const servidor = guildId ? await servidorDoGuild(guildId).catch(() => null) : null;
+  if (!servidor) return null;
+  const linguasAqui = ((await sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&select=idioma`)
+    .catch(() => null)) || []).map((s) => s.idioma);
+  const situacao = situacaoDoIdioma(idioma, linguasAqui, limitesDo(servidor).idiomas, criaSalasDeTraducao(servidor));
+  if (situacao !== "cheio" && situacao !== "sem-salas") return null;
+  const motor = await motorDoGuild(guildId).catch(() => MOTOR_AUTO);
+  if (situacao === "sem-salas") return telaIdiomaSemSalas(idioma, motor);
+  const mundo = await salaMundoDe(servidor.id).catch(() => null);
+  return telaIdiomaSemVaga(idioma, linguasAqui, mundo?.canal_id, motor);
+}
+
 /* Seletor de idioma: no hall de entrada, nas boas-vindas e no convite. */
 async function cliqueEscolherIdioma(inter) {
   contarUso("idioma", inter.guildId);
@@ -22132,23 +22151,10 @@ async function cliqueEscolherIdioma(inter) {
     await inter.message.edit({ embeds: [traduzido] }).catch(() => {});
   }
 
-  /* Onde essa lingua cai aqui. Leitura que falha vira lista vazia, e lista
-     vazia da' "vai-ter" -- a resposta de sempre. Na duvida, o caminho antigo. */
-  const servidor = await servidorDoGuild(inter.guildId).catch(() => null);
-  const linguasAqui = servidor
-    ? ((await sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&select=idioma`)
-        .catch(() => null)) || []).map((s) => s.idioma)
-    : [];
-  const situacao = servidor
-    ? situacaoDoIdioma(idioma, linguasAqui, limitesDo(servidor).idiomas, criaSalasDeTraducao(servidor))
-    : "tem";
-
-  if (situacao === "cheio") {
-    const mundo = await salaMundoDe(servidor.id).catch(() => null);
-    await inter.editReply(await telaIdiomaSemVaga(idioma, linguasAqui, mundo?.canal_id,
-      await motorDoGuild(inter.guildId).catch(() => MOTOR_AUTO)));
-  } else if (situacao === "sem-salas") {
-    await inter.editReply(await telaIdiomaSemSalas(idioma, await motorDoGuild(inter.guildId).catch(() => MOTOR_AUTO)));
+  /* Onde essa lingua cai aqui: sem sala, a tela que diz a verdade. */
+  const semSala = await telaDaEscolhaSemSala(inter.guildId, idioma).catch(() => null);
+  if (semSala) {
+    await inter.editReply(semSala);
   } else {
     await responder(inter, {
       color: COR_OK,
@@ -23937,6 +23943,14 @@ async function comandoDeInteracao(inter) {
     }
     await inter.deferReply({ flags: 64 });
     await salvarIdiomaJogador(inter.user.id, novo);
+    /* Dentro de um servidor onde essa lingua nao vira sala: a mesma tela do
+       menu (limite, salas que existem, a 🌍, a bandeira) -- e a montagem ja',
+       para a 🌍 aparecer enquanto a pessoa ainda esta' olhando. */
+    const semSala = inter.guildId ? await telaDaEscolhaSemSala(inter.guildId, novo).catch(() => null) : null;
+    if (semSala) {
+      if (inter.guild) sincronizarAgora(inter.guild).catch(() => {});
+      return inter.editReply(semSala);
+    }
     return responder(inter, { color: COR_OK, title: "🌐 Idioma salvo!", ...fotoDaCyron("amei"),
       description: `A partir de agora tudo aparece em **${nomeDoIdioma(novo)}**.` }, { idioma: novo });
   }
