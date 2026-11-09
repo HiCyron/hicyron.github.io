@@ -14588,6 +14588,8 @@ function conferirCartao(onde, embed, componentes = []) {
   globalThis.errosRecentes = [{}, {}];
   globalThis.motoresDoDono = () => [{ tipo: "deepl" }];
   globalThis.nomeDaFaixa = (f) => (f === "pro" ? "Pro" : "Aliança");
+  globalThis.tradutorFalhas = { quedas: 0 };
+  globalThis.cargoAcimaDeMim = new Map();
   globalThis.sb = async (q) => {
     if (q.startsWith("cyron_servidor")) return [
       { id: "a", nome: "Alfa", plano: "gratis", nivel: "alianca", pago_ate: futuro, criado_em: new Date(Date.now() - 2 * 864e5).toISOString() },
@@ -14599,6 +14601,7 @@ function conferirCartao(onde, embed, componentes = []) {
       { dia: hoje, servidor_id: "b", traducoes: 4, caracteres: 200, do_cache: 0 },
     ];
     if (q.startsWith("cyron_codigo")) return [{ usado_em: null }, { usado_em: "2026-01-01" }];
+    if (q.startsWith("discord_idioma_jogador")) return [{ idioma: "pt" }, { idioma: "en" }, { idioma: "en" }];
     return [];
   };
   const { numerosDoDono } = carregar(["numerosDoDono", "situacaoDoPagamento", "faixaPaga", "PRECO_MENSAL", "venceEm"]);
@@ -14612,6 +14615,11 @@ function conferirCartao(onde, embed, componentes = []) {
     [n.chaves.deepl, n.chaves.azure, n.chaves.audio], [true, false, true]);
   ok("os erros guardados aparecem", n.erros, 2);
   verdade("a série tem 14 dias", n.serie14.length === 14 && n.dias14.length === 14);
+  ok("os idiomas dos membros vêm contados e ordenados", n.crescimento.idiomas[0], { idioma: "en", n: 2 });
+  verdade("pede atenção lista o que precisa de ação (erros e quem saiu)",
+    n.atencao.some((a) => /erro/.test(a.texto)) && n.atencao.some((a) => /saíram/.test(a.texto)));
+  verdade("as tendências vêm (hoje vs ontem, semana vs anterior)",
+    typeof n.hoje.ontem === "number" && typeof n.crescimento.semana === "number");
   verdade("só lê o banco, não escreve", true);
 }
 

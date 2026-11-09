@@ -19219,58 +19219,81 @@ async function embedDeUso() {
 async function numerosDoDono() {
   const DIAS = 14;
   const dias = Array.from({ length: DIAS }, (_, i) => diaISO(Date.now() - (DIAS - 1 - i) * 864e5));
-  const [servidores, uso, codigos] = await Promise.all([
+  const [servidores, uso, codigos, escolhas] = await Promise.all([
     sb("cyron_servidor?select=id,nome,plano,nivel,pago_ate,teste_ate,saiu_em,criado_em").catch(() => []),
     sb(`cyron_uso_diario?dia=gte.${dias[0]}&select=dia,servidor_id,caracteres,traducoes,do_cache`).catch(() => []),
     sb("cyron_codigo?select=usado_em").catch(() => []),
+    sb("discord_idioma_jogador?select=idioma").catch(() => []),
   ]);
   const todos = servidores || [];
   const ativos = todos.filter((s) => !s.saiu_em);
   const sit = (s) => situacaoDoPagamento(s);
+  const nomeDe = (s) => String(s.nome || "sem nome").slice(0, 60);
   const conta = { pago: 0, liberado: 0, teste: 0, gratis: 0 };
   for (const s of ativos) conta[sit(s)] = (conta[sit(s)] || 0) + 1;
   const pagando = ativos.filter((s) => sit(s) === "pago");
   const receita = pagando.reduce((a, s) => a + PRECO_MENSAL[faixaPaga(s)], 0);
 
-  const porDia = (campo) => dias.map((d) => (uso || []).filter((l) => l.dia === d)
-    .reduce((a, l) => a + Number(l[campo] || 0), 0));
+  const somaDia = (campo, d) => (uso || []).filter((l) => l.dia === d).reduce((a, l) => a + Number(l[campo] || 0), 0);
+  const serie14 = dias.map((d) => somaDia("traducoes", d));
   const hoje = (uso || []).filter((l) => l.dia === hojeISO())
     .reduce((a, l) => ({ t: a.t + Number(l.traducoes || 0), c: a.c + Number(l.caracteres || 0), k: a.k + Number(l.do_cache || 0) }), { t: 0, c: 0, k: 0 });
+  const ontem = somaDia("traducoes", diaISO(Date.now() - 864e5));
+  const semana = serie14.slice(7).reduce((a, b) => a + b, 0);
+  const semanaAntes = serie14.slice(0, 7).reduce((a, b) => a + b, 0);
 
   const desde7 = diaISO(Date.now() - 6 * 864e5);
   const uso7 = new Map();
   for (const l of (uso || [])) if (l.dia >= desde7) uso7.set(l.servidor_id, (uso7.get(l.servidor_id) || 0) + Number(l.traducoes || 0));
   const top = ativos
-    .map((s) => ({
-      nome: String(s.nome || "sem nome").slice(0, 60),
-      situacao: sit(s),
-      plano: nomeDaFaixa(faixaPaga(s)),
-      traducoes: uso7.get(s.id) || 0,
-      vence: venceEm(s.pago_ate) || venceEm(s.teste_ate) || null,
-    }))
+    .map((s) => ({ nome: nomeDe(s), situacao: sit(s), plano: nomeDaFaixa(faixaPaga(s)), traducoes: uso7.get(s.id) || 0, vence: venceEm(s.pago_ate) || venceEm(s.teste_ate) || null }))
     .sort((a, b) => b.traducoes - a.traducoes)
     .slice(0, 100);
 
   const agora = Date.now();
-  const novos7 = todos.filter((s) => !s.saiu_em && s.criado_em && Date.parse(s.criado_em) >= agora - 7 * 864e5).length;
+  const novosLista = todos.filter((s) => !s.saiu_em && s.criado_em && Date.parse(s.criado_em) >= agora - 7 * 864e5);
   const sairam7 = todos.filter((s) => s.saiu_em && Date.parse(s.saiu_em) >= agora - 7 * 864e5).length;
-  const vencendo7 = pagando.filter((s) => venceEm(s.pago_ate) && venceEm(s.pago_ate) <= agora + 7 * 864e5).length;
+  /* As duas listas de "ligar pra essas pessoas": quem vence em 7 dias, e quem
+     pagou e deixou vencer no ultimo mes. */
+  const vencendo = [...pagando, ...ativos.filter((s) => sit(s) === "teste")]
+    .map((s) => ({ nome: nomeDe(s), ate: venceEm(s.pago_ate) || venceEm(s.teste_ate), teste: sit(s) === "teste" }))
+    .filter((x) => x.ate && x.ate <= agora + 7 * 864e5).sort((a, b) => a.ate - b.ate).slice(0, 15);
+  const naoRenovaram = todos
+    .filter((s) => s.pago_ate && !venceEm(s.pago_ate) && s.plano !== "pago" && Date.parse(s.pago_ate) >= agora - 30 * 864e5)
+    .map((s) => ({ nome: nomeDe(s), venceu: Date.parse(s.pago_ate) })).sort((a, b) => b.venceu - a.venceu).slice(0, 15);
   const codigosLivres = (codigos || []).filter((c) => !c.usado_em).length;
   const motores = new Set((motoresDoDono() || []).map((m) => m.tipo));
 
+  const contaIdiomas = new Map();
+  for (const e of (escolhas || [])) if (e.idioma) contaIdiomas.set(e.idioma, (contaIdiomas.get(e.idioma) || 0) + 1);
+  const idiomas = [...contaIdiomas].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([idioma, n]) => ({ idioma, n }));
+
+  /* O que PEDE AÇÃO, com o número junto. É o que faz o painel valer: não é só
+     olhar, é saber o que fazer agora. */
+  const atencao = [
+    vencendo.length && { icone: "⏰", texto: `${vencendo.length} vencem em 7 dias — veja em 💰` },
+    errosRecentes.length && { icone: "🐛", texto: `${errosRecentes.length} erro(s) guardados` },
+    (tradutorFalhas?.quedas) && { icone: "🌐", texto: `o tradutor caiu no grátis ${tradutorFalhas.quedas}x` },
+    cargoAcimaDeMim?.size && { icone: "🔒", texto: `${cargoAcimaDeMim.size} servidor(es) com cargo acima do meu` },
+    sairam7 && { icone: "👋", texto: `${sairam7} servidor(es) saíram nesta semana` },
+  ].filter(Boolean);
+
   return {
-    servidores: { ativos: ativos.length, sairamTotal: todos.length - ativos.length, novos7, sairam7 },
+    servidores: { ativos: ativos.length, sairamTotal: todos.length - ativos.length, novos7: novosLista.length, sairam7 },
     dinheiro: {
       receita, pagando: conta.pago, teste: conta.teste, liberado: conta.liberado, gratis: conta.gratis,
-      vencendo7, codigosLivres, precoPro: PRECO_MENSAL.pro, precoAlianca: PRECO_MENSAL.alianca,
+      vencendo7: vencendo.length, codigosLivres, precoPro: PRECO_MENSAL.pro, precoAlianca: PRECO_MENSAL.alianca,
+      vencendo, naoRenovaram,
     },
-    hoje: { traducoes: hoje.t, caracteres: hoje.c, cache: hoje.k },
+    hoje: { traducoes: hoje.t, caracteres: hoje.c, cache: hoje.k, ontem },
+    crescimento: { semana, semanaAntes, novos: novosLista.map(nomeDe).slice(0, 12), idiomas },
     dias14: dias,
-    serie14: porDia("traducoes"),
+    serie14,
     top,
     beta: { ligado: !!(BETA || venceEm(BETA_ATE)), ate: BETA_ATE || null },
     chaves: { deepl: motores.has("deepl"), azure: motores.has("azure"), imagem: !!visaoDoDono, audio: !!falaDoDono },
     erros: errosRecentes.length,
+    atencao,
   };
 }
 
