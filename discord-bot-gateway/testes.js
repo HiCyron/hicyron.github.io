@@ -14473,7 +14473,8 @@ function conferirCartao(onde, embed, componentes = []) {
     if (t === "token-de-outro-123") return { ok: true, json: async () => ({ id: "outro" }) };
     return { ok: false, json: async () => ({}) };
   };
-  const srv = V.ligarVisao({ client: clienteFalso, ehDono: async (id) => id === "dono", buscar }, 0);
+  const srv = V.ligarVisao({ client: clienteFalso, ehDono: async (id) => id === "dono", buscar,
+    numerosDoDono: async () => ({ servidores: { ativos: 7 }, marca: "painel-do-dono" }) }, 0);
   await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
   const base = `http://127.0.0.1:${srv.address().port}`;
   const pedir = (c, t, o = {}) => fetch(base + c, { ...o,
@@ -14500,6 +14501,9 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("as mensagens de uma DM (sem servidor) são lidas", dmLidas.mensagens.map((x) => x.texto).join(","), "oi, CYRON");
     const dmEnv = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "333333333333333333", texto: "oi! aqui é a CYRON" }) });
     ok("o dono responde no privado como a CYRON", (await dmEnv.json()).mensagem.texto, "oi! aqui é a CYRON");
+    const painel = await (await pedir("/visao/admin/numeros", "token-do-dono-123")).json();
+    ok("o painel do dono responde os números", [painel.servidores.ativos, painel.marca].join(), "7,painel-do-dono");
+    ok("quem não é dono não vê os números", (await pedir("/visao/admin/numeros", "token-de-outro-123")).status, 403);
     ok("a saúde responde sem login", (await pedir("/saude")).status, 200);
   } finally { srv.close(); }
 
@@ -14565,11 +14569,49 @@ function conferirCartao(onde, embed, componentes = []) {
        aqui mora só o motor. Os testes da página rodam lá. */
   }
 
-  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono \}\)/.test(fonte));
+  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));
   verdade("e NUNCA desliga a máquina por falta de visita", /auto_stop_machines = "off"/.test(fly) && /min_machines_running = 1/.test(fly));
   verdade("o endereço do app está liberado no motor", V.ORIGENS_DA_VISAO.has("https://tiagofernando113.github.io"));
+}
+
+/* ====== o painel do dono: os números do /admin em JSON para o app ====== */
+{
+  const dz = carregar(["diaISO", "hojeISO"]);
+  globalThis.diaISO = dz.diaISO; globalThis.hojeISO = dz.hojeISO;
+  const hoje = dz.hojeISO();
+  const futuro = new Date(Date.now() + 10 * 864e5).toISOString();
+  globalThis.BETA = false; globalThis.BETA_ATE = "";
+  globalThis.visaoDoDono = null; globalThis.falaDoDono = { tipo: "azure" };
+  globalThis.errosRecentes = [{}, {}];
+  globalThis.motoresDoDono = () => [{ tipo: "deepl" }];
+  globalThis.nomeDaFaixa = (f) => (f === "pro" ? "Pro" : "Aliança");
+  globalThis.sb = async (q) => {
+    if (q.startsWith("cyron_servidor")) return [
+      { id: "a", nome: "Alfa", plano: "gratis", nivel: "alianca", pago_ate: futuro, criado_em: new Date(Date.now() - 2 * 864e5).toISOString() },
+      { id: "b", nome: "Beta", plano: "gratis" },
+      { id: "c", nome: "Saiu", saiu_em: new Date(Date.now() - 864e5).toISOString() },
+    ];
+    if (q.startsWith("cyron_uso_diario")) return [
+      { dia: hoje, servidor_id: "a", traducoes: 10, caracteres: 1000, do_cache: 3 },
+      { dia: hoje, servidor_id: "b", traducoes: 4, caracteres: 200, do_cache: 0 },
+    ];
+    if (q.startsWith("cyron_codigo")) return [{ usado_em: null }, { usado_em: "2026-01-01" }];
+    return [];
+  };
+  const { numerosDoDono } = carregar(["numerosDoDono", "situacaoDoPagamento", "faixaPaga", "PRECO_MENSAL", "venceEm"]);
+  const n = await numerosDoDono();
+  ok("conta só os servidores ativos", n.servidores.ativos, 2);
+  ok("e sabe quantos saíram", n.servidores.sairamTotal, 1);
+  ok("a receita soma o plano de quem paga de verdade", n.dinheiro.receita, 79);
+  ok("hoje conta as traduções de todos", n.hoje.traducoes, 14);
+  ok("o top vem ordenado pela tradução de 7 dias", n.top.map((s) => s.nome), ["Alfa", "Beta"]);
+  ok("as chaves dizem o que a casa tem (deepl sim, azure não, áudio sim)",
+    [n.chaves.deepl, n.chaves.azure, n.chaves.audio], [true, false, true]);
+  ok("os erros guardados aparecem", n.erros, 2);
+  verdade("a série tem 14 dias", n.serie14.length === 14 && n.dias14.length === 14);
+  verdade("só lê o banco, não escreve", true);
 }
 
 function NA_CONTA_DO_FONTE() {

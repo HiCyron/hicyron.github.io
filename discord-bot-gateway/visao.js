@@ -16,8 +16,10 @@
    O que a pagina pede:
      GET  /visao/eu                     -> quem e' o bot e quem entrou
      GET  /visao/servidores             -> os servidores da CYRON
+     GET  /visao/privado                -> as conversas no privado (DM) do bot
      GET  /visao/canais?g=<id>          -> os canais de texto de um servidor
      GET  /visao/mensagens?c=<id>[&antes=<id>|&depois=<id>]
+     GET  /visao/admin/numeros          -> o painel do dono (metricas do /admin)
      POST /visao/enviar  {c, texto}     -> fala no canal como a CYRON
      WS   /visao/ao-vivo                -> as mensagens do canal aberto, na hora
 
@@ -398,6 +400,14 @@ async function atender(req, res) {
 
   if (rota === "GET /visao/servidores") {
     return responder(res, 200, { servidores: servidoresParaVisao(c.guilds.cache) }, cab);
+  }
+
+  /* O painel do dono (os numeros do /admin), para a tela web desenhar grafico e
+     tabela. So' o dono chega aqui (o gate la' em cima ja' garante). O index.js
+     entrega a funcao; se nao entregou, a rota simplesmente nao existe. */
+  if (rota === "GET /visao/admin/numeros") {
+    if (typeof d.numerosDoDono !== "function") return responder(res, 404, { erro: "nao existe" }, cab);
+    return responder(res, 200, await d.numerosDoDono(), cab);
   }
 
   if (rota === "GET /visao/privado") {
