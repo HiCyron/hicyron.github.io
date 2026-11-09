@@ -19219,11 +19219,13 @@ async function embedDeUso() {
 async function numerosDoDono() {
   const DIAS = 14;
   const dias = Array.from({ length: DIAS }, (_, i) => diaISO(Date.now() - (DIAS - 1 - i) * 864e5));
-  const [servidores, uso, codigos, escolhas] = await Promise.all([
+  const mesAtual = primeiroDoMes(Date.now());
+  const [servidores, uso, codigos, escolhas, recursos] = await Promise.all([
     sb("cyron_servidor?select=id,nome,plano,nivel,pago_ate,teste_ate,saiu_em,criado_em").catch(() => []),
     sb(`cyron_uso_diario?dia=gte.${dias[0]}&select=dia,servidor_id,caracteres,traducoes,do_cache`).catch(() => []),
     sb("cyron_codigo?select=usado_em").catch(() => []),
     sb("discord_idioma_jogador?select=idioma").catch(() => []),
+    sb(`cyron_uso_recurso?recurso=like.uso:*&mes=eq.${mesAtual}&select=recurso,servidor_id,quantidade`).catch(() => []),
   ]);
   const todos = servidores || [];
   const ativos = todos.filter((s) => !s.saiu_em);
@@ -19278,6 +19280,20 @@ async function numerosDoDono() {
     sairam7 && { icone: "👋", texto: `${sairam7} servidor(es) saíram nesta semana` },
   ].filter(Boolean);
 
+  /* Entradas por dia (📈 analítico), os últimos erros com o texto (🐛), e o que
+     o pessoal mais usou no mês (📊 as funções) — o resto do /admin. */
+  const entradas14 = dias.map((d) => todos.filter((s) => String(s.criado_em || "").slice(0, 10) === d).length);
+  const errosLista = errosRecentes.slice(-12).reverse()
+    .map((e) => ({ quando: e.quando, onde: e.onde, porque: String(e.porque || "").slice(0, 160) }));
+  const totalFun = new Map(), srvFun = new Map();
+  for (const l of (recursos || [])) {
+    const r = String(l.recurso).slice(4);
+    totalFun.set(r, (totalFun.get(r) || 0) + Number(l.quantidade || 0));
+    if (l.servidor_id) { if (!srvFun.has(r)) srvFun.set(r, new Set()); srvFun.get(r).add(l.servidor_id); }
+  }
+  const funcoes = [...totalFun.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
+    .map(([r, n]) => ({ nome: nomeDaFuncao(r), n, servidores: srvFun.get(r)?.size || 0 }));
+
   return {
     servidores: { ativos: ativos.length, sairamTotal: todos.length - ativos.length, novos7: novosLista.length, sairam7 },
     dinheiro: {
@@ -19286,10 +19302,12 @@ async function numerosDoDono() {
       vencendo, naoRenovaram,
     },
     hoje: { traducoes: hoje.t, caracteres: hoje.c, cache: hoje.k, ontem },
-    crescimento: { semana, semanaAntes, novos: novosLista.map(nomeDe).slice(0, 12), idiomas },
+    crescimento: { semana, semanaAntes, novos: novosLista.map(nomeDe).slice(0, 12), idiomas, entradas14 },
     dias14: dias,
     serie14,
     top,
+    funcoes,
+    errosLista,
     beta: { ligado: !!(BETA || venceEm(BETA_ATE)), ate: BETA_ATE || null },
     chaves: { deepl: motores.has("deepl"), azure: motores.has("azure"), imagem: !!visaoDoDono, audio: !!falaDoDono },
     erros: errosRecentes.length,

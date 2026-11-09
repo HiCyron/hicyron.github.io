@@ -14585,11 +14585,13 @@ function conferirCartao(onde, embed, componentes = []) {
   const futuro = new Date(Date.now() + 10 * 864e5).toISOString();
   globalThis.BETA = false; globalThis.BETA_ATE = "";
   globalThis.visaoDoDono = null; globalThis.falaDoDono = { tipo: "azure" };
-  globalThis.errosRecentes = [{}, {}];
+  globalThis.errosRecentes = [{ quando: 1, onde: "tradutor", porque: "falhou feio" }, { quando: 2, onde: "db", porque: "timeout" }];
   globalThis.motoresDoDono = () => [{ tipo: "deepl" }];
   globalThis.nomeDaFaixa = (f) => (f === "pro" ? "Pro" : "Aliança");
   globalThis.tradutorFalhas = { quedas: 0 };
   globalThis.cargoAcimaDeMim = new Map();
+  globalThis.primeiroDoMes = () => "2026-11-01";
+  globalThis.nomeDaFuncao = (r) => r;
   globalThis.sb = async (q) => {
     if (q.startsWith("cyron_servidor")) return [
       { id: "a", nome: "Alfa", plano: "gratis", nivel: "alianca", pago_ate: futuro, criado_em: new Date(Date.now() - 2 * 864e5).toISOString() },
@@ -14602,6 +14604,11 @@ function conferirCartao(onde, embed, componentes = []) {
     ];
     if (q.startsWith("cyron_codigo")) return [{ usado_em: null }, { usado_em: "2026-01-01" }];
     if (q.startsWith("discord_idioma_jogador")) return [{ idioma: "pt" }, { idioma: "en" }, { idioma: "en" }];
+    if (q.startsWith("cyron_uso_recurso")) return [
+      { recurso: "uso:bandeira", servidor_id: "a", quantidade: 5 },
+      { recurso: "uso:bandeira", servidor_id: "b", quantidade: 3 },
+      { recurso: "uso:espelho", servidor_id: "a", quantidade: 2 },
+    ];
     return [];
   };
   const { numerosDoDono } = carregar(["numerosDoDono", "situacaoDoPagamento", "faixaPaga", "PRECO_MENSAL", "venceEm"]);
@@ -14620,6 +14627,10 @@ function conferirCartao(onde, embed, componentes = []) {
     n.atencao.some((a) => /erro/.test(a.texto)) && n.atencao.some((a) => /saíram/.test(a.texto)));
   verdade("as tendências vêm (hoje vs ontem, semana vs anterior)",
     typeof n.hoje.ontem === "number" && typeof n.crescimento.semana === "number");
+  ok("as funções mais usadas no mês vêm ordenadas", n.funcoes.map((f) => f.nome), ["bandeira", "espelho"]);
+  ok("e dizem em quantos servidores", n.funcoes[0].servidores, 2);
+  ok("os erros recentes vêm com o texto, o mais novo primeiro", n.errosLista[0].onde, "db");
+  verdade("entradas por dia tem 14 pontos (📈 analítico)", n.crescimento.entradas14.length === 14);
   verdade("só lê o banco, não escreve", true);
 }
 
