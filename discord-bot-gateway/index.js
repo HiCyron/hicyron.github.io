@@ -19212,6 +19212,68 @@ async function embedDeUso() {
   };
 }
 
+/* Os MESMOS números do /admin, mas em JSON limpo para o app do dono (a Visão).
+   A tela web desenha gráfico de verdade e tabela com filtro -- coisas que o
+   embed do Discord não faz. Só o dono chega aqui (ehDono, no motor). Pura no
+   sentido que importa: só LÊ o banco, não muda nada. */
+async function numerosDoDono() {
+  const DIAS = 14;
+  const dias = Array.from({ length: DIAS }, (_, i) => diaISO(Date.now() - (DIAS - 1 - i) * 864e5));
+  const [servidores, uso, codigos] = await Promise.all([
+    sb("cyron_servidor?select=id,nome,plano,nivel,pago_ate,teste_ate,saiu_em,criado_em").catch(() => []),
+    sb(`cyron_uso_diario?dia=gte.${dias[0]}&select=dia,servidor_id,caracteres,traducoes,do_cache`).catch(() => []),
+    sb("cyron_codigo?select=usado_em").catch(() => []),
+  ]);
+  const todos = servidores || [];
+  const ativos = todos.filter((s) => !s.saiu_em);
+  const sit = (s) => situacaoDoPagamento(s);
+  const conta = { pago: 0, liberado: 0, teste: 0, gratis: 0 };
+  for (const s of ativos) conta[sit(s)] = (conta[sit(s)] || 0) + 1;
+  const pagando = ativos.filter((s) => sit(s) === "pago");
+  const receita = pagando.reduce((a, s) => a + PRECO_MENSAL[faixaPaga(s)], 0);
+
+  const porDia = (campo) => dias.map((d) => (uso || []).filter((l) => l.dia === d)
+    .reduce((a, l) => a + Number(l[campo] || 0), 0));
+  const hoje = (uso || []).filter((l) => l.dia === hojeISO())
+    .reduce((a, l) => ({ t: a.t + Number(l.traducoes || 0), c: a.c + Number(l.caracteres || 0), k: a.k + Number(l.do_cache || 0) }), { t: 0, c: 0, k: 0 });
+
+  const desde7 = diaISO(Date.now() - 6 * 864e5);
+  const uso7 = new Map();
+  for (const l of (uso || [])) if (l.dia >= desde7) uso7.set(l.servidor_id, (uso7.get(l.servidor_id) || 0) + Number(l.traducoes || 0));
+  const top = ativos
+    .map((s) => ({
+      nome: String(s.nome || "sem nome").slice(0, 60),
+      situacao: sit(s),
+      plano: nomeDaFaixa(faixaPaga(s)),
+      traducoes: uso7.get(s.id) || 0,
+      vence: venceEm(s.pago_ate) || venceEm(s.teste_ate) || null,
+    }))
+    .sort((a, b) => b.traducoes - a.traducoes)
+    .slice(0, 100);
+
+  const agora = Date.now();
+  const novos7 = todos.filter((s) => !s.saiu_em && s.criado_em && Date.parse(s.criado_em) >= agora - 7 * 864e5).length;
+  const sairam7 = todos.filter((s) => s.saiu_em && Date.parse(s.saiu_em) >= agora - 7 * 864e5).length;
+  const vencendo7 = pagando.filter((s) => venceEm(s.pago_ate) && venceEm(s.pago_ate) <= agora + 7 * 864e5).length;
+  const codigosLivres = (codigos || []).filter((c) => !c.usado_em).length;
+  const motores = new Set((motoresDoDono() || []).map((m) => m.tipo));
+
+  return {
+    servidores: { ativos: ativos.length, sairamTotal: todos.length - ativos.length, novos7, sairam7 },
+    dinheiro: {
+      receita, pagando: conta.pago, teste: conta.teste, liberado: conta.liberado, gratis: conta.gratis,
+      vencendo7, codigosLivres, precoPro: PRECO_MENSAL.pro, precoAlianca: PRECO_MENSAL.alianca,
+    },
+    hoje: { traducoes: hoje.t, caracteres: hoje.c, cache: hoje.k },
+    dias14: dias,
+    serie14: porDia("traducoes"),
+    top,
+    beta: { ligado: !!(BETA || venceEm(BETA_ATE)), ate: BETA_ATE || null },
+    chaves: { deepl: motores.has("deepl"), azure: motores.has("azure"), imagem: !!visaoDoDono, audio: !!falaDoDono },
+    erros: errosRecentes.length,
+  };
+}
+
 /* Os nomes do que o contarUso() conta. Comando e menu nao precisam estar aqui:
    viram "/nome" e "Apps → nome" sozinhos. */
 const NOMES_DAS_FUNCOES = {
@@ -26502,7 +26564,7 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    estar aberta quando o Fly conferir; antes do Discord responder, a lista de
    servidores so' vem vazia. O app vive em repo proprio (TiagoFernando113/Appcyron);
    o bot so' empresta o motor. */
-ligarVisao({ client, ehDono });
+ligarVisao({ client, ehDono, numerosDoDono });
 
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);
