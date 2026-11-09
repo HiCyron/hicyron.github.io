@@ -147,6 +147,12 @@ function pedaco(nome) {
    relogio; aqui ele ja' nasce preenchido, como se o ajuste tivesse vindo. */
 globalThis.SUPORTE = { link: "https://discord.gg/suporte" };
 
+/* mostrarPagamento() decide se o painel/telas mostram preco e botao de assinar.
+   Fora do beta devolve true (o padrao dos testes); um teste liga o beta
+   trocando este stub por () => false. Fica global para toda funcao carregada
+   que o consulta (componentesDoPainel, telaDosPlanos, telaDeAjuda, cliquePainel). */
+globalThis.mostrarPagamento = () => true;
+
 function carregar(nomes) {
   const codigo = nomes.map(pedaco).join("\n\n");
   const devolve = `;({${nomes.join(",")}})`;
@@ -3021,6 +3027,13 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("Pix e código ficam na aba Plano", porAba("plano").includes("cyron:pix") && porAba("plano").includes("cyron:codigo"));
   verdade("a Arena saiu: nenhuma aba oferece anunciar a Arena",
     ["resumo", "traducao", "uso", "agenda", "plano"].every((a) => !porAba(a).includes("cyron:anunciar")));
+  /* No beta o pagamento some do painel: todo servidor já tem tudo de graça. */
+  globalThis.LINK_PRO_VIVO = "https://pague.exemplo/pro";
+  globalThis.mostrarPagamento = () => false;
+  verdade("no beta, a aba Plano não tem Pix, código, teste nem indicar",
+    ["cyron:pix", "cyron:codigo", "cyron:teste", "cyron:indicar"].every((id) => !porAba("plano").includes(id)));
+  ok("no beta não há botão de assinar", assinar({ id: "s1", plano: "gratis" }).length, 0);
+  globalThis.mostrarPagamento = () => true;
   const { abaDaMensagem } = carregar(["ABAS_DO_PAINEL", "abaDaMensagem"]);
   ok("a aba da mensagem é a opção marcada", abaDaMensagem({ components: porAba && [
     { components: [{ custom_id: "cyron:aba", options: [{ value: "resumo" }, { value: "uso", default: true }] }] }] }), "uso");
@@ -6424,7 +6437,7 @@ function conferirCartao(onde, embed, componentes = []) {
   /* O endereço vai no botão, e não dentro do texto: texto passa pelo tradutor,
      e tradutor de máquina quebra URL. */
   const fonteAjuda = fonte.slice(fonte.indexOf("async function telaDeAjuda"),
-    fonte.indexOf("async function telaDeAjuda") + 1600);
+    fonte.indexOf("async function telaDeAjuda") + 2000);
   verdade("o catálogo é um botão de link na tela de ajuda",
     /style: 5[^]{0,200}recursos\.html/.test(fonteAjuda));
   verdade("e o endereço não está dentro de nenhum texto traduzido",
