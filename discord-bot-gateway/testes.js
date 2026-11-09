@@ -171,6 +171,9 @@ Object.assign(globalThis, carregar(["textoDoBot", "comoTextoDoBot", "ehTextoDoBo
 /* O contador de uso de cada funcao tambem: muitas funcoes testadas sozinhas
    chamam contarUso() logo na primeira linha. */
 Object.assign(globalThis, carregar(["USO_DE_FUNCAO", "contarUso"]));
+/* As linguas da sala 🌍 (o que cada sala le, o que a origem escreve): o
+   espelho, a correcao e o apagar consultam as duas em toda fala. */
+Object.assign(globalThis, carregar(["IDIOMA_DA_SALA_MUNDO", "idiomaQueLe", "idiomaQueEscreve"]));
 /* Os emojis da CYRON tambem, vazios como antes de a subida terminar: quem os
    usa (o duelo, o herói pego, a inscrição, as carinhas dos botões) sai com a
    reserva de sempre. */
@@ -14650,6 +14653,317 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("não guarda mensagem de servidor nem do próprio bot", gravado.length, 1);
   const lista = await P.listarPrivados();
   ok("lê as conversas guardadas no formato do app", [lista[0].id, lista[0].usuario, lista[0].nome], ["c1", "u1", "Ana"]);
+}
+
+/* ---- A SALA 🌍: PARA QUEM NÃO COUBE NO PLANO ----
+
+   O plano limita os idiomas (Pro: cinco). Quem escolhe o sexto não tem sala,
+   e o Discord não deixa emprestar uma (um texto só por canal). Antes, essa
+   pessoa lia "sua categoria aparece em um minuto" e não via nada nunca. Agora:
+   a resposta do clique diz a verdade na língua dela, e a sala 🌍 — uma irmã do
+   espelho que lê inglês e escreve para todas — é o lugar dela, com o tópico 🌐
+   para ler no próprio idioma só ali. */
+{
+  /* -- onde a língua cai, no instante do clique -- */
+  const { situacaoDoIdioma } = carregar(["situacaoDoIdioma"]);
+  ok("língua que já existe aqui: tem", situacaoDoIdioma("pt", ["pt", "en"], 5, true), "tem");
+  ok("língua nova com vaga no plano: vai ter", situacaoDoIdioma("tr", ["pt", "en"], 5, true), "vai-ter");
+  ok("língua nova com o plano no teto: cheio", situacaoDoIdioma("tr", ["pt", "en", "es", "ar", "id"], 5, true), "cheio");
+  ok("plano sem salas por idioma: sem salas", situacaoDoIdioma("tr", [], 0, true), "sem-salas");
+  ok("modo ferramentas não monta sala nenhuma", situacaoDoIdioma("pt", ["pt"], 5, false), "sem-salas");
+
+  /* -- o que cada sala lê e o que a origem escreve -- */
+  ok("a sala 🌍 lê inglês", idiomaQueLe({ idioma: "en", mundo: true }), "en");
+  ok("e escreve 'qualquer língua' (vazio)", idiomaQueEscreve({ idioma: "en", mundo: true }), "");
+  ok("sala de idioma lê e escreve a dela", [idiomaQueLe({ idioma: "pt" }), idiomaQueEscreve({ idioma: "pt" })], ["pt", "pt"]);
+
+  /* -- o teto de tópicos por minuto na sala 🌍 -- */
+  const T = carregar(["TOPICOS_POR_MINUTO_NA_SALA_MUNDO", "topicosNaSalaMundo", "cabeTopicoNaSalaMundo"]);
+  let cabem = 0;
+  for (let i = 0; i < 25; i++) if (T.cabeTopicoNaSalaMundo("sala-w", 1000)) cabem++;
+  ok("no máximo 20 tópicos por minuto na sala 🌍", cabem, 20);
+  verdade("passado o minuto, volta a caber", T.cabeTopicoNaSalaMundo("sala-w", 1000 + 61_000));
+
+  /* -- o texto que o tópico ao vivo traduz -- */
+  const V = carregar(["MARCA_DA_ASSINATURA", "caudaDoCartao", "textoAoVivo"]);
+  ok("no cartão do espelho: o corpo, sem a assinatura",
+    V.textoAoVivo({ webhookId: "wh", embeds: [{ description: "Attack at nine\nBring potions\n-# [Ana](https://discord.com/users/1) · 🇧🇷 → 🇬🇧" }] }),
+    "Attack at nine\nBring potions");
+  ok("na fala de gente: o que ela escreveu, não a prévia do link",
+    V.textoAoVivo({ content: "olha isso https://x.y", embeds: [{ description: "prévia do site" }] }), "olha isso https://x.y");
+}
+
+/* -- o espelho com a sala 🌍 entre as irmãs -- */
+{
+  const { espelharMensagem, ultimaFalaDaSala } = carregar([
+    "JANELA_DE_GRUPO", "LIMITE_DO_CARTAO", "MAX_SALAS_LEMBRADAS", "TEXTO_MAXIMO",
+    "LINGUAS_MENU", "bandeiraDoIdioma", "seloDeOrigem", "NOME_MIUDO", "creditoDaCyron", "MOTIVOS_QUE_DOEM", "anotarSemTraducao",
+    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe",
+    "falasNoCartao", "MAX_CARTOES_LEMBRADOS", "guardarFalas",
+    "figurinhaDe", "textoDaEnquete", "midiaDeLink",
+    "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
+    "ehImagemAnexo", "ROTULO_LER_IMAGEM", "botaoDeLerImagem", "ehAudioAnexo", "ROTULO_OUVIR", "botaoDeOuvir", "linhaDaVoz",
+    "ultimaFalaDaSala", "emendaNaFalaAnterior", "emendaNestaSala", "figuraQueFica", "TAMANHO_DO_EMOJI_EMBAIXO", "MAX_EMOJIS_EMBAIXO", "NOME_DA_FAIXA_DE_EMOJIS",
+    "emojisDeFora", "EMOJI_PERSONALIZADO", "soEmoji", "emojisParaDesenhar", "urlDoEmoji", "tirarEmojisDoTexto", "emojisEmbaixoDaFala", "espelharMensagem"]);
+
+  const montar = () => {
+    const salas = new Map(["pt", "en", "es", "w"].map((id) => [id, {
+      id, lastMessageId: null, messages: { fetch: async (mid) => ({ id: mid, channel: { id } }) } }]));
+    const mensagens = new Map();
+    let seq = 0;
+    globalThis.clienteDoWebhook = (url) => ({
+      send: async (o) => {
+        const id = `m${++seq}`;
+        mensagens.set(id, { canal: url, embed: o.embeds?.[0] });
+        salas.get(url).lastMessageId = id;
+        return { id };
+      },
+      editMessage: async (id, o) => { mensagens.get(id).embed = o.embeds[0]; },
+    });
+    return { salas, mensagens, na: (sala) => [...mensagens.entries()].filter(([, m]) => m.canal === sala) };
+  };
+
+  const traducoes = [];
+  globalThis.traduzirLongo = async (t, idioma) => { traducoes.push(idioma); return `[${idioma}] ${t}`; };
+  globalThis.porQueNaoTraduzir = (t) => (String(t || "").trim().length < 12 ? "curto" : "");
+  globalThis.vantajosoTraduzir = (t) => !globalThis.porQueNaoTraduzir(t);
+  globalThis.protegerDoTradutor = (t) => ({ marcado: t, pecas: [] });
+  globalThis.devolverPecas = (t) => t;
+  globalThis.motoresDoDono = () => [];
+  globalThis.MOTOR_AUTO = { tipo: "auto", chave: null };
+  globalThis.baixarAnexos = async () => ({ arquivos: [], links: [] });
+  globalThis.visaoDoDono = null;
+  globalThis.falaDoDono = null;
+  globalThis.aQuemResponde = async () => null;
+  globalThis.corDaPessoa = () => 1;
+  globalThis.ondeMoraAFala = new Map();
+  globalThis.procurarFamilia = async () => null;
+  globalThis.lembrarFala = (familia, canalId, msgId) => { if (canalId && msgId) familia.set(canalId, msgId); };
+  globalThis.anotarUso = () => {};
+  const topicos = [];
+  globalThis.topicoNaSalaMundo = async (m) => { topicos.push(m.id); };
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  const lista = [
+    { canal_id: "pt", idioma: "pt", webhook: "pt" },
+    { canal_id: "en", idioma: "en", webhook: "en" },
+    { canal_id: "es", idioma: "es", webhook: "es" },
+    { canal_id: "w", idioma: "en", webhook: "w", mundo: true },
+  ];
+  const falar = (mundo, origem, texto, autor = "ana") => espelharMensagem({
+    id: `o${Math.random().toString(36).slice(2)}`,
+    author: { id: autor, username: autor, displayAvatarURL: () => "http://f" },
+    member: { displayName: autor }, attachments: { size: 0 }, mentions: { users: new Map() },
+    reference: null, channel: { id: origem.canal_id },
+    guild: { id: "g", channels: { cache: mundo.salas } },
+  }, lista, origem, texto);
+
+  /* Fala de uma sala de idioma: a 🌍 recebe em inglês, sem tradução a mais. */
+  {
+    ultimaFalaDaSala.clear(); traducoes.length = 0; topicos.length = 0;
+    const m = montar();
+    await falar(m, lista[0], "Vamos atacar o castelo às nove horas");
+    await tick();
+    ok("a sala 🌍 não custa tradução: o inglês já é feito pra sala inglesa", traducoes.sort(), ["en", "es"]);
+    verdade("a 🌍 recebe a fala em inglês", m.na("w")[0]?.[1].embed.description.startsWith("[en] Vamos atacar"));
+    ok("e o cartão dela ganha o tópico 🌐", topicos, [m.na("w")[0]?.[0]]);
+    ok("as outras salas não ganham tópico nenhum", topicos.length, 1);
+  }
+
+  /* Fala NASCIDA na 🌍: vai traduzida para todas -- inclusive a inglesa. */
+  {
+    ultimaFalaDaSala.clear(); traducoes.length = 0;
+    const m = montar();
+    await falar(m, lista[3], "Saldırı saat dokuzda başlıyor arkadaşlar");
+    ok("o que nasce na 🌍 vai traduzido pra todas as salas", traducoes.sort(), ["en", "es", "pt"]);
+    const ingles = m.na("en")[0]?.[1].embed.description || "";
+    verdade("a sala inglesa recebe TRADUZIDO, não o original", ingles.startsWith("[en] Saldırı"));
+    verdade("e sem selo de origem (a língua de lá não é conhecida)", !ingles.includes("→"));
+  }
+
+  /* A 🌍 emenda como as outras: a família da fala fica com UM cartão por sala,
+     e apagar a primeira frase de uma rajada apaga o cartão dela ali também. */
+  {
+    /* As duas sem tradução (o espelho não emenda fala traduzida em cartão que
+       não foi -- "meio cartão em cada língua"), e o tópico decide pelo tamanho. */
+    const naoTraduz = globalThis.porQueNaoTraduzir;
+    globalThis.porQueNaoTraduzir = () => "curto";
+    globalThis.vantajosoTraduzir = (t) => String(t || "").trim().length >= 12;
+    ultimaFalaDaSala.clear(); topicos.length = 0;
+    const m = montar();
+    await falar(m, lista[0], "ok");
+    await tick();
+    ok("cartão curto ('ok') não ganha tópico", topicos.length, 0);
+    await falar(m, lista[0], "o rally começa às nove, tragam poções");
+    await tick();
+    ok("a 🌍 emenda como a sala inglesa: um cartão cada", [m.na("en").length, m.na("w").length], [1, 1]);
+    ok("cartão que nasceu curto ganha o tópico quando a emenda o torna legível", topicos, [m.na("w")[0]?.[0]]);
+    globalThis.porQueNaoTraduzir = naoTraduz;
+    globalThis.vantajosoTraduzir = (t) => !globalThis.porQueNaoTraduzir(t);
+  }
+}
+
+/* -- a lista das irmãs inclui a 🌍; banco com problema não cala o espelho -- */
+{
+  const E = carregar(["ESPERA_APOS_FALHA", "escritasNaTabela", "escritasDe", "lerComMemoria",
+    "CONFIG_NA_MEMORIA", "cacheEspelho", "canaisEspelho", "IDIOMA_DA_SALA_MUNDO", "salaMundoDe", "linhaDaSalaMundo"]);
+  let mundoResponde = async () => [{ servidor_id: "s1", canal_id: "w1", webhook: "ww", role_id: "r1" }];
+  globalThis.sb = async (caminho) => {
+    if (caminho.startsWith("discord_chat_espelho")) return [{ canal_id: "pt", idioma: "pt", webhook: "wpt" }];
+    if (caminho.startsWith("discord_sala_mundo")) return mundoResponde();
+    return [];
+  };
+  E.cacheEspelho.clear();
+  const com = await E.canaisEspelho("s1");
+  ok("a 🌍 entra como mais uma irmã", com.map((s) => s.canal_id), ["pt", "w1"]);
+  ok("marcada como 🌍 e lendo inglês", [com[1].mundo, com[1].idioma, com[1].webhook], [true, "en", "ww"]);
+
+  E.cacheEspelho.clear();
+  mundoResponde = async () => [{ servidor_id: "s1", canal_id: null, webhook: null }];
+  ok("🌍 sem canal (apagada, esperando voltar) não vira destino", (await E.canaisEspelho("s1")).length, 1);
+
+  E.cacheEspelho.clear();
+  mundoResponde = async () => { throw new Error("supabase 404"); };
+  ok("tabela da 🌍 ausente não cala as salas de idioma", (await E.canaisEspelho("s1")).map((s) => s.canal_id), ["pt"]);
+
+  mundoResponde = async () => { throw new Error("supabase 503"); };
+  let subiu = false;
+  try { await E.salaMundoDe("s1"); } catch { subiu = true; }
+  verdade("banco fora do ar sobe (o lerComMemoria segura o último retrato bom)", subiu);
+
+  /* Na leitura direta (a da varredura), até o 4xx sobe: sem leitura limpa,
+     nada de criar uma 🌍 às cegas a cada passada. */
+  mundoResponde = async () => { throw new Error("supabase 404"); };
+  let subiu4xx = false;
+  try { await E.salaMundoDe("s1"); } catch { subiu4xx = true; }
+  verdade("4xx também sobe na leitura direta: a varredura não cria às cegas", subiu4xx);
+}
+
+/* -- montar a 🌍: se a gravação falha, nada fica pra trás, nem o cargo -- */
+{
+  globalThis.PermissionFlagsBits = globalThis.PermissionFlagsBits ?? PermissionFlagsBits;
+  globalThis.ChannelType = globalThis.ChannelType ?? { GuildText: 0 };
+  globalThis.SEGUNDOS_ENTRE_FALAS = 5;
+  const apagados = [];
+  globalThis.client = { ...(globalThis.client || {}), user: { id: "bot" } };
+  globalThis.criarCargoDeIdioma = async () => ({ id: "r-novo", delete: async () => { apagados.push("cargo"); } });
+  const G = carregar(["NOME_SALA_MUNDO", "NOME_CARGO_MUNDO", "TOPICO_SALA_MUNDO", "portasDaSalaMundo", "garantirSalaMundo"]);
+  const guild = {
+    name: "Teste", roles: { everyone: { id: "every" }, cache: new Map([["r-velho", { id: "r-velho" }]]) },
+    channels: { create: async (o) => ({ id: "c-w", name: o.name,
+      createWebhook: async () => ({ url: "https://wh" }), delete: async () => { apagados.push("canal"); } }) },
+  };
+  globalThis.sbPost = async () => { throw new Error("supabase 404 em discord_sala_mundo"); };
+  let falhou = false;
+  try { await G.garantirSalaMundo(guild, "s1", null); } catch { falhou = true; }
+  verdade("gravação que falha derruba a montagem", falhou);
+  ok("e desfaz o canal E o cargo criados agora", apagados.sort(), ["canal", "cargo"]);
+
+  apagados.length = 0;
+  try { await G.garantirSalaMundo(guild, "s1", { role_id: "r-velho" }); } catch { /* esperado */ }
+  ok("cargo que já existia não é apagado", apagados, ["canal"]);
+
+  const gravou = [];
+  globalThis.sbPost = async (c, corpo, p) => { gravou.push([c, corpo, p]); return [corpo]; };
+  const linha = await G.garantirSalaMundo(guild, "s1", null);
+  ok("montada: grava canal, webhook e cargo como upsert",
+    [gravou[0][0], linha.canal_id, linha.webhook, linha.role_id, gravou[0][2]],
+    ["discord_sala_mundo?on_conflict=servidor_id", "c-w", "https://wh", "r-novo", "resolution=merge-duplicates"]);
+}
+
+/* -- a resposta de quem não coube, na língua dela -- */
+{
+  globalThis.COR = globalThis.COR ?? 1;
+  globalThis.COR_OK = globalThis.COR_OK ?? 2;
+  globalThis.traduzirEmbed = async (e, idioma) => (idioma === "pt" ? e : {
+    ...e, title: `[${idioma}] ${e.title}`, description: `[${idioma}] ${e.description}`,
+    fields: (e.fields || []).map((f) => ({ name: `[${idioma}] ${f.name}`, value: `[${idioma}] ${f.value}` })),
+  });
+  const S = carregar(["LINGUAS_MENU", "nomeNaPropriaLingua", "nomeDoIdioma", "menuDasLinguasDaqui",
+    "telaIdiomaSemVaga", "telaIdiomaSemSalas"]);
+
+  const tela = await S.telaIdiomaSemVaga("tr", ["pt", "en"], "999", {});
+  const [mundo, salas, bandeira] = tela.embeds[0].fields;
+  verdade("escrita na língua de quem escolheu", tela.embeds[0].title.startsWith("[tr]"));
+  verdade("a sala 🌍 vem como link — por FORA do tradutor, que quebraria o <#id>", mundo.value.startsWith("<#999>\n[tr]"));
+  verdade("as salas que existem, cada uma escrita como quem a fala", salas.value.startsWith("🇧🇷 Português · 🇬🇧 English\n[tr]"));
+  verdade("e o tradutor de bandeira", bandeira.name.includes("🏳️"));
+  const menu = tela.components[0].toJSON().components[0];
+  ok("o menu é o seletor de sempre, só com as línguas que têm sala", [menu.custom_id, menu.options.map((o) => o.value)],
+    ["escolher-idioma", ["pt", "en"]]);
+
+  const semLink = await S.telaIdiomaSemVaga("tr", ["pt"], null, {});
+  verdade("🌍 ainda nascendo: avisa que aparece em instantes, sem link", !semLink.embeds[0].fields[0].value.includes("<#") &&
+    semLink.embeds[0].fields[0].value.includes("aparece na sua lista"));
+
+  const sem = await S.telaIdiomaSemSalas("tr", {});
+  verdade("servidor sem salas: não promete categoria, aponta a bandeira",
+    !JSON.stringify(sem).includes("categoria") && sem.embeds[0].fields[0].name.includes("🏳️") && sem.components.length === 0);
+}
+
+/* -- o tópico ao vivo só lê a mensagem do próprio tópico -- */
+{
+  const salvo = globalThis.client;
+  const card = { webhookId: "wh", url: "https://discord.com/channels/g/100000/200000",
+    embeds: [{ description: "Rally at nine\n-# [Ana](https://discord.com/users/1)" }] };
+  globalThis.client = { channels: { fetch: async (id) => {
+    if (id === "100000") return { guildId: "g", messages: { fetch: async (m) => (m === "200000" ? card : null) } };
+    if (id === "500000") return { guildId: "outro", messages: { fetch: async () => card } };
+    return null;
+  } } };
+  const L = carregar(["MARCA_DA_ASSINATURA", "caudaDoCartao", "textoAoVivo", "lerAoVivo"]);
+  const noTopico = await L.lerAoVivo({ channelId: "200000", channel: { parentId: "100000" }, guildId: "g" }, "c100000.200000");
+  ok("de dentro do tópico: lê o cartão como ele está agora", noTopico?.texto, "Rally at nine");
+  verdade("seletor que caiu como resposta no próprio canal também lê",
+    await L.lerAoVivo({ channelId: "100000", channel: { parentId: null }, guildId: "g" }, "c100000.200000"));
+  ok("de outro canal, o id no botão não abre mensagem nenhuma",
+    await L.lerAoVivo({ channelId: "300000", channel: { parentId: "400000" }, guildId: "g" }, "c100000.200000"), null);
+  ok("canal de outro servidor: nada",
+    await L.lerAoVivo({ channelId: "500000", channel: { parentId: null }, guildId: "g" }, "c500000.200000"), null);
+  ok("id torto: nada", await L.lerAoVivo({ channelId: "1", guildId: "g" }, "cxyz"), null);
+  globalThis.client = salvo;
+}
+
+/* -- o aviso pra administração aponta a 🌍; no beta, sem "suba de plano" -- */
+{
+  const enviados = [];
+  globalThis.umaVezPorProcesso = () => true;
+  globalThis.linguaDaSalaCyron = async () => "pt";
+  globalThis.motorDoGuild = async () => ({});
+  globalThis.cartaoNaLingua = async (carga) => carga;
+  globalThis.planoDe = () => "pago";
+  const A = carregar(["LINGUAS_MENU", "nomeDoIdioma", "avisarDoTeto"]);
+  const guild = { channels: { fetch: async () => ({ send: async (c) => { enviados.push(c.content); } }) } };
+  const salvo = globalThis.mostrarPagamento;
+  globalThis.mostrarPagamento = () => false;
+  await A.avisarDoTeto(guild, { id: "s1", canal_config: "cfg" }, [["tr", 2]], { idiomas: 5 }, { canal_id: "w1" });
+  verdade("o aviso leva o link da 🌍", enviados[0]?.includes("<#w1>"));
+  verdade("no beta, sem preço: nada de 'suba de plano'", !enviados[0]?.includes("suba de plano"));
+  globalThis.mostrarPagamento = () => true;
+  await A.avisarDoTeto(guild, { id: "s2", canal_config: "cfg" }, [["vi", 1]], { idiomas: 5 }, null);
+  verdade("fora do beta, o caminho de subir de plano aparece", enviados[1]?.includes("suba de plano"));
+  verdade("sem 🌍 ainda, aponta a bandeira", enviados[1]?.includes("bandeira"));
+  globalThis.mostrarPagamento = salvo;
+}
+
+/* -- a varredura: 🌍 só com leitura confirmada, antes do aviso, e o cargo entra
+      na mesma regra de exclusividade -- */
+{
+  const v = pedaco("sincronizarUmGuild");
+  verdade("só cria a 🌍 onde há salas, com a leitura confirmada e vaga de canal",
+    /pago && limite\.idiomas > 0 && mundoLido && !mundo\?\.canal_id && podeCriarCanal\(/.test(v));
+  verdade("a 🌍 nasce antes do aviso, que aponta pra ela",
+    v.indexOf("garantirSalaMundo(") > 0 && v.indexOf("garantirSalaMundo(") < v.indexOf("avisarDoTeto(guild, servidor, naoCoube, limite, mundo)"));
+  verdade("o cargo 🌍 entra na exclusividade dos cargos de sala", v.includes("cargosDeSala.add(cargoMundo)"));
+  verdade("e vai pra quem escolheu uma língua sem sala",
+    /cargoMundo && lingua && !porIdioma\.has\(lingua\) \? cargoMundo/.test(v));
+  verdade("a 🌍 gasta um canal do orçamento", v.includes("if (mundo?.canal_id) orcamento.resta -= 1"));
+  const clique = pedaco("cliqueEscolherIdioma");
+  verdade("o clique decide a resposta pela situação da língua",
+    clique.includes("situacaoDoIdioma(") && clique.includes("telaIdiomaSemVaga(") && clique.includes("telaIdiomaSemSalas("));
+  verdade("a correção usa as mesmas línguas do envio", pedaco("corrigirNasOutrasSalas").includes("idiomaQueLe(daSala)"));
+  verdade("apagar na 🌍 leva o tópico junto", pedaco("apagarNasOutrasSalas").includes("apagarTopicoDaSalaMundo("));
+  verdade("o seletor do tópico ao vivo passa pela leitura protegida", pedaco("cliqueTraduzirMsg").includes("lerAoVivo(inter, id)"));
 }
 
 function NA_CONTA_DO_FONTE() {
