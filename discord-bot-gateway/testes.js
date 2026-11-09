@@ -14901,6 +14901,32 @@ function conferirCartao(onde, embed, componentes = []) {
     !JSON.stringify(sem).includes("categoria") && sem.embeds[0].fields[0].name.includes("🏳️") && sem.components.length === 0);
 }
 
+/* -- as duas portas usam a mesma decisão: que tela mostrar a quem não vai ter sala -- */
+{
+  let linguas = ["pt", "en", "es"], teto = 3, cria = true, servidor = { id: "s1" }, falhaBanco = false;
+  globalThis.servidorDoGuild = async () => servidor;
+  globalThis.sb = async () => { if (falhaBanco) throw new Error("supabase 503"); return linguas.map((idioma) => ({ idioma })); };
+  globalThis.limitesDo = () => ({ idiomas: teto });
+  globalThis.criaSalasDeTraducao = () => cria;
+  globalThis.motorDoGuild = async () => ({});
+  globalThis.salaMundoDe = async () => ({ canal_id: "w1" });
+  globalThis.telaIdiomaSemVaga = async (idioma, aqui, mundo) => ({ tela: "sem-vaga", idioma, aqui, mundo });
+  globalThis.telaIdiomaSemSalas = async (idioma) => ({ tela: "sem-salas", idioma });
+  const P = carregar(["situacaoDoIdioma", "telaDaEscolhaSemSala"]);
+
+  ok("plano no teto: a tela de sem vaga, com a 🌍 e as salas daqui",
+    await P.telaDaEscolhaSemSala("g", "tr"), { tela: "sem-vaga", idioma: "tr", aqui: ["pt", "en", "es"], mundo: "w1" });
+  ok("língua que tem sala: nenhuma tela especial (cada porta responde do seu jeito)", await P.telaDaEscolhaSemSala("g", "pt"), null);
+  teto = 5;
+  ok("língua nova com vaga: nenhuma tela especial", await P.telaDaEscolhaSemSala("g", "tr"), null);
+  cria = false;
+  ok("servidor sem salas por idioma: a tela da bandeira", (await P.telaDaEscolhaSemSala("g", "tr")).tela, "sem-salas");
+  cria = true; teto = 3; falhaBanco = true;
+  ok("banco fora do ar: na dúvida, o caminho de sempre", await P.telaDaEscolhaSemSala("g", "tr"), null);
+  falhaBanco = false; servidor = null;
+  ok("fora de servidor (privado): nada", await P.telaDaEscolhaSemSala(null, "tr"), null);
+}
+
 /* -- o tópico ao vivo só lê a mensagem do próprio tópico -- */
 {
   const salvo = globalThis.client;
@@ -14958,9 +14984,11 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("e vai pra quem escolheu uma língua sem sala",
     /cargoMundo && lingua && !porIdioma\.has\(lingua\) \? cargoMundo/.test(v));
   verdade("a 🌍 gasta um canal do orçamento", v.includes("if (mundo?.canal_id) orcamento.resta -= 1"));
-  const clique = pedaco("cliqueEscolherIdioma");
-  verdade("o clique decide a resposta pela situação da língua",
-    clique.includes("situacaoDoIdioma(") && clique.includes("telaIdiomaSemVaga(") && clique.includes("telaIdiomaSemSalas("));
+  verdade("o menu de idioma passa pela tela de 'sem sala'", pedaco("cliqueEscolherIdioma").includes("telaDaEscolhaSemSala("));
+  /* A segunda porta: o /mylanguage salvava calado, sem a tela da 🌍. */
+  const mylanguage = fonte.slice(fonte.indexOf('if (nome === "mylanguage") {'), fonte.indexOf('if (nome === "Criar evento")'));
+  verdade("o /mylanguage também passa pela tela de 'sem sala' e monta na hora",
+    mylanguage.includes("telaDaEscolhaSemSala(") && mylanguage.includes("sincronizarAgora("));
   verdade("a correção usa as mesmas línguas do envio", pedaco("corrigirNasOutrasSalas").includes("idiomaQueLe(daSala)"));
   verdade("apagar na 🌍 leva o tópico junto", pedaco("apagarNasOutrasSalas").includes("apagarTopicoDaSalaMundo("));
   verdade("o seletor do tópico ao vivo passa pela leitura protegida", pedaco("cliqueTraduzirMsg").includes("lerAoVivo(inter, id)"));
