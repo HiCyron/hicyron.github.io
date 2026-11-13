@@ -207,12 +207,37 @@ async function lerComMemoria(cache, chave, prazo, ler, { vazio = null, tabela = 
   }
 }
 
+/* Uma leitura que nao VOLTOU ganha uma segunda chance -- uma so'.
+
+   O erro mais repetido do canal, cinquenta vezes em cinco semanas, era a
+   varredura do maior servidor "passando do tempo". O laudo suspeitava do
+   tamanho do servidor; as tabelas dele tem 54, 9 e 7 linhas. A conta que
+   fecha e' outra: cada varredura faz de dez a vinte idas ao banco por
+   servidor, a cada dez minutos, em doze servidores. Cinquenta falhas nesse
+   volume da' perto de uma ida engasgada a cada dez mil -- a batida, que e'
+   uma ida so', falha na mesma ordem de grandeza. E bastava UMA engasgar oito
+   segundos para a varredura inteira ser jogada fora -- e, com ela, a sala de
+   quem tinha acabado de escolher o idioma.
+
+   So' leitura (repetir um GET nao muda nada no banco); so' quando a resposta
+   nao chegou inteira (prazo, rede) -- um 4xx ou 5xx E' resposta, e sobe como
+   antes; e so' uma vez: banco fora do ar de verdade falha de novo e o erro
+   sobe, oito segundos mais tarde. */
 async function sb(caminho) {
-  const r = await fetch(`${SB_URL}/rest/v1/${caminho}`, comPrazo({
-    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
-  }));
-  if (!r.ok) throw new Error(`supabase ${r.status}`);
-  return await r.json();
+  const ler = async () => {
+    const r = await fetch(`${SB_URL}/rest/v1/${caminho}`, comPrazo({
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    }));
+    if (!r.ok) throw Object.assign(new Error(`supabase ${r.status}`), { respondeu: true });
+    return await r.json();
+  };
+  try {
+    return await ler();
+  } catch (e) {
+    if (e?.respondeu) throw e;
+    await new Promise((ok) => setTimeout(ok, 250));
+    return await ler();
+  }
 }
 
 async function sbPost(caminho, corpo, prefer = "") {
@@ -4112,7 +4137,14 @@ async function ilustrarNasOutrasSalas(msg) {
     if (atual.image?.url) continue; // ja' ilustrado (ou cartao antigo, com a figurinha grande)
     const deu = await clienteDoWebhook(url).editMessage(copiaId, {
       embeds: [{ ...atual, image: { url: midia } }],
-    }).then(() => true, (e) => { console.error("espelho: nao consegui ilustrar a copia:", e?.message || e); return false; });
+    }).then(() => true, (e) => {
+      /* Cartao que sumiu antes de a previa do link chegar (a pessoa apagou a
+         fala, e as copias foram junto) nao e' erro: nao ha' mais o que
+         ilustrar. Eram dezenove cartoes "Apagaram algo que eu ainda usava" no
+         canal de erros, e nenhum pedia conserto -- a mesma regra do seletor. */
+      if (!mensagemSumiu(e)) console.error("espelho: nao consegui ilustrar a copia:", e?.message || e);
+      return false;
+    });
     if (deu) lembrarImagemDoCartao(copiaId, midia);
   }
 }
@@ -18087,15 +18119,29 @@ const EXPLICA_ERRO = [
        defeito que esta tabela existe para evitar. O teste pegou.
 
        Agora o sintoma e' obrigatorio: contexto de varredura E timeout. */
-    quando: /(passada (curta|longa)|espelho|varredura).{0,160}(aborted due to timeout|TimeoutError)/i,
+    /* DUAS CORRECOES, as duas medidas no banco de erros e nao supostas.
+
+       1. O conselho mandava olhar "se aparecer sempre no MESMO servidor: ai'
+          pode ser um servidor grande demais para o prazo". Apareceu cinquenta
+          vezes em cinco semanas, sempre no mesmo -- e as tabelas dele tem 54,
+          9 e 7 linhas. O prazo nao e' da varredura, e' de CADA ida ao banco:
+          uma engasgava e a varredura inteira caia. O laudo apontava o tamanho,
+          que nunca foi o problema, e escondia o que era (ver `sb`, que agora
+          tenta a leitura uma segunda vez).
+
+       2. A palavra `espelho` sozinha reivindicava qualquer timeout da casa que
+          comecasse por ela -- baixar um anexo, por exemplo -- e o chamava de
+          varredura. Agora o contexto e' a varredura de verdade: a passada, a
+          montagem, a sincronia. */
+    quando: /(passada (curta|longa)|montagem imediata|sincronia falhou|varredura).{0,160}(aborted due to timeout|TimeoutError)/i,
     titulo: "Uma varredura passou do tempo e eu cortei",
     precisaDeVoce: false,
-    oque: "A varredura de um servidor demorou mais que o prazo e eu cortei a espera em vez de " +
-      "ficar pendurado. Costuma ser o Discord ou o banco lentos naquele instante, e não " +
-      "configuração de ninguém.\n\n" +
-      "A varredura curta roda de minuto em minuto: a seguinte refaz o que ficou para trás.",
-    fazer: "Nada. Só vale olhar se aparecer sempre no MESMO servidor: aí pode ser um servidor " +
-      "grande demais para o prazo, e o tamanho é que precisa de ajuste.",
+    oque: "Uma ida ao banco de dados não voltou em 8 segundos e eu abandonei a varredura daquele " +
+      "servidor em vez de ficar esperando (as leituras eu tento duas vezes antes de desistir). " +
+      "É o banco lento naquele instante: não é configuração de ninguém, nem tamanho de servidor.\n\n" +
+      "A varredura seguinte (em até 10 minutos) refaz o que ficou para trás.",
+    fazer: "Nada. Só vale olhar se repetir por mais de uma hora seguida: aí é o Supabase lento de " +
+      "verdade, e dá para conferir em status.supabase.com.",
   },
   {
     /* ANTES da regra do banco: "nao consegui ler a imagem: fetch failed" e'
@@ -18222,12 +18268,19 @@ const EXPLICA_ERRO = [
     fazer: "Nada, se for esporádico. Se virar rotina, é hora de um motor com chave.",
   },
   {
+    /* O titulo era "Alguem clicou num botao vencido", e punha a culpa em quem
+       clicou. Botao nao vence: clicar numa mensagem antiga abre uma interacao
+       NOVA, com tres segundos novos. O que o Discord chama de "Unknown
+       interaction" e' eu ter passado desses tres segundos. A demora e' minha,
+       e um laudo que diz o contrario esconde o dia em que ela virar rotina. */
     quando: /Unknown interaction/i,
-    titulo: "Alguém clicou num botão vencido",
+    titulo: "Demorei mais de 3 segundos para responder um clique",
     precisaDeVoce: false,
-    oque: "O Discord dá três segundos para o bot acusar um clique. Ou o clique veio de uma mensagem " +
-      "antiga, ou o bot estava ocupado naquele instante.",
-    fazer: "Nada. Quem clicou vê “Esta interação falhou” e resolve clicando de novo.",
+    oque: "O Discord dá três segundos para eu acusar um clique ou um comando, e desta vez eu passei " +
+      "disso — quase sempre por estar ocupada naquele instante (logo depois de religar, por exemplo). " +
+      "Quem clicou viu “Esta interação falhou”.",
+    fazer: "Nada, se for raro: a pessoa clica de novo e funciona. Se aparecer várias vezes no mesmo " +
+      "dia, me mostre — é sinal de que algum botão está fazendo trabalho pesado antes de responder.",
   },
   {
     quando: /Unknown Message|Unknown Channel|Unknown Webhook/i,
@@ -18288,12 +18341,23 @@ const EXPLICA_ERRO = [
        503", quatro vezes no mesmo minuto de 23/10 -- o Discord caiu e a
        biblioteca tentou de novo ate' ele voltar. Sem linha aqui, o canal
        pedia ao dono que me ensinasse uma frase que e' minha. */
+    /* "Fora do ar" era mais do que eu sabia. Em 13/11 isto apareceu 25 vezes
+       em tres horas e meia, o discordstatus.com nao registrou nada, e a batida
+       mostrava a conexao de pe'. O motivo exato eu nao tenho como ver daqui
+       (o mais comum e' o Discord trocando a maquina que atende o bot). O que
+       da' para afirmar: o laudo antigo mandava conferir um status que estava
+       verde, e nao dizia a unica coisa que importa a quem le -- se a conexao
+       VOLTOU. Agora diz como saber. */
     quando: /gateway.{0,60}erro no shard \d+.{0,40}Unexpected server response: 5\d\d/i,
-    titulo: "O Discord ficou fora do ar por um instante",
+    titulo: "O Discord recusou minha conexão por um instante",
     precisaDeVoce: false,
-    oque: "Tentei me ligar ao Discord e ele respondeu que estava fora do ar (erro 5xx do lado " +
-      "dele). A biblioteca tenta de novo sozinha até ele voltar.",
-    fazer: "Nada. Se durar, o status fica em discordstatus.com — não é configuração de ninguém.",
+    oque: "Fui abrir (ou reabrir) a conexão com o Discord e o servidor dele que me atende respondeu " +
+      "erro 5xx. Costuma ser o Discord trocando as máquinas dele, e nem sempre aparece no " +
+      "discordstatus.com. A biblioteca tenta de novo sozinha, em segundos.\n\n" +
+      "**Como saber se voltou:** se a conexão ficar mais de 1 minuto fora, sai outro cartão — " +
+      "“A conexão com o Discord caiu e demorou a voltar”. Se ele não apareceu, voltou em " +
+      "segundos e só se perdeu aquele instante.",
+    fazer: "Nada. Passando de cinco minutos sem conexão eu me reinicio sozinha.",
   },
   {
     /* A FRASE E' MINHA, E MESMO ASSIM EU NAO A RECONHECIA.
@@ -18326,6 +18390,32 @@ const EXPLICA_ERRO = [
     precisaDeVoce: false,
     oque: "Fiz chamadas demais em pouco tempo e o Discord segurou. A biblioteca espera e repete sozinha.",
     fazer: "Nada. Se aparecer muito, me avise: é sinal de que alguma rotina minha está trabalhando à toa.",
+  },
+  {
+    /* A ULTIMA DA TABELA, de proposito: so' pega o prazo estourado que
+       nenhuma regra acima reivindicou.
+
+       Sem ela, o mesmo soluco aparecia como "❔ Um erro que eu ainda nao sei
+       explicar" em nove fichas diferentes -- "batida", "portaria: falhei no
+       servidor 154...", "instalar: reparo falhou em Ks", "analitico", "cota",
+       uma por servidor e por tarefa --, cada uma pedindo ao dono que me
+       ensinasse uma frase que e' sempre a mesma: pedi algo, nao voltou no
+       prazo, cortei.
+
+       O texto NAO promete que "a proxima refaz": isso vale para rotina (a
+       batida, a portaria, o painel), e nao para um comando agendado, que so'
+       roda de novo no horario dele. Promessa que eu nao sei cumprir em todos
+       os casos e' a que este arquivo ja' pagou caro por fazer. */
+    quando: /aborted due to timeout|TimeoutError/i,
+    titulo: "Uma chamada demorou demais e eu desisti de esperar",
+    precisaDeVoce: false,
+    oque: "Pedi alguma coisa a um serviço de fora (o banco, o Discord, um tradutor) e a resposta " +
+      "não chegou no prazo, então cortei a espera em vez de ficar pendurada. Qual deles foi eu " +
+      "não sei dizer daqui: o rodapé deste cartão mostra a tarefa que estava rodando.\n\n" +
+      "Tarefa de rotina (a batida, a portaria, o painel) se repete sozinha e a volta seguinte " +
+      "cobre. Um **comando agendado** que caiu aqui só roda de novo no próximo horário dele.",
+    fazer: "Nada, se for de vez em quando. Só vale olhar se repetir por mais de uma hora seguida: " +
+      "aí é o serviço lento de verdade.",
   },
 ];
 

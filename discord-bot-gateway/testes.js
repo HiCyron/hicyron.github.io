@@ -419,9 +419,15 @@ function conferirCartao(onde, embed, componentes = []) {
      "tradutor" perto, senão ela roubaria os erros de todo o resto do bot. */
   ok("o mesmo sintoma vindo do banco continua sendo do banco",
     titulo("espelho", "passada curta falhou: fetch failed"), "O banco de dados piscou");
-  ok("e um tempo esgotado longe do tradutor não é adivinhado",
-    titulo("herois", "algo muito, muito longo aqui no meio de uma frase enorme que separa " +
-      "as duas palavras: aborted due to timeout"), null);
+  /* Antes isto voltava sem laudo nenhum (e aparecia como "não sei explicar",
+     uma ficha por tarefa). Agora cai no laudo genérico -- que continua sem
+     adivinhar: não culpa o tradutor, não culpa o banco, e diz que não sabe. */
+  const longe = explicarErro("herois", "algo muito, muito longo aqui no meio de uma frase enorme que separa " +
+      "as duas palavras: aborted due to timeout");
+  ok("e um tempo esgotado longe do tradutor não é adivinhado como do tradutor",
+    longe?.titulo, "Uma chamada demorou demais e eu desisti de esperar");
+  verdade("nem manda procurar num lugar que ele não sabe se é o certo",
+    /não sei dizer daqui/.test(longe.oque) && !/status\.supabase|discordstatus/.test(longe.oque + longe.fazer));
 
   /* ---- tabela que nunca existiu não é "o banco piscou" ----
 
@@ -13729,10 +13735,14 @@ function conferirCartao(onde, embed, componentes = []) {
   {
     const E = carregar(["EXPLICA_ERRO"]);
     const regra = E.EXPLICA_ERRO.find((r) => r.quando.test("gateway: erro no shard 0: Unexpected server response: 503"));
-    ok("o 503 do Discord tem explicação", regra?.titulo, "O Discord ficou fora do ar por um instante");
+    ok("o 503 do Discord tem explicação", regra?.titulo, "O Discord recusou minha conexão por um instante");
     verdade("e ninguém precisa fazer nada", regra && regra.precisaDeVoce === false);
-    verdade("e não rouba a queda de conexão comum", !E.EXPLICA_ERRO.find((r) => r.titulo === "O Discord ficou fora do ar por um instante")
-      .quando.test("gateway: surdo há 90s"));
+    verdade("e não rouba a queda de conexão comum", !regra.quando.test("gateway: surdo há 90s"));
+    /* O laudo antigo dizia "fora do ar" e mandava conferir um status que estava
+       verde; não dizia se a conexão tinha voltado. */
+    verdade("o laudo diz como saber se a conexão voltou", /Como saber se voltou/.test(regra.oque) &&
+      /demorou a voltar/.test(regra.oque));
+    verdade("e não afirma que o Discord caiu", !/fora do ar/i.test(regra.titulo + regra.oque));
   }
 }
 
@@ -14999,6 +15009,107 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("a correção usa as mesmas línguas do envio", pedaco("corrigirNasOutrasSalas").includes("idiomaQueLe(daSala)"));
   verdade("apagar na 🌍 leva o tópico junto", pedaco("apagarNasOutrasSalas").includes("apagarTopicoDaSalaMundo("));
   verdade("o seletor do tópico ao vivo passa pela leitura protegida", pedaco("cliqueTraduzirMsg").includes("lerAoVivo(inter, id)"));
+}
+
+/* ---- A REVISÃO DOS ERROS E DOS LAUDOS (13/11) ----
+
+   Lida a fila inteira do cyron_erro: 20 fichas, 130 ocorrências. Três coisas
+   saíram dela, e as três estão presas aqui. */
+{
+  /* -- 1. a leitura que não voltou ganha UMA segunda chance --
+
+     50 das 130 ocorrências eram a varredura "passando do tempo": uma ida ao
+     banco em vinte engasgava e a varredura inteira caía. */
+  const salvoFetch = globalThis.fetch, salvoUrl = globalThis.SB_URL, salvoKey = globalThis.SB_KEY;
+  const salvoPrazo = globalThis.comPrazo;
+  globalThis.SB_URL = "https://banco.teste"; globalThis.SB_KEY = "k";
+  globalThis.comPrazo = (extra = {}) => extra;
+  const { sb } = carregar(["sb"]);
+  const ok200 = (corpo) => ({ ok: true, status: 200, json: async () => corpo });
+  let roteiro = [], chamadas = 0;
+  globalThis.fetch = async () => { const passo = roteiro[chamadas++]; if (passo instanceof Error) throw passo; return passo; };
+  const prazo = () => Object.assign(new Error("The operation was aborted due to timeout"), { name: "TimeoutError" });
+
+  roteiro = [prazo(), ok200([{ a: 1 }])]; chamadas = 0;
+  ok("leitura que estourou o prazo é tentada de novo, e a segunda vale", await sb("t?select=a"), [{ a: 1 }]);
+  ok("duas idas ao banco, nem mais nem menos", chamadas, 2);
+
+  roteiro = [new TypeError("fetch failed"), ok200([])]; chamadas = 0;
+  ok("queda de rede também ganha a segunda chance", await sb("t"), []);
+
+  roteiro = [{ ok: false, status: 404, json: async () => ({}) }, ok200([])]; chamadas = 0;
+  let erro = null;
+  try { await sb("t"); } catch (e) { erro = e; }
+  ok("um 404 É resposta: sobe na hora, sem repetir", [erro?.message, chamadas], ["supabase 404", 1]);
+
+  roteiro = [{ ok: false, status: 503, json: async () => ({}) }, ok200([])]; chamadas = 0;
+  erro = null;
+  try { await sb("t"); } catch (e) { erro = e; }
+  ok("um 503 também é resposta (o banco piscou): sobe como antes", [erro?.message, chamadas], ["supabase 503", 1]);
+
+  roteiro = [prazo(), prazo(), ok200([])]; chamadas = 0;
+  erro = null;
+  try { await sb("t"); } catch (e) { erro = e; }
+  ok("banco fora do ar de verdade: duas tentativas e o erro sobe", [erro?.name, chamadas], ["TimeoutError", 2]);
+
+  roteiro = [{ ok: true, status: 200, json: async () => { throw prazo(); } }, ok200([{ b: 2 }])]; chamadas = 0;
+  ok("resposta que parou no meio do corpo também é repetida", await sb("t"), [{ b: 2 }]);
+
+  /* Só a LEITURA repete: gravar duas vezes não é a mesma coisa que ler duas. */
+  for (const nome of ["sbPost", "sbPatch", "sbDel"]) {
+    verdade(`${nome} não repete sozinho`, !/respondeu|ler\(\)/.test(pedaco(nome)));
+  }
+  globalThis.fetch = salvoFetch; globalThis.SB_URL = salvoUrl; globalThis.SB_KEY = salvoKey; globalThis.comPrazo = salvoPrazo;
+
+  /* -- 2. os laudos que estavam errados ou faltando -- */
+  const { explicarErro, EXPLICA_ERRO } = carregar(["EXPLICA_ERRO", "explicarErro"]);
+  const laudo = (onde, porque) => explicarErro(onde, porque);
+
+  /* A varredura: o conselho apontava "servidor grande demais", e as tabelas do
+     servidor têm 54, 9 e 7 linhas. */
+  const varredura = laudo("espelho", "montagem imediata falhou em [TOP]Best Alliance Kingshot The operation was aborted due to timeout");
+  ok("a montagem que estourou o prazo é laudo de varredura", varredura?.titulo, "Uma varredura passou do tempo e eu cortei");
+  verdade("e o laudo não culpa mais o tamanho do servidor",
+    !/grande demais/i.test(varredura.fazer) && /nem tamanho de servidor/i.test(varredura.oque));
+  ok("a sincronia de 10 minutos também", laudo("espelho", "sincronia falhou: The operation was aborted due to timeout")?.titulo,
+    "Uma varredura passou do tempo e eu cortei");
+  /* `espelho` sozinho reivindicava qualquer timeout da casa. */
+  ok("baixar um anexo que demorou NÃO é varredura", laudo("espelho", "nao consegui baixar o anexo: The operation was aborted due to timeout")?.titulo,
+    "Uma chamada demorou demais e eu desisti de esperar");
+
+  /* O clique: o título punha a culpa em quem clicou. */
+  const clique = laudo("interacao", "falhou: Unknown interaction");
+  verdade("o laudo do clique assume a demora, em vez de falar em botão vencido",
+    /Demorei mais de 3 segundos/.test(clique.titulo) && !/vencid/i.test(clique.titulo + clique.oque));
+  verdade("e pede para ser avisado se virar rotina", /várias vezes/.test(clique.fazer));
+
+  /* As nove fichas "não sei explicar", palavra por palavra como estão no banco. */
+  const cruas = [
+    ["batida", "nao consegui bater: The operation was aborted due to timeout"],
+    ["portaria", "falhei no servidor 1541430419289940069 The operation was aborted due to timeout"],
+    ["instalar", "reparo falhou em Ks The operation was aborted due to timeout"],
+    ["analitico", "falhou: The operation was aborted due to timeout"],
+    ["cota", "nao consegui ler a da deepl: The operation was aborted due to timeout"],
+    ["comando agendado", "/reino falhou: TimeoutError: The operation was aborted due to timeout\n    at new DOMException"],
+  ];
+  ok("todo prazo estourado sem dono cai no MESMO laudo (uma ficha, não nove)",
+    [...new Set(cruas.map(([o, p]) => laudo(o, p)?.titulo))], ["Uma chamada demorou demais e eu desisti de esperar"]);
+  const generico = laudo(...cruas[0]);
+  verdade("ele não promete refazer o que não sabe refazer (comando agendado)",
+    /comando agendado/i.test(generico.oque) && generico.precisaDeVoce === false);
+  ok("e é a ÚLTIMA regra: só pega o que ninguém reivindicou", EXPLICA_ERRO[EXPLICA_ERRO.length - 1].titulo,
+    "Uma chamada demorou demais e eu desisti de esperar");
+  /* Os donos de antes continuam donos. */
+  ok("timeout do tradutor continua do tradutor", laudo("tradutor", "chave azure do dono falhou: The operation was aborted due to timeout")?.titulo,
+    "O tradutor demorou demais e eu desisti de esperar");
+  ok("timeout do cartão de painel continua do painel", laudo("config", "nao consegui atualizar o cartão de Ks The operation was aborted due to timeout")?.titulo,
+    "Um cartão de painel demorou para atualizar");
+  ok("erro que eu não conheço continua cru", laudo("zzz", "coisa que nunca vi"), null);
+
+  /* -- 3. cartão apagado antes da prévia do link não é erro (19 fichas) -- */
+  const ilustrar = pedaco("ilustrarNasOutrasSalas");
+  verdade("ilustrar a cópia cala quando o cartão sumiu, como o seletor",
+    /if \(!mensagemSumiu\(e\)\) console\.error\("espelho: nao consegui ilustrar a copia:"/.test(ilustrar));
 }
 
 function NA_CONTA_DO_FONTE() {
