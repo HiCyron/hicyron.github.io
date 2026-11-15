@@ -14583,6 +14583,121 @@ function conferirCartao(onde, embed, componentes = []) {
        aqui mora só o motor. Os testes da página rodam lá. */
   }
 
+  /* ====== A REVISÃO DE SEGURANÇA DA VISÃO (15/11) ======
+
+     Três furos de verdade, achados lendo a porta do app:
+     1. Cada login falso custava um 401 do Discord no IP da CYRON. Passou de
+        10.000 em 10 minutos, o Discord bloqueia o IP -- e o bot inteiro cai.
+     2. "Sair" no app não valia aqui: o login devolvido ficava lembrado.
+     3. Cinco conexões paradas de qualquer um trancavam o ao vivo do dono.
+     E um tropeço: "o Discord não respondeu" virava "você não é dono". */
+  {
+    const o = V.novoOrcamento(3, 2);
+    ok("o teto por IP segura quem insiste", [o("a", 0), o("a", 1), o("a", 2)].join(), "true,true,false");
+    ok("o teto geral segura todo mundo junto", [o("b", 3), o("c", 4)].join(), "true,false");
+    verdade("no minuto seguinte, abre de novo", o("a", 60000));
+    ok("o IP vem do proxy do Fly", V.ipDe({ headers: { "fly-client-ip": "1.2.3.4" }, socket: { remoteAddress: "10.0.0.1" } }), "1.2.3.4");
+    ok("sem o proxy, o da conexão", V.ipDe({ headers: {}, socket: { remoteAddress: "10.0.0.1" } }), "10.0.0.1");
+
+    const cart = V.mensagemParaVisao({ id: "1", author: { id: "a", username: "b" }, content: "",
+      embeds: [{ title: "T", image: { url: "https://site-de-fora/x.png", proxyURL: "https://media.discordapp.net/external/x.png" },
+        thumbnail: { url: "https://site-de-fora/t.png", proxyURL: "https://media.discordapp.net/external/t.png" } }] });
+    ok("imagem de cartão vem pela cópia do Discord (o IP do dono não vai a site de fora)",
+      [cart.cartoes[0].imagem, cart.cartoes[0].miniatura].join(" "), "https://media.discordapp.net/external/x.png https://media.discordapp.net/external/t.png");
+
+    const { EventEmitter } = await import("node:events");
+    const { WebSocket: WS } = await import("ws");
+    const discord = new EventEmitter();
+    Object.assign(discord, { user: { id: "bot" }, guilds: { cache: new Map() }, channels: { cache: new Map(), fetch: async () => null } });
+    const perguntas = [];
+    let discordFora = false;
+    const buscar = async (url, op) => {
+      const t = String(op.headers.Authorization).slice(7);
+      perguntas.push(t);
+      if (discordFora) throw new Error("ECONNRESET");
+      if (t.startsWith("dono-")) return { ok: true, json: async () => ({ id: "dono" }) };
+      return { ok: false, status: 401, json: async () => ({}) };
+    };
+    /* Relógio parado: o teste não pode passar de um minuto para o outro no meio. */
+    let orcamento = V.novoOrcamento(30, 6);
+    const srv = V.ligarVisao({ client: discord, ehDono: async (id) => id === "dono", buscar, loginVale: 0,
+      orcamento: (ip) => orcamento(ip, 0) }, 0);
+    await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
+    const base = `http://127.0.0.1:${srv.address().port}`;
+    const pedir = (c, t, ip = "9.9.9.9", o2 = {}) => fetch(base + c, { ...o2,
+      headers: { Authorization: `Bearer ${t}`, "fly-client-ip": ip, Origin: "https://tiagofernando113.github.io" } });
+    const abrir = () => new Promise((resolve) => {
+      const ws = new WS(`ws://127.0.0.1:${srv.address().port}/visao/ao-vivo`, { origin: "https://tiagofernando113.github.io" });
+      const fila = [];
+      ws.on("message", (b) => fila.push(JSON.parse(String(b))));
+      /* Com prazo: um teste que espera para sempre não diz o que quebrou. */
+      ws.pronto = (ms = 1500) => new Promise((ok2) => { const fim = Date.now() + ms;
+        const v = () => (fila.some((e) => e.tipo === "pronto") ? ok2(true) : Date.now() > fim ? ok2(false) : setTimeout(v, 10)); v(); });
+      const fechou = new Promise((r) => ws.on("close", (code) => r(code)));
+      Object.defineProperty(ws, "fechou", { get: () => Promise.race([fechou, new Promise((r) => setTimeout(() => r("não fechou"), 1500))]) });
+      ws.on("open", () => resolve(ws));
+      ws.on("error", () => resolve(null));
+    });
+    const lixo = (i) => `lixo-${i}-${"x".repeat(24)}`;
+    try {
+      /* 1. a enxurrada */
+      const deUmSo = [];
+      for (let i = 0; i < 40; i++) deUmSo.push((await pedir("/visao/eu", lixo(i), "6.6.6.6")).status);
+      ok("40 logins falsos de um IP: o Discord só é perguntado 6 vezes", perguntas.length, 6);
+      ok("os outros ouvem 'espere' (429), sem custar nada ao Discord", deUmSo.slice(6).every((s) => s === 429), true);
+      ok("e os 6 conferidos ouvem 'não é dono' (403)", deUmSo.slice(0, 6).every((s) => s === 403), true);
+      for (let ip = 0; ip < 20; ip++) for (let i = 0; i < 6; i++) await pedir("/visao/eu", lixo(1000 + ip * 10 + i), `7.7.7.${ip}`);
+      ok("de 20 IPs ao mesmo tempo: nunca mais de 30 perguntas por minuto", perguntas.length, 30);
+      verdade("30 por minuto fica longe do bloqueio do Discord (10.000 em 10 minutos)", 30 * 10 < 10000 / 10);
+
+      /* o dono, no meio da enxurrada */
+      ok("login novo do dono sob enxurrada: espera um minuto (e diz por quê)", (await pedir("/visao/eu", "dono-novo-123456")).status, 429);
+      orcamento = V.novoOrcamento(30, 6);
+      ok("passado o minuto, o dono entra", (await pedir("/visao/eu", "dono-aaa-123456")).status, 200);
+      orcamento = () => false; // a enxurrada voltou e comeu o teto de novo
+      const antes = perguntas.length;
+      ok("login JÁ conferido do dono segue valendo sob enxurrada", (await pedir("/visao/eu", "dono-aaa-123456")).status, 200);
+      ok("(sem perguntar ao Discord)", perguntas.length, antes);
+      orcamento = V.novoOrcamento(30, 6);
+
+      /* o Discord fora do ar */
+      discordFora = true;
+      const fora = await pedir("/visao/eu", "dono-bbb-123456");
+      ok("Discord fora do ar: 503 ('tente de novo'), e não 403 ('você não é dono')", fora.status, 503);
+      ok("login conferido do dono segue valendo com o Discord fora", (await pedir("/visao/eu", "dono-aaa-123456")).status, 200);
+      const wsFora = await abrir();
+      wsFora.send(JSON.stringify({ tipo: "entrar", token: "dono-ccc-123456" }));
+      ok("ao vivo com o Discord fora: 1013 (a página tenta depois), e não 4003 (a página desistia)", await wsFora.fechou, 1013);
+      discordFora = false;
+
+      /* 2. o Sair */
+      const wsDono = await abrir();
+      wsDono.send(JSON.stringify({ tipo: "entrar", token: "dono-aaa-123456" }));
+      verdade("o dono entra antes de sair", await wsDono.pronto());
+      ok("sair responde sem precisar perguntar ao Discord", (await pedir("/visao/sair", "dono-aaa-123456", "9.9.9.9", { method: "POST" })).status, 200);
+      ok("e fecha a janela ao vivo aberta com aquele login", await wsDono.fechou, 4001);
+      orcamento = () => false;
+      ok("depois de sair, o login não vale mais de memória", (await pedir("/visao/eu", "dono-aaa-123456")).status, 429);
+      orcamento = V.novoOrcamento(30, 6);
+
+      /* 3. as janelas paradas */
+      const parados = [];
+      for (let i = 0; i < 7; i++) parados.push(await abrir());
+      const dono = await abrir();
+      verdade("conexões paradas não trancam a porta: a do dono abre", !!dono);
+      dono?.send(JSON.stringify({ tipo: "entrar", token: "dono-ddd-123456" }));
+      verdade("e o dono entra no ao vivo", !!dono && await dono.pronto());
+      ok("a parada mais antiga saiu para dar lugar", await parados[0].fechou, 4001);
+      const donos = [dono];
+      for (let i = 0; i < 4 && dono; i++) { const w = await abrir(); if (!w) break; w.send(JSON.stringify({ tipo: "entrar", token: "dono-ddd-123456" })); await w.pronto(); donos.push(w); }
+      verdade("cinco janelas do dono abertas", donos.length === 5);
+      const sexta = await abrir();
+      sexta?.send(JSON.stringify({ tipo: "entrar", token: "dono-ddd-123456" }));
+      ok("o teto de 5 conta só janela de dono, e a sexta ouve 'tente depois'", sexta ? await sexta.fechou : "recusada na porta", 1013);
+      for (const w of [...parados, ...donos, sexta]) w?.terminate?.();
+    } finally { srv.close(); }
+  }
+
   verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, listarPrivados \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));

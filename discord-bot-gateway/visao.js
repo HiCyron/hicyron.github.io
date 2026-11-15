@@ -21,6 +21,7 @@
      GET  /visao/mensagens?c=<id>[&antes=<id>|&depois=<id>]
      GET  /visao/admin/numeros          -> o painel do dono (metricas do /admin)
      POST /visao/enviar  {c, texto}     -> fala no canal como a CYRON
+     POST /visao/sair                   -> esquece o login (o "Sair" do app)
      WS   /visao/ao-vivo                -> as mensagens do canal aberto, na hora
 
    Ao vivo: a pagina abre um WebSocket COM O BOT (nao com o Discord). O bot
@@ -60,11 +61,30 @@ const RECUSA_VALE = 60 * 1000;   // login recusado nao volta a perguntar ao Disc
 const MAX_LOGINS_LEMBRADOS = 200;
 export const MAX_AO_VIVO = 5;    // janelas ao vivo abertas ao mesmo tempo (e' um dono so')
 const PRAZO_PARA_ENTRAR = 10 * 1000;
+const MAX_ESPERANDO = 5;         // janelas abertas que ainda nao mandaram o login
+
+/* Quantas vezes por minuto eu pergunto ao Discord sobre um login que ainda
+   nao conheco. Isto protege o BOT INTEIRO, nao so' a Visao.
+
+   O Discord conta as respostas 401 que cada IP recebe, e passou de 10.000 em
+   10 minutos ele bloqueia aquele IP na API -- e o IP e' o mesmo da CYRON. Sem
+   teto, qualquer um mandando "Bearer <lixo diferente a cada vez>" para a
+   Visao faria o bot gastar um 401 por pedido, e em poucos minutos a CYRON
+   inteira ficaria sem falar com o Discord. Com 30 por minuto, o maximo e' 300
+   em 10 minutos: longe do bloqueio. O dono e' uma pessoa so' e entra uma vez
+   a cada muitos minutos -- nunca chega perto disto.
+
+   O teto por IP so' divide o teto geral com justica. Quem garante o bot e' o
+   geral: ele vale mesmo que alguem minta o IP. */
+const PERGUNTAS_POR_MINUTO = 30;
+const PERGUNTAS_POR_IP_POR_MINUTO = 6;
 const BATIDA_AO_VIVO = 25 * 1000; // o proxy do Fly fecha conexao parada; o ping a mantem
 
 let d = null;
+let podePerguntar = () => true;
 export function ligarVisao(dependencias, porta = PORTA_DA_VISAO) {
   d = dependencias;
+  podePerguntar = dependencias.orcamento || novoOrcamento();
   const servidor = createServer((req, res) => {
     atender(req, res).catch((e) => {
       console.error("visao: pedido estourou:", e?.message || e);
@@ -106,6 +126,28 @@ export function cabecalhosDaVisao(origem) {
 
 const ehId = (s) => /^\d{15,25}$/.test(String(s || ""));
 
+/* Quem esta pedindo, pelo IP que o proxy do Fly viu. Pura. */
+export function ipDe(req) {
+  return String(req?.headers?.["fly-client-ip"] || req?.socket?.remoteAddress || "?");
+}
+
+/* O teto de perguntas ao Discord (veja PERGUNTAS_POR_MINUTO). Janela de um
+   minuto: o mapa por IP zera a cada minuto, entao nunca guarda mais do que
+   `total` IPs. Pura: o relogio entra como argumento. */
+export function novoOrcamento(total = PERGUNTAS_POR_MINUTO, porIp = PERGUNTAS_POR_IP_POR_MINUTO) {
+  let janela = -1, gasto = 0;
+  const porQuem = new Map();
+  return (ip, agora = Date.now()) => {
+    const minuto = Math.floor(agora / 60000);
+    if (minuto !== janela) { janela = minuto; gasto = 0; porQuem.clear(); }
+    const deste = porQuem.get(ip) || 0;
+    if (gasto >= total || deste >= porIp) return false;
+    gasto++;
+    porQuem.set(ip, deste + 1);
+    return true;
+  };
+}
+
 /* O nome que aparece: apelido no servidor, nome de exibicao, nome de usuario. */
 function nomeDe(usuario, membro) {
   return membro?.displayName || usuario?.globalName || usuario?.username || "?";
@@ -143,8 +185,11 @@ export function mensagemParaVisao(m) {
       url: e.url || "",
       texto: e.description || "",
       campos: (e.fields || []).map((f) => ({ nome: f.name || "", valor: f.value || "" })),
-      imagem: e.image?.url || "",
-      miniatura: e.thumbnail?.url || "",
+      /* A copia que o Discord guarda (media.discordapp.net), e nao o endereco
+         original: imagem de qualquer site entregaria o IP do dono a quem a
+         hospedou, e a pagina so' carrega imagem do proprio Discord. */
+      imagem: e.image?.proxyURL || e.image?.url || "",
+      miniatura: e.thumbnail?.proxyURL || e.thumbnail?.url || "",
       rodape: e.footer?.text || "",
     })),
     nomes,
@@ -231,11 +276,28 @@ export function lerEnvio(corpo) {
    Guardo o hash, e nao o token, para que nem a memoria do bot carregue o
    login de ninguem. */
 const logins = new Map();
+const chaveDoLogin = (token) => createHash("sha256").update(token).digest("hex");
 
-async function donoDoLogin(token) {
-  const chave = createHash("sha256").update(token).digest("hex");
+/* Erro que vira resposta: o status diz a pagina se vale tentar de novo. */
+const recusa = (status, frase) => Object.assign(new Error(frase), { status });
+
+/* O dono do login, ou null se o login nao e' de um dono. Estoura (com status)
+   quando nao deu para saber: o Discord nao respondeu, ou o teto de perguntas
+   acabou. "Nao sei" nao pode virar "voce nao e' dono" -- era o que acontecia,
+   e a pagina, ouvindo "nao e' dono", desistia do ao vivo ate recarregar. */
+async function donoDoLogin(token, ip = "?") {
+  const chave = chaveDoLogin(token);
   const lembrado = logins.get(chave);
   if (lembrado && lembrado.ate > Date.now()) return lembrado.id;
+
+  if (!podePerguntar(ip)) {
+    /* Sob enxurrada, um login que JA' foi conferido como dono continua
+       valendo: quem esta atacando nao tranca o dono do lado de fora. O "Sair"
+       apaga o login daqui (esquecerLogin), entao isto nao ressuscita login
+       devolvido. */
+    if (lembrado?.id) return lembrado.id;
+    throw recusa(429, "muitas tentativas de entrar agora; espere um minuto");
+  }
 
   const buscar = d.buscar || fetch;
   let usuario = null;
@@ -247,12 +309,31 @@ async function donoDoLogin(token) {
     if (r.ok) usuario = await r.json();
   } catch (e) {
     console.error("visao: o Discord nao respondeu quem e' o login:", e?.message || e);
-    return null; // falha de rede nao vira recusa lembrada: o proximo pedido tenta de novo
+    /* Falha de rede nao vira recusa lembrada: o proximo pedido tenta de novo. */
+    if (lembrado?.id) return lembrado.id;
+    throw recusa(503, "o Discord nao respondeu quem e' voce; tente de novo");
   }
   const id = usuario?.id && await d.ehDono(usuario.id) ? String(usuario.id) : null;
-  logins.set(chave, { id, ate: Date.now() + (id ? LOGIN_VALE : RECUSA_VALE) });
-  while (logins.size > MAX_LOGINS_LEMBRADOS) logins.delete(logins.keys().next().value);
+  logins.delete(chave); // reinsere no fim: o mapa fica em ordem de uso
+  logins.set(chave, { id, ate: Date.now() + (id ? (d.loginVale ?? LOGIN_VALE) : RECUSA_VALE) });
+  /* Cheio: sai primeiro uma recusa, e so' depois um login de dono. Uma
+     enxurrada de logins falsos nao empurra o login do dono para fora. */
+  while (logins.size > MAX_LOGINS_LEMBRADOS) {
+    let sai = logins.keys().next().value;
+    for (const [k, v] of logins) if (!v.id) { sai = k; break; }
+    logins.delete(sai);
+  }
   return id;
+}
+
+/* O "Sair" do app. Sem isto o login devolvido ao Discord continuava valendo
+   aqui por ate' LOGIN_VALE, porque eu o lembrava. Esquece o login e fecha as
+   janelas ao vivo abertas com ele. Nao precisa de login valido: esquecer so'
+   custa, no pior caso, uma pergunta a mais ao Discord. */
+export function esquecerLogin(token) {
+  const chave = chaveDoLogin(token);
+  logins.delete(chave);
+  for (const s of aoVivo) if (s.chave === chave) s.ws.close(4001, "saiu");
 }
 
 /* ---------------- ao vivo ---------------- */
@@ -278,8 +359,10 @@ function avisarCanal(canalId, montar) {
   }
 }
 
-function conversar(ws) {
-  const sessao = { ws, dono: null, canal: null, viva: true };
+const contar = (teste) => { let n = 0; for (const s of aoVivo) if (teste(s)) n++; return n; };
+
+function conversar(ws, ip = "?") {
+  const sessao = { ws, ip, dono: null, chave: null, conferindo: false, canal: null, viva: true };
   aoVivo.add(sessao);
   const prazo = setTimeout(() => { if (!sessao.dono) ws.close(4001, "entre com o Discord"); }, PRAZO_PARA_ENTRAR);
   prazo.unref?.();
@@ -287,13 +370,20 @@ function conversar(ws) {
   ws.on("message", async (bruto) => {
     let pedido;
     try { pedido = JSON.parse(String(bruto)); } catch { return; }
-    if (pedido?.tipo === "entrar" && !sessao.dono) {
+    if (pedido?.tipo === "entrar" && !sessao.dono && !sessao.conferindo) {
       /* O login vai na primeira mensagem, e nao no endereco: endereco
          aparece em log de proxy; mensagem dentro do WebSocket nao. */
+      sessao.conferindo = true;
       const token = lerBearer(`Bearer ${String(pedido.token || "")}`);
-      const dono = token ? await donoDoLogin(token) : null;
+      let dono = null;
+      try { dono = token ? await donoDoLogin(token, sessao.ip) : null; }
+      catch { return ws.close(1013, "tente de novo"); } // nao sei quem e': a pagina tenta depois
       if (!dono) return ws.close(4003, "so' quem opera a CYRON");
+      /* O teto conta so' janela de dono. Antes contava tambem quem nem tinha
+         mandado login, e cinco conexoes de qualquer um trancavam o dono fora. */
+      if (contar((s) => s.dono) >= MAX_AO_VIVO) return ws.close(1013, "janelas demais abertas");
       sessao.dono = dono;
+      sessao.chave = chaveDoLogin(token);
       clearTimeout(prazo);
       mandarAoVivo(ws, { tipo: "pronto" });
     } else if (pedido?.tipo === "canal" && sessao.dono) {
@@ -311,12 +401,20 @@ function ligarAoVivo(servidor) {
     /* Navegador sempre manda a origem num WebSocket. Origem de fora fica de
        fora (o login protegeria do mesmo jeito; isto e' a segunda tranca). */
     const origem = req.headers.origin;
-    if (url.pathname !== "/visao/ao-vivo" || !origem || !ORIGENS_DA_VISAO.has(origem) || aoVivo.size >= MAX_AO_VIVO) {
+    if (url.pathname !== "/visao/ao-vivo" || !origem || !ORIGENS_DA_VISAO.has(origem)) {
       socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
       socket.destroy();
       return;
     }
-    wss.handleUpgrade(req, socket, head, conversar);
+    /* Quem abriu e ficou parado sem mandar login: o mais antigo sai para dar
+       lugar ao novo. Recusar o novo deixaria qualquer um, com cinco conexoes
+       paradas, segurar a porta fechada para o dono. */
+    for (const s of aoVivo) {
+      if (contar((x) => !x.dono && !x.conferindo) < MAX_ESPERANDO) break;
+      if (!s.dono && !s.conferindo) { aoVivo.delete(s); s.ws.close(4001, "entre com o Discord"); }
+    }
+    const ip = ipDe(req);
+    wss.handleUpgrade(req, socket, head, (ws) => conversar(ws, ip));
   });
 
   const batida = setInterval(() => {
@@ -384,10 +482,23 @@ async function atender(req, res) {
 
   const token = lerBearer(req.headers.authorization);
   if (!token) return responder(res, 401, { erro: "entre com o Discord" }, cab);
-  const dono = await donoDoLogin(token);
+  const rota = `${req.method} ${url.pathname}`;
+  /* Antes de conferir o login: o app chama isto ao sair, e conferir aqui
+     gastaria uma pergunta ao Discord so' para depois esquecer a resposta. */
+  if (rota === "POST /visao/sair") {
+    esquecerLogin(token);
+    return responder(res, 200, { ok: true }, cab);
+  }
+  let dono;
+  try { dono = await donoDoLogin(token, ipDe(req)); }
+  catch (e) {
+    /* Sem status, o tropeco foi aqui dentro (o banco dos donos, por exemplo):
+       a frase dele fica no log, nao vai para quem pediu. */
+    if (!e.status) console.error("visao: nao consegui conferir o login:", e?.message || e);
+    return responder(res, e.status || 503, { erro: e.status ? e.message : "nao consegui conferir o login agora; tente de novo" }, cab);
+  }
   if (!dono) return responder(res, 403, { erro: "este acesso e' so' de quem opera a CYRON" }, cab);
 
-  const rota = `${req.method} ${url.pathname}`;
   const c = d.client;
 
   if (rota === "GET /visao/eu") {
