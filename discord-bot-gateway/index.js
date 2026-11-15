@@ -475,6 +475,10 @@ client.on("guildMemberAdd", async (member) => {
        convite que chega depois de a pessoa ja ter aberto o primeiro canal. */
     convidarParaEscolherIdioma(member).catch((e) =>
       console.error("idioma: nao consegui convidar na entrada:", e?.message || e));
+    /* O par do convite: quem NAO e' convidado (ja' escolheu idioma em outro
+       servidor) e' recebido aqui. */
+    receberQuemJaTemIdioma(member).catch((e) =>
+      console.error("boas-vindas: o aviso nas salas falhou na entrada em", member.guild?.name, e?.message || e));
     darBoasVindas(member).catch((e) =>
       console.error("boas-vindas: falhou:", e?.message || e));
 
@@ -10829,6 +10833,34 @@ async function boasVindasNasSalas(guild, servidor, membro, idiomaDela, agora = D
   }
   if (postou) contarUso("boas-vindas-salas", guild.id);
   return postou > 0;
+}
+
+/* Quem chega JA' com idioma escolhido -- de outro servidor com a CYRON.
+
+   Essa pessoa nao passa pela escolha: o convite nem aparece (devoConvidar),
+   e a escolha dela e' antiga, entao a passada curta -- que so' olha escolhas
+   dos ultimos quinze minutos -- nunca a via. Ninguem era recebido nas salas,
+   e o cargo da sala so' chegava na varredura seguinte. Foi o que o dono viu
+   na [TOP] Best (15/11): gente entrando e nenhum "chegou fulano" nas salas,
+   num servidor de alianca onde quase todo mundo ja' usou a CYRON noutro.
+
+   Aqui: o cargo da sala dela na hora, e as boas-vindas em todas as salas.
+   Lingua sem sala neste servidor fica com a varredura, que sabe criar a sala
+   ou mostrar a tela do teto. */
+async function receberQuemJaTemIdioma(member) {
+  if (!member || member.user?.bot) return false;
+  const servidor = await servidorDoGuild(member.guild.id);
+  if (!servidor) return false;
+  const idioma = await idiomaEscolhido(member.id);
+  if (!idioma) return false; // quem nunca escolheu recebe o convite, e as boas-vindas quando escolher
+  const salas = await sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&select=idioma,role_id`) || [];
+  const cargo = salas.find((s) => s.idioma === idioma)?.role_id;
+  if (!cargo) return false;
+  if (!member.roles?.cache?.has?.(cargo)) {
+    await member.roles.add(cargo, "idioma que a pessoa já tinha escolhido").catch((e) =>
+      console.log(`idioma: nao consegui dar o cargo da sala a quem chegou em ${member.guild.name}:`, e?.message || e));
+  }
+  return await boasVindasNasSalas(member.guild, servidor, member, idioma);
 }
 
 /* /boas-vindas #canal liga (e mostra na hora o cartao de quem pediu);
