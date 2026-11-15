@@ -15611,6 +15611,88 @@ function conferirCartao(onde, embed, componentes = []) {
   }
 }
 
+/* ====== 📅 O RESUMO DA SEMANA NO #📊-DIÁRIO (15/11) ======
+
+   O painel responde quando alguém pergunta; o resumo chega sozinho, toda
+   segunda às 9h de Brasília, uma vez por semana. */
+{
+  const R = carregar(["RESUMO_HORA", "FUSO_BRASILIA", "semanaDoResumo", "comparacaoDaSemana", "cartaoDoResumoSemanal"]);
+  const brt = (iso) => Date.parse(iso + "-03:00");
+  ok("domingo: a semana que começou na segunda anterior", R.semanaDoResumo(brt("2026-11-15T12:00:00")), "2026-11-09");
+  ok("segunda 8h59: ainda é a semana anterior (já resumida)", R.semanaDoResumo(brt("2026-11-16T08:59:00")), "2026-11-09");
+  ok("segunda 9h: semana nova, hora do resumo", R.semanaDoResumo(brt("2026-11-16T09:00:00")), "2026-11-16");
+  ok("terça: a mesma semana (bot que estava fora resume na volta)", R.semanaDoResumo(brt("2026-11-17T03:00:00")), "2026-11-16");
+  ok("virada de mês e de ano", R.semanaDoResumo(brt("2027-01-01T10:00:00")), "2026-12-28");
+
+  ok("subiu", R.comparacaoDaSemana(6210, 4300), "+1.910 (▲ 44%)");
+  ok("desceu", R.comparacaoDaSemana(80, 100), "−20 (▼ 20%)");
+  ok("igual", R.comparacaoDaSemana(5, 5), "= igual");
+  ok("semana anterior zerada: sem porcentagem inventada", R.comparacaoDaSemana(30, 0), "+30");
+
+  const agora = brt("2026-11-16T09:00:00");
+  const numeros = {
+    crescimento: { semana: 6210, semanaAntes: 4300, novos: ["Nova Aliança"] },
+    servidores: { ativos: 12, novos7: 1, sairam7: 0 },
+    dinheiro: { pagando: 2, vencendo: [{}] },
+    top: [{ nome: "TOP", traducoes: 642 }, { nome: "REALM", traducoes: 444 }, { nome: "FTL", traducoes: 8 }, { nome: "x", traducoes: 1 }],
+    funcoes: [{ nome: "💬 Salas", n: 900 }],
+    erros: 0, beta: { ligado: true },
+    funil: { etapas: [{ nome: "Com a CYRON", n: 11 }, { nome: "Conversando nas salas", n: 2 }],
+      nomes: { "conversa-fora": "🟡 conversa fora das salas", "sem-idioma": "🟠 ninguém escolheu idioma", conversando: "🟢 conversando nas salas" },
+      servidores: [{ nome: "FTL", etapa: "conversa-fora" }, { nome: "Kingdom", etapa: "sem-idioma" }, { nome: "TOP", etapa: "conversando" }] },
+  };
+  const c = R.cartaoDoResumoSemanal(numeros, agora);
+  const campo = (n) => (c.fields.find((f) => f.name.includes(n)) || {}).value || "";
+  ok("o título diz o período", c.title, "📅 Resumo da semana · 10/11 a 16/11");
+  ok("traduções com a comparação", campo("Traduções"), "6.210\n+1.910 (▲ 44%) contra a semana anterior");
+  verdade("quem chegou aparece pelo nome", campo("Servidores").includes("Novos: Nova Aliança"));
+  ok("o funil em uma linha, e quem pede atenção pelo nome",
+    campo("Funil"), "11 com a cyron → 2 conversando nas salas\nPedem atenção: FTL (conversa fora das salas), Kingdom (ninguém escolheu idioma)");
+  ok("os três mais ativos", campo("Mais ativos").split("\n").length, 3);
+  ok("sem erros, diz 'nenhum'", campo("Erros"), "nenhum");
+  verdade("o beta aparece no dinheiro", campo("Dinheiro").includes("beta ligado"));
+  verdade("todo campo cabe no limite do Discord", c.fields.every((f) => f.value.length <= 1024 && f.value.length > 0));
+  const vazio = R.cartaoDoResumoSemanal({}, agora);
+  verdade("sem números (painel falhou), o cartão sai do mesmo jeito", vazio.fields.length >= 4 && vazio.fields.every((f) => f.value));
+
+  /* uma vez por semana, e só marcada depois de chegar */
+  const nomes = ["ajustes", "numerosDoDono", "avisarNoPainel", "porAjuste", "CANAL_DIARIO"];
+  const antes = Object.fromEntries(nomes.map((k) => [k, globalThis[k]]));
+  try {
+    /* `let` não sai pelo carregar: as duas guardas moram no global. */
+    globalThis.resumoFeito = ""; globalThis.resumoRodando = false;
+    const T = carregar(["talvezResumoDaSemana"]);
+    let marcas = {}, chega = true;
+    const postados = [], gravados = [];
+    Object.assign(globalThis, {
+      RESUMO_HORA: R.RESUMO_HORA, FUSO_BRASILIA: R.FUSO_BRASILIA, semanaDoResumo: R.semanaDoResumo,
+      cartaoDoResumoSemanal: R.cartaoDoResumoSemanal, comparacaoDaSemana: R.comparacaoDaSemana,
+      CANAL_DIARIO: "diario",
+      ajustes: async () => marcas,
+      numerosDoDono: async () => numeros,
+      avisarNoPainel: async (canal, corpo) => { postados.push([canal, corpo.embeds[0].title]); return chega ? true : undefined; },
+      porAjuste: async (k, v) => { gravados.push([k, v]); marcas = { ...marcas, [k]: v }; },
+    });
+    chega = false;
+    verdade("o cartão não chegou: não marca a semana", !await T.talvezResumoDaSemana(agora) && !gravados.length);
+    chega = true;
+    verdade("na volta seguinte, tenta de novo e posta", await T.talvezResumoDaSemana(agora + 60000));
+    ok("no diário", postados.at(-1)[0], "diario");
+    ok("e marca a semana", gravados, [["resumo_semanal", "2026-11-16"]]);
+    const n = postados.length;
+    verdade("no minuto seguinte, não repete", !await T.talvezResumoDaSemana(agora + 120000));
+    verdade("nem no dia seguinte", !await T.talvezResumoDaSemana(agora + 864e5));
+    ok("(um cartão por semana)", postados.length, n);
+    verdade("na segunda seguinte, sai o novo", await T.talvezResumoDaSemana(agora + 7 * 864e5));
+    marcas = Object.defineProperty({}, "falhou", { value: true });
+    verdade("banco fora (ajustes falhou): não posta no escuro", !await T.talvezResumoDaSemana(agora + 14 * 864e5));
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("o resumo é conferido de minuto em minuto", /talvezResumoDaSemana\(\)\.catch/.test(idx));
+}
+
 function NA_CONTA_DO_FONTE() {
   return carregar(["NA_CONTA"]).NA_CONTA;
 }
