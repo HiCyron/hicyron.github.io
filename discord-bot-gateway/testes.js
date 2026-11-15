@@ -174,6 +174,9 @@ Object.assign(globalThis, carregar(["USO_DE_FUNCAO", "contarUso"]));
 /* As linguas da sala 🌍 (o que cada sala le, o que a origem escreve): o
    espelho, a correcao e o apagar consultam as duas em toda fala. */
 Object.assign(globalThis, carregar(["IDIOMA_DA_SALA_MUNDO", "idiomaQueLe", "idiomaQueEscreve"]));
+/* A caixa-preta: toda decisao de "nao fiz" chama rastrear(), entao ela fica no
+   escopo de todos (a fila e' de verdade; os testes dela a olham direto). */
+Object.assign(globalThis, carregar(["rastroPendente", "RASTRO_MAX", "rastrear"]));
 /* Os emojis da CYRON tambem, vazios como antes de a subida terminar: quem os
    usa (o duelo, o herói pego, a inscrição, as carinhas dos botões) sai com a
    reserva de sempre. */
@@ -14794,6 +14797,8 @@ function conferirCartao(onde, embed, componentes = []) {
     ];
     return [];
   };
+  /* O funil tem teste próprio (O FUNIL, mais abaixo); aqui só a casa. */
+  globalThis.funilDoDono = async () => ({ etapas: [], servidores: [], marca: "funil" });
   const { numerosDoDono } = carregar(["numerosDoDono", "situacaoDoPagamento", "faixaPaga", "PRECO_MENSAL", "venceEm"]);
   const n = await numerosDoDono();
   ok("conta só os servidores ativos", n.servidores.ativos, 2);
@@ -15409,6 +15414,201 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o arquivo anotado é lido pelo bot", N.lerNovidades(JSON.stringify(anotado)).length === 2);
   verdade("o arquivo entra na imagem (o .dockerignore não o tira)", !/novidades/.test(readFileSync(new URL("./.dockerignore", import.meta.url), "utf8")));
   verdade("e nunca entra no git", /novidades\.json/.test(readFileSync(new URL("./.gitignore", import.meta.url), "utf8")));
+}
+
+/* ====== O FUNIL, A CAIXA-PRETA E O ALARME QUE NÃO ESQUECE (15/11) ======
+
+   1. Doze servidores, dois conversando: em que passo cada um parou.
+   2. O caso da Bunny ficou sem prova: as decisões de "não fiz" agora deixam
+      rastro no banco.
+   3. O alarme de erro teimoso zerava a cada publicação. */
+{
+  /* ---- 1. o funil ---- */
+  const F = carregar(["ETAPAS_DO_FUNIL", "etapaDoFunil", "resumoDoFunil", "membrosComIdioma", "funilDoDono"]);
+  ok("sem salas", F.etapaDoFunil({ salas: 0 }), "sem-salas");
+  ok("sem salas porque escolheu só as ferramentas", F.etapaDoFunil({ salas: 0, modo: "ferramentas" }), "ferramentas");
+  ok("salas, mas ninguém com idioma", F.etapaDoFunil({ salas: 3, comIdioma: 0, mensagens7d: 90 }), "sem-idioma");
+  ok("conversa nas salas", F.etapaDoFunil({ salas: 3, comIdioma: 5, falas7d: 2, mensagens7d: 0 }), "conversando");
+  ok("conversa no servidor, nada nas salas", F.etapaDoFunil({ salas: 3, comIdioma: 5, falas7d: 0, mensagens7d: 340 }), "conversa-fora");
+  ok("servidor inteiro parado", F.etapaDoFunil({ salas: 3, comIdioma: 5, falas7d: 0, mensagens7d: 0 }), "parado");
+  ok("contagem recém-ligada: medindo, e não 'parado'", F.etapaDoFunil({ salas: 3, comIdioma: 5, falas7d: 0, mensagens7d: null }), "medindo");
+  ok("toda etapa tem nome", F.ETAPAS_DO_FUNIL.length, 7);
+  ok("as barras do funil, da mais larga à mais estreita",
+    F.resumoDoFunil([
+      { salas: 3, comIdioma: 5, falas7d: 4, mensagens7d: 100 },
+      { salas: 3, comIdioma: 5, falas7d: 0, mensagens7d: 50 },
+      { salas: 3, comIdioma: 0, falas7d: 0, mensagens7d: 0 },
+      { salas: 0, comIdioma: 0, falas7d: 0, mensagens7d: null },
+    ]).map((e) => e.n), [4, 3, 2, 2, 1]);
+  const cargo = (ids) => ({ members: new Map(ids.map((i) => [i, {}])) });
+  const g = { roles: { cache: new Map([["r-en", cargo(["a", "b"])], ["r-pt", cargo(["c", "a"])]]) } };
+  ok("quem tem cargo de sala, sem contar ninguém duas vezes", F.membrosComIdioma(g, ["r-en", "r-pt", "r-sumiu"]), 3);
+
+  {
+    const nomes = ["client", "rpc", "sb"];
+    const antes = Object.fromEntries(nomes.map((n) => [n, globalThis[n]]));
+    try {
+      const agora = Date.parse("2026-11-15T12:00:00Z");
+      let primeiroDia = "2026-11-10";
+      const guild = (id, nome, membros, cargos) => [id, { id, name: nome, memberCount: membros,
+        roles: { cache: new Map(cargos.map(([r, ms]) => [r, cargo(ms)])) } }];
+      globalThis.client = { guilds: { cache: new Map([
+        guild("g1", "TOP", 120, [["r1", ["a", "b"]]]),
+        guild("g2", "Quieto", 40, [["r2", ["x"]]]),
+        guild("g3", "Sem ninguém", 30, [["r3", []]]),
+        guild("g4", "Só ferramentas", 10, []),
+      ]) } };
+      globalThis.rpc = async (fn, corpo) => {
+        verdade("o funil pergunta pelos últimos 7 dias", fn === "cyron_funil" && corpo.p_desde === new Date(agora - 7 * 864e5).toISOString());
+        return [{ servidor_id: "s1", falas: 9, pessoas: 4, mensagens: 300 }, { servidor_id: "s2", falas: 0, pessoas: 0, mensagens: 0 }];
+      };
+      globalThis.sb = async (q) => {
+        if (q.startsWith("discord_chat_espelho")) return [{ servidor_id: "s1", role_id: "r1" }, { servidor_id: "s2", role_id: "r2" }, { servidor_id: "s3", role_id: "r3" }];
+        if (q.startsWith("cyron_servidor")) return [{ id: "s1", guild_id: "g1", nome: "x" }, { id: "s2", guild_id: "g2" }, { id: "s3", guild_id: "g3" },
+          { id: "s4", guild_id: "g4", modo: "ferramentas" }, { id: "s5", guild_id: "g-saiu" }];
+        if (q.startsWith("cyron_conversa_dia")) return primeiroDia ? [{ dia: primeiroDia }] : [];
+        return [];
+      };
+      let f = await F.funilDoDono(agora);
+      const por = Object.fromEntries(f.servidores.map((x) => [x.nome, x]));
+      ok("servidor de onde a CYRON saiu não entra", f.servidores.length, 4);
+      ok("TOP conversa nas salas", [por.TOP.etapa, por.TOP.falas7d, por.TOP.pessoas7d, por.TOP.comIdioma], ["conversando", 9, 4, 2]);
+      ok("com a contagem completa, silêncio é 'parado'", por.Quieto.etapa, "parado");
+      ok("cargo sem ninguém é 'ninguém escolheu idioma'", por["Sem ninguém"].etapa, "sem-idioma");
+      ok("modo ferramentas não é cobrado por não ter sala", por["Só ferramentas"].etapa, "ferramentas");
+      ok("o nome é o de agora no Discord, e não o guardado", por.TOP.nome, "TOP");
+      ok("quem pede atenção vem primeiro, quem vai bem por último",
+        f.servidores.map((x) => x.etapa), ["sem-idioma", "parado", "conversando", "ferramentas"]);
+      primeiroDia = "2026-11-15";
+      f = await F.funilDoDono(agora);
+      ok("contagem ligada hoje: o quieto ainda está 'medindo'", f.servidores.find((x) => x.nome === "Quieto").etapa, "medindo");
+      ok("mas quem já conversou aparece com o número", f.servidores.find((x) => x.nome === "TOP").mensagens7d, 300);
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+  }
+
+  /* a contagem da conversa */
+  {
+    const nomes = ["servidorDoGuild", "rpc", "hojeISO"];
+    const antes = Object.fromEntries(nomes.map((n) => [n, globalThis[n]]));
+    try {
+      const C = carregar(["conversaPendente", "anotarConversa", "descarregarConversa"]);
+      const gravado = [];
+      let falhar = false;
+      globalThis.hojeISO = () => "2026-11-15";
+      globalThis.servidorDoGuild = async (g) => (g === "g-sem" ? null : { id: `s-${g}` });
+      globalThis.rpc = async (fn, c) => { if (falhar) throw new Error("supabase 503"); gravado.push([fn, c.p_servidor, c.p_dia, c.p_mensagens]); };
+      C.anotarConversa("g1"); C.anotarConversa("g1"); C.anotarConversa("g2"); C.anotarConversa("g-sem");
+      await C.descarregarConversa();
+      ok("as mensagens de cada servidor viram uma soma por dia", gravado,
+        [["cyron_somar_conversa", "s-g1", "2026-11-15", 2], ["cyron_somar_conversa", "s-g2", "2026-11-15", 1]]);
+      falhar = true;
+      C.anotarConversa("g1");
+      await C.descarregarConversa();
+      ok("banco fora: a conta volta para a fila", C.conversaPendente.get("g1|2026-11-15"), 1);
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    verdade("só gente conta: nada de bot, webhook ou aviso do sistema",
+      /if \(!msg\.author\?\.bot && !msg\.webhookId && !msg\.system\) anotarConversa\(msg\.guild\.id\)/.test(idx));
+    verdade("a conta desce de minuto em minuto", /descarregarConversa\(\)\.catch/.test(idx));
+    verdade("e na despedida", (idx.match(/descarregarConversa\(\)\.catch/g) || []).length >= 2);
+    verdade("o painel do dono leva o funil", /funil,/.test(idx.slice(idx.indexOf("async function numerosDoDono"))));
+  }
+
+  /* ---- 2. a caixa-preta ---- */
+  {
+    const nomes = ["sbPost"];
+    const antes = Object.fromEntries(nomes.map((n) => [n, globalThis[n]]));
+    try {
+      const R = carregar(["rastroPendente", "RASTRO_MAX", "rastrear", "descarregarRastro"]);
+      const t0 = Date.parse("2026-11-15T04:13:52Z");
+      R.rastrear("boas-vindas-salas", "entrou-ha-mais-de-48h", { guild: 123, usuario: 456, detalhe: "en" }, t0);
+      ok("a linha diz onde, por quê, o servidor e a pessoa", R.rastroPendente[0],
+        { criado_em: "2026-11-15T04:13:52.000Z", guild_id: "123", usuario_id: "456", onde: "boas-vindas-salas", motivo: "entrou-ha-mais-de-48h", detalhe: "en" });
+      for (let i = 0; i < R.RASTRO_MAX + 50; i++) R.rastrear("x", "y");
+      ok("enxurrada não estoura a memória", R.rastroPendente.length, R.RASTRO_MAX);
+      const enviados = [];
+      globalThis.sbPost = async (tabela, linhas) => { enviados.push([tabela, linhas.length]); };
+      await R.descarregarRastro();
+      ok("desce tudo numa ida só ao banco", enviados, [["cyron_rastro", R.RASTRO_MAX]]);
+      ok("e a fila esvazia", R.rastroPendente.length, 0);
+      globalThis.sbPost = async () => { throw new Error("supabase 503"); };
+      R.rastrear("a", "b"); R.rastrear("c", "d");
+      await R.descarregarRastro();
+      ok("banco fora: as linhas voltam para a fila", R.rastroPendente.map((l) => l.onde), ["a", "c"]);
+      R.rastroPendente.length = 0;
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+
+    /* As boas-vindas contam por que não receberam. */
+    const nomes2 = ["client", "ajustes", "canaisEspelho", "contarUso", "motorDe"];
+    const antes2 = Object.fromEntries(nomes2.map((n) => [n, globalThis[n]]));
+    try {
+      carregar(["FUNCOES", "funcaoLigada"]);
+      const B = carregar(["BOAS_VINDAS_NOVO", "BOAS_VINDAS_SALAS_POR_MINUTO", "boasVindasDadas", "boasVindasNoMinuto",
+        "podeBoasVindasNasSalas", "nomeDeQuemChegou", "avisoDeChegada", "boasVindasNasSalas"]);
+      const t0 = Date.parse("2026-11-15T04:13:52Z");
+      let marcas = {};
+      globalThis.ajustes = async () => marcas;
+      globalThis.canaisEspelho = async () => [{ canal_id: "c-pt", idioma: "pt" }];
+      globalThis.client = { user: { id: "bot" } };
+      const guild = { id: "g-top", name: "TOP", channels: { cache: new Map() } };
+      const membro = (id, entrouHa) => ({ id, user: { bot: false }, guild, joinedTimestamp: t0 - entrouHa });
+      const ultimo = () => rastroPendente[rastroPendente.length - 1];
+      rastroPendente.length = 0;
+      await B.boasVindasNasSalas(guild, { id: "s" }, membro("antiga", 5 * 864e5), "pt", t0);
+      ok("membro antigo: o motivo fica guardado", [ultimo().motivo, ultimo().usuario_id, ultimo().guild_id], ["entrou-ha-mais-de-48h", "antiga", "g-top"]);
+      await B.boasVindasNasSalas(guild, { id: "s" }, membro("ja", 600e3), "ja", t0);
+      ok("língua sem sala: o motivo fica guardado", [ultimo().motivo, ultimo().detalhe], ["sala-da-lingua-nao-existe", "ja"]);
+      marcas = { "boas-vindas-salas-off:s": "1" };
+      await B.boasVindasNasSalas(guild, { id: "s" }, membro("off", 600e3), "pt", t0);
+      ok("função desligada: o motivo fica guardado", ultimo().motivo, "funcao-desligada");
+      const n = rastroPendente.length;
+      await B.boasVindasNasSalas(guild, { id: "s" }, membro("antiga", 5 * 864e5), "pt", t0 + 60000);
+      ok("a mesma pessoa na passada seguinte não vira uma linha por minuto", rastroPendente.length, n);
+      rastroPendente.length = 0;
+    } finally {
+      Object.assign(globalThis, antes2);
+    }
+    const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    verdade("a escolha de idioma deixa rastro", /rastrear\("escolha"/.test(idx));
+    verdade("o convite deixa rastro", /rastrear\("convite"/.test(idx));
+    verdade("a entrada de quem já tinha idioma deixa rastro", /rastrear\("entrada"/.test(idx));
+    verdade("o rastro desce de minuto em minuto", /descarregarRastro\(\)\.catch/.test(idx));
+  }
+
+  /* ---- 3. o alarme que não esquece ---- */
+  {
+    const A = carregar(["ESQUECER_HISTORICO", "VEZES_ATE_DESMENTIR", "TEMPO_ATE_DESMENTIR", "registrarOcorrencia",
+      "promessaDesmentida", "semearHistorico", "planoDoAviso", "ESPERA_AVISO", "ESPERA_AVISO_MAX"]);
+    const agora = Date.parse("2026-11-15T12:00:00Z");
+    const h = new Map();
+    const ficha = { vezes: 5, desde: agora - 8 * 3600e3, ultimo: agora - 20 * 60e3 };
+    verdade("o erro conhecido começa de onde a ficha estava", A.semearHistorico(h, "k", ficha, agora));
+    const hist = A.registrarOcorrencia(h, "k", agora);
+    ok("e a ocorrência nova soma em cima", [hist.vezes, hist.desde], [6, ficha.desde]);
+    verdade("seis vezes em oito horas, atravessando a publicação: a promessa é desmentida",
+      A.promessaDesmentida({ precisaDeVoce: false }, hist, agora));
+    verdade("sem a ficha, recomeçaria do zero (era o defeito)",
+      !A.promessaDesmentida({ precisaDeVoce: false }, A.registrarOcorrencia(new Map(), "k", agora), agora));
+    verdade("o aviso conta como já dado: a publicação não reabre a boca de todo erro conhecido",
+      !A.planoDoAviso(hist, agora).falar);
+    verdade("ficha de mais de 48h atrás não semeia (foi esquecida)",
+      !A.semearHistorico(new Map(), "k", { vezes: 50, desde: agora - 9 * 864e5, ultimo: agora - 3 * 864e5 }, agora));
+    const jaTem = new Map([["k", { vezes: 1, desde: agora, ultimo: agora, avisos: 0 }]]);
+    verdade("quem a memória já tem não é sobrescrito", !A.semearHistorico(jaTem, "k", ficha, agora) && jaTem.get("k").vezes === 1);
+    verdade("sem ficha, nada", !A.semearHistorico(new Map(), "k", null, agora));
+
+    const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    const anotar = idx.slice(idx.indexOf("function anotarErro"), idx.indexOf("function anotarErro") + 1500);
+    verdade("o anotarErro semeia antes de registrar",
+      anotar.indexOf("semearHistorico(") > -1 && anotar.indexOf("semearHistorico(") < anotar.indexOf("registrarOcorrencia("));
+    verdade("a ficha é lida ao subir", /lembrarHistoricoDosErros\(\)/.test(idx.slice(idx.indexOf('client.once("clientReady"'))));
+  }
 }
 
 function NA_CONTA_DO_FONTE() {

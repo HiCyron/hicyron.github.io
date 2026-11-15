@@ -1337,6 +1337,84 @@ async function descarregarUso() {
   }
 }
 
+/* ---------------- quanta gente conversa em cada servidor ----------------
+
+   O funil parava num "sei la'": sete servidores tinham salas e nenhuma fala
+   nelas em duas semanas, e nao dava para saber se o servidor inteiro estava
+   parado ou se conversava nos outros canais e so' nao usava as salas. Sao
+   problemas opostos -- um nao e' nosso, o outro e' o produto falhando.
+
+   Conto as mensagens de GENTE (nao bot, nao webhook, nao aviso do sistema)
+   em qualquer canal que eu enxergo, por servidor e por dia. So' o numero:
+   nada do texto, nada de quem. Mesmo jeito do uso -- memoria, descarregada de
+   minuto em minuto. */
+const conversaPendente = new Map(); // guildId|dia -> mensagens
+
+function anotarConversa(guildId, dia = hojeISO()) {
+  if (!guildId) return;
+  const k = `${guildId}|${dia}`;
+  conversaPendente.set(k, (conversaPendente.get(k) || 0) + 1);
+}
+
+async function descarregarConversa() {
+  if (!conversaPendente.size) return;
+  const leva = [...conversaPendente.entries()];
+  conversaPendente.clear();
+  for (const [k, n] of leva) {
+    const [guildId, dia] = k.split("|");
+    try {
+      const servidor = await servidorDoGuild(guildId);
+      if (!servidor?.id) continue; // servidor sem a CYRON instalada nao entra na conta
+      await rpc("cyron_somar_conversa", { p_servidor: servidor.id, p_dia: dia, p_mensagens: n });
+    } catch (e) {
+      /* log, e nao erro: a conta volta para a fila e entra no minuto seguinte. */
+      console.log("conversa: nao consegui gravar:", e?.message || e);
+      conversaPendente.set(k, (conversaPendente.get(k) || 0) + n);
+    }
+  }
+}
+
+/* ---------------- a caixa-preta: por que eu NAO fiz ----------------
+
+   "A Bunny entrou e ninguem a recebeu nas salas" -- e eu nao consegui provar
+   por que. O log do processo nao fica em lugar nenhum que se leia depois, e
+   as decisoes de NAO fazer (ja' tinha idioma, entrou ha' mais de dois dias,
+   sala inexistente, teto do minuto) nao sao erro: nao viram ficha.
+
+   Agora cada uma dessas decisoes deixa uma linha em cyron_rastro: onde, o
+   motivo, o servidor e a pessoa. Fica 14 dias (limpeza no pg_cron) e so' o
+   service_role le. Para investigar:
+     select * from cyron_rastro where guild_id = '...' order by criado_em desc;
+
+   Em lote, de minuto em minuto, como o uso: a conversa nunca espera o banco.
+   O teto da fila segura uma enxurrada (mil entradas num raide) sem estourar
+   a memoria. */
+const rastroPendente = [];
+const RASTRO_MAX = 500;
+
+function rastrear(onde, motivo, { guild = null, usuario = null, detalhe = "" } = {}, agora = Date.now()) {
+  if (rastroPendente.length >= RASTRO_MAX) rastroPendente.shift();
+  rastroPendente.push({
+    criado_em: new Date(agora).toISOString(),
+    guild_id: guild ? String(guild) : null,
+    usuario_id: usuario ? String(usuario) : null,
+    onde: String(onde).slice(0, 60),
+    motivo: String(motivo).slice(0, 80),
+    detalhe: detalhe ? String(detalhe).slice(0, 300) : null,
+  });
+}
+
+async function descarregarRastro() {
+  if (!rastroPendente.length) return;
+  const leva = rastroPendente.splice(0);
+  try {
+    await sbPost("cyron_rastro", leva);
+  } catch (e) {
+    console.log("rastro: nao consegui gravar:", e?.message || e);
+    rastroPendente.unshift(...leva.slice(-(RASTRO_MAX - rastroPendente.length)));
+  }
+}
+
 /* ---------------- o que cada funcao e' usada ----------------
 
    A traducao ja' era contada (logo acima); o resto do bot nao. Sem isto,
@@ -10477,7 +10555,10 @@ async function convidarParaEscolherIdioma(member) {
   /* Quem ja escolheu em QUALQUER servidor onde eu esteja nao e' perguntado de
      novo: a escolha e' da pessoa, e nao do servidor. */
   const jaEscolheu = !!(await idiomaEscolhido(member.id));
-  if (!devoConvidar(jaEscolheu, convidados.get(member.id))) return;
+  if (!devoConvidar(jaEscolheu, convidados.get(member.id))) {
+    if (!jaEscolheu) rastrear("convite", "convidado-ha-pouco", { guild: member.guild.id, usuario: member.id });
+    return;
+  }
   convidados.set(member.id, Date.now());
   for (const [id, quando] of convidados) {
     if (Date.now() - quando > CONVIDAR_DE_NOVO) convidados.delete(id);
@@ -10512,6 +10593,8 @@ async function convidarParaEscolherIdioma(member) {
   console.log(onde
     ? `idioma: convidei ${member.user.username} pelo ${onde}`
     : `idioma: nao consegui convidar ${member.user.username} (privado fechado e sem sala de idiomas)`);
+  rastrear("convite", onde ? `convidou-pelo-${onde}` : "nao-consegui-convidar", { guild: member.guild.id, usuario: member.id,
+    detalhe: onde ? "" : "privado fechado e sem sala de idiomas" });
 }
 
 /* ---------------- boas-vindas com imagem ----------------
@@ -10797,19 +10880,26 @@ async function avisoDeChegada(membro, idiomaDela, sala, modelo, motor) {
 async function boasVindasNasSalas(guild, servidor, membro, idiomaDela, agora = Date.now()) {
   if (!membro || membro.user?.bot) return false;
   const chave = `${guild.id}|${membro.id}`;
-  if (boasVindasDadas.has(chave)) return false;
+  /* Cada "nao" deixa rastro (a caixa-preta): foi a falta disto que deixou
+     sem resposta o caso da Bunny. */
+  const nao = (motivo, detalhe = "") => {
+    rastrear("boas-vindas-salas", motivo, { guild: guild.id, usuario: membro.id, detalhe: detalhe || idiomaDela }, agora);
+    return false;
+  };
+  if (boasVindasDadas.has(chave)) return false; // repeticao da mesma passada: sem rastro, seria uma linha por minuto
   for (const [k, t] of boasVindasDadas) if (agora - t > BOAS_VINDAS_NOVO) boasVindasDadas.delete(k);
   if (!membro.joinedTimestamp || agora - membro.joinedTimestamp > BOAS_VINDAS_NOVO) {
     boasVindasDadas.set(chave, agora);
-    return false;
+    return nao("entrou-ha-mais-de-48h", membro.joinedTimestamp ? new Date(membro.joinedTimestamp).toISOString() : "sem data de entrada");
   }
   const marcas = await ajustes();
-  if (marcas.falhou || !funcaoLigada(FUNCOES.find((f) => f.chave === "boasvindas"), servidor, marcas)) return false;
+  if (marcas.falhou) return nao("ajustes-nao-responderam");
+  if (!funcaoLigada(FUNCOES.find((f) => f.chave === "boasvindas"), servidor, marcas)) return nao("funcao-desligada");
   const salas = (await canaisEspelho(servidor.id)).filter((s) => s.canal_id);
   const minha = salas.find((s) => s.idioma === idiomaDela);
   /* A sala dela ainda nao existe (lingua nova aqui): a passada seguinte
      tenta de novo -- quem escolheu fica na lista por quinze minutos. */
-  if (!minha) return false;
+  if (!minha) return nao("sala-da-lingua-nao-existe");
   /* Marca ANTES de qualquer espera: duas passadas juntas nao viram dois avisos. */
   boasVindasDadas.set(chave, agora);
 
@@ -10817,7 +10907,8 @@ async function boasVindasNasSalas(guild, servidor, membro, idiomaDela, agora = D
   const ultimas = await canalDela?.messages?.fetch?.({ limit: 30 }).catch(() => null);
   const jaRecebi = [...(ultimas?.values?.() || [])].some((m) => m.author?.id === client.user?.id &&
     String(m.content || "").startsWith(`👋 <@${membro.id}>`));
-  if (jaRecebi || !podeBoasVindasNasSalas(guild.id, agora)) return false;
+  if (jaRecebi) return nao("ja-recebida-na-sala");
+  if (!podeBoasVindasNasSalas(guild.id, agora)) return nao("teto-do-minuto");
 
   const motor = motorDe(servidor);
   const modelo = servidor.boas_vindas_texto || null;
@@ -10832,6 +10923,8 @@ async function boasVindasNasSalas(guild, servidor, membro, idiomaDela, agora = D
     })) postou++;
   }
   if (postou) contarUso("boas-vindas-salas", guild.id);
+  rastrear("boas-vindas-salas", postou ? "postou" : "nenhuma-sala-aceitou",
+    { guild: guild.id, usuario: membro.id, detalhe: `${idiomaDela} · ${postou}/${salas.length} salas` }, agora);
   return postou > 0;
 }
 
@@ -10855,7 +10948,11 @@ async function receberQuemJaTemIdioma(member) {
   if (!idioma) return false; // quem nunca escolheu recebe o convite, e as boas-vindas quando escolher
   const salas = await sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&select=idioma,role_id`) || [];
   const cargo = salas.find((s) => s.idioma === idioma)?.role_id;
-  if (!cargo) return false;
+  if (!cargo) {
+    rastrear("entrada", "ja-tinha-idioma-sem-sala-aqui", { guild: member.guild.id, usuario: member.id, detalhe: idioma });
+    return false;
+  }
+  rastrear("entrada", "ja-tinha-idioma", { guild: member.guild.id, usuario: member.id, detalhe: idioma });
   if (!member.roles?.cache?.has?.(cargo)) {
     await member.roles.add(cargo, "idioma que a pessoa já tinha escolhido").catch((e) =>
       console.log(`idioma: nao consegui dar o cargo da sala a quem chegou em ${member.guild.name}:`, e?.message || e));
@@ -18016,6 +18113,39 @@ const TEMPO_ATE_DESMENTIR = 6 * 60 * 60 * 1000;
    o que esta' acontecendo, nao o que ja' aconteceu. */
 const ESQUECER_HISTORICO = 48 * 60 * 60 * 1000;
 
+/* O historico acima mora na memoria, e a memoria zera a cada publicacao. Um
+   erro teimoso que atravessa uma atualizacao recomecava do "1 vez, desde
+   agora": seis ocorrencias em seis horas nunca chegavam, porque o bot sobe
+   mais de uma vez por dia em dia de conserto -- justamente quando o erro
+   teimoso mais importa.
+
+   A ficha do erro (cyron_erro) ja' guarda vezes, primeira e ultima vez, e
+   sobrevive a tudo. Ao subir, leio as fichas vivas das ultimas 48h; na
+   primeira vez que um erro aparece depois disso, o historico comeca de onde
+   a ficha estava, e nao do zero. */
+const historicoGuardado = new Map(); // id da ficha -> { vezes, desde, ultimo }
+
+async function lembrarHistoricoDosErros(agora = Date.now()) {
+  const desde = new Date(agora - ESQUECER_HISTORICO).toISOString();
+  const linhas = await sb(`cyron_erro?status=in.(aberto,consertando,silenciado)&ultimo_em=gte.${encodeURIComponent(desde)}` +
+    "&select=chave,vezes,primeiro_em,ultimo_em");
+  for (const l of linhas || []) {
+    historicoGuardado.set(l.chave, { vezes: Number(l.vezes) || 0, desde: Date.parse(l.primeiro_em), ultimo: Date.parse(l.ultimo_em) });
+  }
+  return historicoGuardado.size;
+}
+
+/* Pura. So' semeia quem a memoria ainda nao tem, e so' se a ficha ainda vale
+   (48h sem aparecer = esquecido, a mesma regra do registrarOcorrencia). O
+   aviso conta como ja' dado na ultima vez: sem isso, toda publicacao
+   reabriria a boca de todo erro conhecido de uma vez. */
+function semearHistorico(historico, chave, guardado, agora, esquecer = ESQUECER_HISTORICO) {
+  if (historico.has(chave) || !guardado?.ultimo || agora - guardado.ultimo > esquecer) return false;
+  historico.set(chave, { vezes: guardado.vezes, desde: guardado.desde || guardado.ultimo, ultimo: guardado.ultimo,
+    avisos: 1, avisoEm: guardado.ultimo });
+  return true;
+}
+
 /* Separadas da porcaria toda para poderem ser testadas de verdade.
 
    A regra antiga morava dentro do anotarErro, entre um `avisarNoPainel` e um
@@ -18756,6 +18886,8 @@ function anotarErro(onde, porque) {
      dela vale pro problema inteiro. */
   const chave = explicacao ? `explicado|${explicacao.titulo}` : `${onde}|${String(porque).slice(0, 60)}`;
   const agora = Date.now();
+  const idFicha = idDoErro(chave);
+  if (semearHistorico(historicoDoAviso, chave, historicoGuardado.get(idFicha), agora)) historicoGuardado.delete(idFicha);
   const hist = registrarOcorrencia(historicoDoAviso, chave, agora);
   /* Toda ocorrencia conta na ficha do erro, mesmo quando nao e' hora de
      falar: o cartao se atualiza calado, e o numero nunca mente. */
@@ -19619,6 +19751,84 @@ async function embedDeUso() {
    A tela web desenha gráfico de verdade e tabela com filtro -- coisas que o
    embed do Discord não faz. Só o dono chega aqui (ehDono, no motor). Pura no
    sentido que importa: só LÊ o banco, não muda nada. */
+/* ---------------- o funil: onde cada servidor parou ----------------
+
+   Instalar nao e' usar. A pergunta do dono e' "por que tem doze servidores e
+   so' dois conversam", e a resposta muda conforme o passo em que cada um
+   parou: sem salas, ninguem escolheu idioma, servidor parado, ou conversa
+   que acontece fora das salas. Cada um pede um conserto diferente. */
+const ETAPAS_DO_FUNIL = [
+  ["conversa-fora", "🟡 conversa fora das salas"],
+  ["sem-idioma", "🟠 ninguém escolheu idioma"],
+  ["sem-salas", "🔴 sem salas"],
+  ["parado", "⚪ servidor parado"],
+  ["medindo", "⏳ medindo a conversa"],
+  ["conversando", "🟢 conversando nas salas"],
+  ["ferramentas", "🔧 só ferramentas"],
+];
+
+/* Pura. mensagens7d null = ainda nao sei (a contagem comecou ha' menos de
+   um dia): servidor quieto nesse intervalo nao e' "parado", e' "medindo". */
+function etapaDoFunil(x) {
+  if (!x.salas) return x.modo === "ferramentas" ? "ferramentas" : "sem-salas";
+  if (!x.comIdioma) return "sem-idioma";
+  if (x.falas7d > 0) return "conversando";
+  if (x.mensagens7d === null || x.mensagens7d === undefined) return "medindo";
+  return x.mensagens7d > 0 ? "conversa-fora" : "parado";
+}
+
+/* Pura. As barras do funil, do mais largo ao mais estreito. */
+function resumoDoFunil(lista) {
+  return [
+    { nome: "Com a CYRON", n: lista.length },
+    { nome: "Com salas", n: lista.filter((x) => x.salas > 0).length },
+    { nome: "Alguém escolheu idioma", n: lista.filter((x) => x.salas > 0 && x.comIdioma > 0).length },
+    { nome: "Servidor conversando", n: lista.filter((x) => x.mensagens7d > 0 || x.falas7d > 0).length },
+    { nome: "Conversando nas salas", n: lista.filter((x) => x.falas7d > 0).length },
+  ];
+}
+
+/* Quem tem o cargo de alguma sala, contado na memoria do discord.js (a
+   varredura busca os membros todos, entao a memoria esta' cheia). Uma pessoa
+   tem um cargo de sala so', mas o Set nao conta ninguem duas vezes. */
+function membrosComIdioma(guild, cargos) {
+  const quem = new Set();
+  for (const id of cargos) for (const m of guild?.roles?.cache?.get?.(id)?.members?.keys?.() || []) quem.add(m);
+  return quem.size;
+}
+
+async function funilDoDono(agora = Date.now()) {
+  const desde = new Date(agora - 7 * 864e5).toISOString();
+  const [linhas, espelhos, servidores, primeiro] = await Promise.all([
+    rpc("cyron_funil", { p_desde: desde }),
+    sb("discord_chat_espelho?select=servidor_id,role_id"),
+    sb("cyron_servidor?saiu_em=is.null&select=id,guild_id,nome,modo"),
+    sb("cyron_conversa_dia?select=dia&order=dia.asc&limit=1"),
+  ]);
+  const medindoDesde = primeiro?.[0]?.dia || null;
+  const contaCompleta = !!medindoDesde && Date.parse(`${medindoDesde}T00:00:00Z`) <= agora - 864e5;
+  const porServidor = new Map((linhas || []).map((l) => [l.servidor_id, l]));
+  const lista = [];
+  for (const s of servidores || []) {
+    const guild = client.guilds.cache.get(String(s.guild_id));
+    if (!guild) continue; // a CYRON nao esta' mais la'
+    const salas = (espelhos || []).filter((e) => e.servidor_id === s.id);
+    const n = porServidor.get(s.id) || {};
+    const mensagens = Number(n.mensagens) || 0;
+    const x = {
+      nome: guild.name || s.nome || "?", membros: guild.memberCount || 0, salas: salas.length,
+      comIdioma: membrosComIdioma(guild, salas.map((e) => e.role_id).filter(Boolean)),
+      mensagens7d: mensagens || contaCompleta ? mensagens : null,
+      falas7d: Number(n.falas) || 0, pessoas7d: Number(n.pessoas) || 0, modo: s.modo || null,
+    };
+    x.etapa = etapaDoFunil(x);
+    lista.push(x);
+  }
+  const ordem = ETAPAS_DO_FUNIL.map(([k]) => k);
+  lista.sort((a, b) => ordem.indexOf(a.etapa) - ordem.indexOf(b.etapa) || b.membros - a.membros);
+  return { etapas: resumoDoFunil(lista), servidores: lista, nomes: Object.fromEntries(ETAPAS_DO_FUNIL), medindoDesde };
+}
+
 async function numerosDoDono() {
   const DIAS = 14;
   const dias = Array.from({ length: DIAS }, (_, i) => diaISO(Date.now() - (DIAS - 1 - i) * 864e5));
@@ -19696,8 +19906,11 @@ async function numerosDoDono() {
   }
   const funcoes = [...totalFun.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
     .map(([r, n]) => ({ nome: nomeDaFuncao(r), n, servidores: srvFun.get(r)?.size || 0 }));
+  /* Sem o funil o painel continua: ele e' uma tela a mais, nao a casa. */
+  const funil = await funilDoDono().catch((e) => { console.log("funil: nao consegui montar:", e?.message || e); return null; });
 
   return {
+    funil,
     servidores: { ativos: ativos.length, sairamTotal: todos.length - ativos.length, novos7: novosLista.length, sairam7 },
     dinheiro: {
       receita, pagando: conta.pago, teste: conta.teste, liberado: conta.liberado, gratis: conta.gratis,
@@ -22285,6 +22498,8 @@ async function cliqueEscolherIdioma(inter) {
 
   /* Onde essa lingua cai aqui: sem sala, a tela que diz a verdade. */
   const semSala = await telaDaEscolhaSemSala(inter.guildId, idioma).catch(() => null);
+  rastrear("escolha", semSala ? "escolheu-sem-sala" : "escolheu", { guild: inter.guildId, usuario: inter.user.id,
+    detalhe: `${idioma}${ehBoasVindas ? " · pelo cartão de entrada" : ""}` });
   if (semSala) {
     await inter.editReply(semSala);
   } else {
@@ -24347,6 +24562,7 @@ client.on("messageCreate", async (msg) => {
       await atenderNoPrivado(msg);
       return;
     }
+    if (!msg.author?.bot && !msg.webhookId && !msg.system) anotarConversa(msg.guild.id);
 
     if (msg.webhookId) {
       const servidor = await servidorDoGuild(msg.guild.id);
@@ -26895,6 +27111,12 @@ async function contarQueVoltei() {
 client.once("clientReady", () => {
   console.log(`Conectado como ${client.user.tag}, em ${client.guilds.cache.size} servidor(es).`);
 
+  /* O historico dos erros antes de tudo: o que der errado na subida ja' conta
+     a partir de onde a ficha estava. */
+  lembrarHistoricoDosErros()
+    .then((n) => console.log(`erros: ${n} ficha(s) viva(s) lembrada(s) da versao anterior`))
+    .catch((e) => console.log("erros: nao consegui lembrar o historico:", e?.message || e));
+
   /* Contar primeiro, gravar depois: gravar antes apagaria a prova. */
   contarQueVoltei()
     .catch((e) => console.error("batida: nao consegui contar que voltei:", e?.message || e))
@@ -27073,6 +27295,12 @@ client.once("clientReady", () => {
        em dez chegaria na hora do evento. */
     rodarAgendaDeEventos().catch((e) => console.error("eventos: agenda falhou:", e?.message || e));
   }, 60 * 1000);
+  /* As contas do funil e da caixa-preta, no mesmo compasso -- num relogio
+     proprio para nao alongar a ronda de cima. */
+  setInterval(() => {
+    descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
+    descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
+  }, 60 * 1000);
 });
 
 /* Descarrega a contagem antes de morrer.
@@ -27110,6 +27338,8 @@ for (const sinal of ["SIGINT", "SIGTERM"]) {
       Promise.all([
         descarregarUso().catch(() => {}),
         descarregarXp().catch(() => {}),
+        descarregarConversa().catch(() => {}),
+        descarregarRastro().catch(() => {}),
         porAjuste("despedi", String(Date.now())).catch(() => {}),
       ]),
       new Promise((r) => setTimeout(r, PRAZO_DESPEDIDA)),
