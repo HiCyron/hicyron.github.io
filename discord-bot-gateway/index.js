@@ -32,6 +32,7 @@ import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSupor
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
 import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 
 /* A fonte da imagem traduzida vai JUNTO com o bot, e nao e' a da maquina: a
    imagem do Fly e' um Alpine sem fonte nenhuma, e depender do que estiver
@@ -19023,6 +19024,7 @@ async function avisarNoPainel(nomeCanal, texto) {
       ? { content: texto.slice(0, 1900) }
       : texto;
     await canal.send({ ...corpo, allowedMentions: { parse: [] } });
+    return true; // quem precisa saber se o aviso chegou (o pacote de atualizacao) pergunta aqui
   } catch (e) {
     console.error("painel: nao consegui avisar em", nomeCanal, e?.message || e);
   }
@@ -26666,6 +26668,114 @@ function fraseDaSurdez(ha, motivo) {
     "Enquanto isso o processo estava vivo e a máquina ligada: **nenhum alarme antigo pegava este caso.**";
 }
 
+/* ---------------- O pacote de atualizacao ----------------
+
+   "Subi de novo" dizia QUE houve publicacao, nunca O QUE mudou -- e o dono
+   recebia a notificacao no celular sem saber se era a correcao que ele pediu
+   ou outra coisa. Agora a volta conta o que veio junto, como notas de versao.
+
+   De onde vem: o deploy (deploy-bot.yml, passo "Anotar o que mudou") grava
+   novidades.json na imagem com as ultimas mudancas do bot -- a mensagem de
+   cada uma, a mais nova primeiro. Eu anuncio as que vieram DEPOIS da ultima
+   que ja' anunciei (versao_anunciada, no banco). Assim:
+     - reinicio sem versao nova (Fly, queda, reinicio na mao) nao repete nada;
+     - deploy que falhou e foi refeito junta as duas mudancas num cartao so';
+     - rodando fora do deploy (sem o arquivo), tudo fica como era.
+
+   O texto: se a mensagem tiver um bloco "Novidades:", e' ele -- escrito para
+   o dono, sem jargao. Senao, os itens "- " da mensagem. */
+const NOVIDADES_POR_CARTAO = 5;
+const ITENS_POR_NOVIDADE = 4;
+
+/* Pura. Arquivo ausente, quebrado ou estranho vira lista vazia, nunca erro:
+   a volta do bot nao pode depender do bloco de notas dela. */
+function lerNovidades(texto) {
+  try {
+    const lista = JSON.parse(String(texto || ""));
+    return Array.isArray(lista)
+      ? lista.filter((c) => /^[0-9a-f]{7,40}$/.test(String(c?.sha || "")) && typeof c.mensagem === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function lerArquivoDeNovidades() {
+  try { return readFileSync(new URL("./novidades.json", import.meta.url), "utf8"); }
+  catch { return ""; }
+}
+
+/* Pura. O que ainda nao foi anunciado. Primeira vez (nada anunciado ainda):
+   so' a mais nova -- quinze mudancas antigas de uma vez seriam um muro de
+   texto sobre coisas que o dono ja' viu acontecer. */
+function novidadesDesde(lista, anunciada) {
+  if (!lista.length) return { novas: [], resto: 0, versao: "" };
+  const versao = lista[0].sha;
+  if (!anunciada) return { novas: lista.slice(0, 1), resto: 0, versao };
+  const i = lista.findIndex((c) => c.sha === anunciada);
+  const todas = i === -1 ? lista : lista.slice(0, i);
+  return {
+    novas: todas.slice(0, NOVIDADES_POR_CARTAO),
+    resto: Math.max(0, todas.length - NOVIDADES_POR_CARTAO),
+    versao,
+  };
+}
+
+function encurtarNovidade(t, max = 180) {
+  t = String(t).replace(/\s+/g, " ").trim();
+  if (t.length <= max) return t;
+  const corte = t.slice(0, max - 1);
+  return corte.slice(0, corte.lastIndexOf(" ") > max * 0.6 ? corte.lastIndexOf(" ") : corte.length).replace(/[\s,;:.-]+$/, "") + "…";
+}
+
+/* Pura. A mensagem de uma mudanca vira titulo + ate' ITENS_POR_NOVIDADE itens. */
+function resumoDaMudanca(mensagem) {
+  const linhas = String(mensagem || "").replace(/\r/g, "").split("\n");
+  /* "(#50)" e' o numero do pedido no GitHub: diz nada a quem le no Discord. */
+  const titulo = (linhas[0] || "").replace(/\s*\(#\d+\)\s*$/, "").trim();
+  const corpo = linhas.slice(1).filter((l) => !/^\s*(co-authored-by|claude-session|signed-off-by):/i.test(l));
+  const k = corpo.findIndex((l) => /^\s*novidades:\s*$/i.test(l));
+  const bloco = k > -1;
+  const fonte = bloco ? corpo.slice(k + 1) : corpo;
+  const itens = [];
+  let continua = false;
+  for (const l of fonte) {
+    if (!l.trim()) { continua = false; if (bloco && itens.length) break; continue; }
+    const item = /^\s*[-•*]\s+(.+)$/.exec(l);
+    if (item) { itens.push(item[1].trim()); continua = true; }
+    else if (continua && /^\s{2,}\S/.test(l)) itens[itens.length - 1] += " " + l.trim();
+    else if (bloco) { itens.push(l.trim()); continua = true; }
+    else continua = false;
+  }
+  return {
+    titulo,
+    itens: itens.slice(0, ITENS_POR_NOVIDADE).map((t) => encurtarNovidade(t)),
+    mais: Math.max(0, itens.length - ITENS_POR_NOVIDADE),
+  };
+}
+
+/* Pura. O cartao. Sem ** no comeco: a notificacao do celular mostra o texto
+   cru, e "**Publicação**" la' aparece com os asteriscos. */
+function cartaoDeAtualizacao(pacote, rodape, agora = Date.now()) {
+  const blocos = pacote.novas.map((c) => {
+    const r = resumoDaMudanca(c.mensagem);
+    return [`▸ ${r.titulo || "Ajustes internos"}`, ...r.itens.map((t) => `• ${t}`),
+      ...(r.mais ? [`• e mais ${r.mais} detalhe${r.mais > 1 ? "s" : ""}`] : [])].join("\n");
+  });
+  let fora = pacote.resto;
+  while (blocos.length > 1 && blocos.join("\n\n").length > 3600) { blocos.pop(); fora++; }
+  const descricao = blocos.join("\n\n").slice(0, 3800) +
+    (fora ? `\n\n…e mais ${fora} mudança${fora > 1 ? "s" : ""} nesta versão.` : "");
+  const n = pacote.novas.length + pacote.resto;
+  return {
+    color: 0x5865F2,
+    title: n > 1 ? `🆕 Atualização no ar · ${n} mudanças` : "🆕 Atualização no ar",
+    description: descricao,
+    footer: { text: `${rodape} · versão ${String(pacote.versao).slice(0, 7)}` },
+    timestamp: new Date(agora).toISOString(),
+  };
+}
+
 async function contarQueVoltei() {
   const guardado = await ajustes().catch(() => ({}));
   const antes = Number(guardado["visto"]) || 0;
@@ -26688,6 +26798,9 @@ async function contarQueVoltei() {
      mais silenciosa que existe sairia pintada de troca de versao. */
   const morreuSurdo = surdo > 0 && Date.now() - surdo < 30 * 60 * 1000;
   const morreu = morreuSurdo || (parado !== null && parado < 3 * BATIDA && !despediu);
+  const pacote = novidadesDesde(lerNovidades(lerArquivoDeNovidades()), String(guardado["versao_anunciada"] || ""));
+  const comoVoltei = despediu ? "Troca de versão, não queda: ninguém perdeu clique fora do instante da troca"
+    : parado === null ? "Primeira vez que eu conto uma volta" : `Sem batida há ${Math.round(parado / 60000)} min: publicação, não queda`;
 
   /* MORTE vai para o canal de erros. VOLTA NORMAL, não.
    *
@@ -26704,8 +26817,10 @@ async function contarQueVoltei() {
    *
    * A volta normal continua registrada -- no diário, que é onde mora o que
    * aconteceu sem ter dado errado. */
-  await avisarNoPainel(morreu ? CANAL_ERROS : CANAL_DIARIO, {
-    embeds: [{
+  const anunciou = await avisarNoPainel(morreu ? CANAL_ERROS : CANAL_DIARIO, {
+    /* Volta normal com versao nova: o cartao da atualizacao TOMA o lugar do
+       "Subi de novo" -- e' a mesma noticia, agora dizendo o que mudou. */
+    embeds: [!morreu && pacote.novas.length ? cartaoDeAtualizacao(pacote, comoVoltei) : {
       color: morreu ? 0xE03E3E : 0x5EBB83,
       title: morreuSurdo ? "💀 Eu fiquei surdo e me reiniciei"
         : morreu ? "💀 Eu morri e voltei" : "🔄 Subi de novo",
@@ -26720,7 +26835,7 @@ async function contarQueVoltei() {
           "Quem clicou em algo nesse intervalo viu **“não respondeu a tempo”**.\n\n" +
           fraseDaMemoria(mbAntes)
         : despediu
-          ? "Publicação: o processo anterior **se despediu** antes de sair, então isto foi " +
+          ? "Publicação: o processo anterior se despediu antes de sair, então isto foi " +
             "troca de versão e não queda. Ninguém perdeu clique fora do instante da troca."
           : parado === null
             ? "Primeira vez que eu conto isso — daqui pra frente todo reinício aparece aqui."
@@ -26728,6 +26843,13 @@ async function contarQueVoltei() {
       timestamp: new Date().toISOString(),
     }],
   });
+  /* Versao nova que chegou junto com uma queda: a queda vai para os erros, e
+     o que mudou continua no diario -- e' la' que o dono procura o que mudou. */
+  const anunciouVersao = !pacote.novas.length ? false : !morreu ? anunciou
+    : await avisarNoPainel(CANAL_DIARIO, { embeds: [cartaoDeAtualizacao(pacote, "Subi depois de uma queda: o relato está no 🐛-erros")] });
+  /* Marcada so' depois que o cartao CHEGOU. Gravada antes, um Discord fora do
+     ar no minuto da volta engoliria as notas desta versao para sempre. */
+  if (anunciouVersao) await porAjuste("versao_anunciada", pacote.versao).catch(() => {});
 
   /* A despedida vale UMA vez. Sem apagar, ela ficaria seis minutos no banco
      desculpando qualquer morte que acontecesse logo depois de uma publicacao

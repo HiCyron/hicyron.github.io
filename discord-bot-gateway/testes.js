@@ -6605,10 +6605,14 @@ function conferirCartao(onde, embed, componentes = []) {
      no diário. Este teste existia e reprovou quando eu separei os dois — e a
      intenção dele continua certa, só a forma é que era literal demais. Canal
      de erro que recebe coisa normal ensina a duvidar dele. */
+  /* A função inteira, e não "os primeiros 2400 caracteres": a fatia fixa
+     reprovou no dia em que a volta passou a contar o que mudou (o pacote de
+     atualização), sem nada ter mudado no endereço dos avisos. */
+  const corpoDaVolta = contar.slice(0, contar.indexOf("\nclient.once(\"clientReady\""));
   verdade("o aviso de morte vai para o canal de erros",
-    /avisarNoPainel\(morreu \? CANAL_ERROS/.test(contar.slice(0, 2400)));
+    /avisarNoPainel\(morreu \? CANAL_ERROS/.test(corpoDaVolta));
   verdade("e a volta normal NÃO vai para lá",
-    /: CANAL_DIARIO/.test(contar.slice(0, 2400)));
+    /: CANAL_DIARIO/.test(corpoDaVolta));
   /* Primeira vez não tem batida anterior. Sem este ramo, o primeiro reinício
      depois de subir isto contaria uma morte que não houve. */
   verdade("primeira vez não vira morte", /parado === null/.test(contar));
@@ -15225,6 +15229,135 @@ function conferirCartao(onde, embed, componentes = []) {
   const ilustrar = pedaco("ilustrarNasOutrasSalas");
   verdade("ilustrar a cópia cala quando o cartão sumiu, como o seletor",
     /if \(!mensagemSumiu\(e\)\) console\.error\("espelho: nao consegui ilustrar a copia:"/.test(ilustrar));
+}
+
+/* ====== O PACOTE DE ATUALIZAÇÃO (15/11) ======
+
+   O dono recebia "🔄 Subi de novo" no celular a cada publicação, sem saber O
+   QUE tinha mudado. Agora o deploy anota as mudanças (novidades.json) e a
+   volta do bot conta o que veio junto, como notas de versão. */
+{
+  const N = carregar(["NOVIDADES_POR_CARTAO", "ITENS_POR_NOVIDADE", "lerNovidades", "novidadesDesde",
+    "encurtarNovidade", "resumoDaMudanca", "cartaoDeAtualizacao"]);
+  const sha = (c) => c.repeat(40);
+  const mudanca = (c, mensagem) => ({ sha: sha(c), quando: "2026-11-15T00:00:00Z", mensagem });
+  const lista = [mudanca("c", "Terceira (#52)"), mudanca("b", "Segunda (#51)"), mudanca("a", "Primeira (#50)")];
+
+  ok("arquivo quebrado vira lista vazia, e não erro", N.lerNovidades("{nada"), []);
+  ok("arquivo ausente também", N.lerNovidades(""), []);
+  ok("entrada sem versão válida é descartada",
+    N.lerNovidades(JSON.stringify([{ sha: "x; rm -rf", mensagem: "m" }, { sha: sha("a"), mensagem: "ok" }])).length, 1);
+
+  ok("primeira vez: só a mais nova (nada de muro de texto antigo)",
+    N.novidadesDesde(lista, "").novas.map((c) => c.mensagem), ["Terceira (#52)"]);
+  ok("reinício sem versão nova: nada a anunciar", N.novidadesDesde(lista, sha("c")).novas, []);
+  ok("deploy refeito: as duas mudanças desde a última anunciada",
+    N.novidadesDesde(lista, sha("a")).novas.map((c) => c.mensagem), ["Terceira (#52)", "Segunda (#51)"]);
+  ok("a versão é sempre a mais nova", N.novidadesDesde(lista, sha("a")).versao, sha("c"));
+  const muitas = Array.from({ length: 9 }, (_, i) => mudanca(String(i), `Mudança ${i}`));
+  const pac = N.novidadesDesde(muitas, "f".repeat(40));
+  ok("muitas mudanças: 5 no cartão e o resto contado", [pac.novas.length, pac.resto], [5, 4]);
+
+  const r = N.resumoDaMudanca([
+    "Sala nova (#60)", "", "Texto técnico que o dono não precisa ler.", "",
+    "Novidades:", "- A sala 🌍 agora mostra o tópico.", "Linha sem marcador também conta.", "",
+    "- item técnico fora do bloco", "", "Co-Authored-By: Alguém <a@b>", "Claude-Session: https://x"].join("\n"));
+  ok("o número do pedido sai do título", r.titulo, "Sala nova");
+  ok("o bloco Novidades: manda, e acaba na linha vazia", r.itens, ["A sala 🌍 agora mostra o tópico.", "Linha sem marcador também conta."]);
+
+  const semBloco = N.resumoDaMudanca(["Título", "", "Explicação.", "", "- primeiro item que", "  continua aqui", "- segundo",
+    "- terceiro", "- quarto", "- quinto", "", "  indentado depois da linha vazia não emenda", "Co-Authored-By: X <y>"].join("\n"));
+  ok("sem bloco: os itens - da mensagem, com a continuação emendada", semBloco.itens[0], "primeiro item que continua aqui");
+  ok("no máximo 4 itens, e o resto contado", [semBloco.itens.length, semBloco.mais], [4, 1]);
+  verdade("assinatura de commit nunca aparece", !JSON.stringify(N.resumoDaMudanca("T\n\nCo-Authored-By: X <y>\nClaude-Session: z")).includes("Claude"));
+  ok("item enorme é encurtado na palavra", N.encurtarNovidade("palavra ".repeat(60)).length <= 180, true);
+  verdade("e termina com reticências", N.encurtarNovidade("palavra ".repeat(60)).endsWith("…"));
+
+  const c1 = N.cartaoDeAtualizacao(N.novidadesDesde(lista, sha("a")), "Troca de versão", 0);
+  ok("o título diz quantas mudanças", c1.title, "🆕 Atualização no ar · 2 mudanças");
+  ok("cada mudança vira uma linha ▸", c1.description, "▸ Terceira\n\n▸ Segunda");
+  ok("o rodapé diz como voltei e a versão curta", c1.footer.text, "Troca de versão · versão ccccccc");
+  verdade("sem ** no começo (a notificação do celular mostra cru)", !c1.description.startsWith("*"));
+  const gigante = Array.from({ length: 5 }, (_, i) => mudanca(String(i), "T" + i + "\n\nNovidades:\n" + ("- " + "x ".repeat(85) + "\n").repeat(4)));
+  const c2 = N.cartaoDeAtualizacao({ novas: gigante, resto: 3, versao: sha("0") }, "r", 0);
+  verdade("cartão enorme cabe no limite do Discord", c2.description.length <= 4096);
+  verdade("e conta o que ficou de fora", /e mais \d+ mudanças nesta versão/.test(c2.description));
+
+  /* A volta, de ponta a ponta, com o Discord e o banco de brinquedo. */
+  const V = carregar(["contarQueVoltei"]);
+  const rodar = async ({ guardado, arquivo, chega = true }) => {
+    const enviados = [], gravados = [];
+    Object.assign(globalThis, {
+      ajustes: async () => guardado, BATIDA: 120000, CANAL_ERROS: "erros", CANAL_DIARIO: "diario",
+      fraseDaMemoria: () => "memória", fraseDaSurdez: () => "surdez",
+      avisarNoPainel: async (canal, corpo) => { enviados.push({ canal, titulo: corpo.embeds[0].title }); return chega ? true : undefined; },
+      porAjuste: async (k, v) => { gravados.push([k, v]); },
+      lerArquivoDeNovidades: () => arquivo,
+      lerNovidades: N.lerNovidades, novidadesDesde: N.novidadesDesde, cartaoDeAtualizacao: N.cartaoDeAtualizacao,
+      resumoDaMudanca: N.resumoDaMudanca, encurtarNovidade: N.encurtarNovidade,
+      NOVIDADES_POR_CARTAO: N.NOVIDADES_POR_CARTAO, ITENS_POR_NOVIDADE: N.ITENS_POR_NOVIDADE,
+    });
+    await V.contarQueVoltei();
+    return { enviados, versao: gravados.find(([k]) => k === "versao_anunciada")?.[1] };
+  };
+  const agora = Date.now();
+  const arquivo = JSON.stringify(lista);
+  const publicou = { visto: String(agora - 30000), despedi: String(agora - 20000), versao_anunciada: sha("a") };
+
+  let x = await rodar({ guardado: publicou, arquivo });
+  ok("publicação com versão nova: o cartão da atualização toma o lugar do 'Subi de novo'", x.enviados,
+    [{ canal: "diario", titulo: "🆕 Atualização no ar · 2 mudanças" }]);
+  ok("e a versão fica marcada como anunciada", x.versao, sha("c"));
+
+  x = await rodar({ guardado: { ...publicou, versao_anunciada: sha("c") }, arquivo });
+  ok("reinício sem versão nova: 'Subi de novo' como antes", x.enviados, [{ canal: "diario", titulo: "🔄 Subi de novo" }]);
+  ok("e nada é marcado", x.versao, undefined);
+
+  x = await rodar({ guardado: publicou, arquivo: "" });
+  ok("sem o arquivo (fora do deploy): tudo como era", x.enviados, [{ canal: "diario", titulo: "🔄 Subi de novo" }]);
+
+  x = await rodar({ guardado: { visto: String(agora - 30000), versao_anunciada: sha("a") }, arquivo });
+  ok("versão nova que chegou com uma queda: a queda vai aos erros e as notas ao diário", x.enviados,
+    [{ canal: "erros", titulo: "💀 Eu morri e voltei" }, { canal: "diario", titulo: "🆕 Atualização no ar · 2 mudanças" }]);
+  ok("e a versão é marcada", x.versao, sha("c"));
+
+  x = await rodar({ guardado: publicou, arquivo, chega: false });
+  ok("o cartão não chegou: a versão NÃO é marcada (anuncia na próxima volta)", x.versao, undefined);
+
+  /* O passo do deploy, executado num repositório de brinquedo. */
+  const { execFileSync } = await import("node:child_process");
+  const { mkdtempSync, writeFileSync, mkdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dep = readFileSync(new URL("../.github/workflows/deploy-bot.yml", import.meta.url), "utf8");
+  const linhas = dep.split("\n");
+  const i = linhas.findIndex((l) => /name: Anotar o que mudou/.test(l));
+  verdade("o deploy anota o que mudou", i > -1);
+  verdade("antes de subir a imagem", i > -1 && i < linhas.findIndex((l) => /name: Deploy$/.test(l.trim()) || /- name: Deploy\s*$/.test(l)));
+  verdade("e busca história suficiente para isso", /fetch-depth: \d{2,}/.test(dep));
+  const passo = linhas.slice(i).join("\n");
+  const corpo = passo.slice(passo.indexOf("run: |") + 6).split("\n").map((l) => l.replace(/^ {10}/, ""))
+    .join("\n").split("\n      - name:")[0];
+  const repo = mkdtempSync(join(tmpdir(), "novidades-"));
+  const git = (...a) => execFileSync("git", a, { cwd: repo, encoding: "utf8",
+    env: { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" } });
+  git("init", "-q");
+  mkdirSync(join(repo, "discord-bot-gateway"));
+  writeFileSync(join(repo, "discord-bot-gateway", "a.js"), "1");
+  git("add", "-A"); git("commit", "-q", "-m", "Bot: primeira (#1)\n\nNovidades:\n- O bot já sabe dizer o que mudou, até com acento e 'aspas'.");
+  writeFileSync(join(repo, "site.html"), "x");
+  git("add", "-A"); git("commit", "-q", "-m", "Só o site (#2)");
+  writeFileSync(join(repo, "discord-bot-gateway", "a.js"), "2");
+  git("add", "-A"); git("commit", "-q", "-m", "Bot: segunda (#3)");
+  writeFileSync(join(repo, "passo.sh"), corpo.replaceAll("/tmp/novidades.py", join(repo, "n.py")));
+  execFileSync("bash", ["passo.sh"], { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  const anotado = JSON.parse(readFileSync(join(repo, "discord-bot-gateway", "novidades.json"), "utf8"));
+  ok("só as mudanças do bot, a mais nova primeiro", anotado.map((c) => c.mensagem.split("\n")[0]), ["Bot: segunda (#3)", "Bot: primeira (#1)"]);
+  ok("a mensagem chega inteira, com acento e aspas", N.resumoDaMudanca(anotado[1].mensagem).itens,
+    ["O bot já sabe dizer o que mudou, até com acento e 'aspas'."]);
+  verdade("o arquivo anotado é lido pelo bot", N.lerNovidades(JSON.stringify(anotado)).length === 2);
+  verdade("o arquivo entra na imagem (o .dockerignore não o tira)", !/novidades/.test(readFileSync(new URL("./.dockerignore", import.meta.url), "utf8")));
+  verdade("e nunca entra no git", /novidades\.json/.test(readFileSync(new URL("./.gitignore", import.meta.url), "utf8")));
 }
 
 function NA_CONTA_DO_FONTE() {
