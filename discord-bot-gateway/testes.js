@@ -14101,6 +14101,57 @@ function conferirCartao(onde, embed, componentes = []) {
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
   verdade("a passada curta chama as boas-vindas para quem acabou de escolher",
     /await boasVindasNasSalas\(guild, servidor, membro, escolha\.idioma, agora\)/.test(idx));
+
+  /* [TOP] Best, 15/11: gente entrando e nenhum "chegou fulano" nas salas.
+     Quem já tinha idioma de outro servidor com a CYRON não é convidado a
+     escolher, e a escolha antiga nunca aparecia na passada curta (que só
+     olha os últimos quinze minutos). Agora a entrada recebe essa pessoa. */
+  {
+    const nomes = ["servidorDoGuild", "idiomaEscolhido", "sb", "boasVindasNasSalas"];
+    const antes2 = Object.fromEntries(nomes.map((n) => [n, globalThis[n]]));
+    try {
+      const R = carregar(["receberQuemJaTemIdioma"]);
+      let idiomaSalvo = "en";
+      const recebidos = [], pedidos = [];
+      globalThis.servidorDoGuild = async (g) => (g === "g-top" ? { id: "s-top" } : null);
+      globalThis.idiomaEscolhido = async () => idiomaSalvo;
+      globalThis.sb = async (q) => { pedidos.push(q); return [{ idioma: "en", role_id: "cargo-en" }, { idioma: "pt", role_id: "cargo-pt" }]; };
+      globalThis.boasVindasNasSalas = async (guild, servidor, membro, idioma) => { recebidos.push([guild.id, servidor.id, membro.id, idioma]); return true; };
+      const membro = (id, cargos = [], guildId = "g-top") => {
+        const dado = [];
+        return { id, user: { bot: false }, guild: { id: guildId, name: "TOP" }, dado,
+          roles: { cache: new Set(cargos), add: async (c) => { dado.push(c); } } };
+      };
+
+      const bunny = membro("bunny");
+      verdade("quem chega já com idioma é recebido nas salas", await R.receberQuemJaTemIdioma(bunny));
+      ok("com o idioma que ela já tinha", recebidos[0], ["g-top", "s-top", "bunny", "en"]);
+      ok("e ganha o cargo da sala dela na hora (antes esperava a varredura)", bunny.dado, ["cargo-en"]);
+      verdade("a pergunta ao banco é só das salas deste servidor", /servidor_id=eq\.s-top/.test(pedidos[0]));
+
+      const jaTinha = membro("x", ["cargo-en"]);
+      await R.receberQuemJaTemIdioma(jaTinha);
+      ok("cargo que ela já tem não é dado de novo", jaTinha.dado, []);
+
+      recebidos.length = 0;
+      idiomaSalvo = "";
+      verdade("quem nunca escolheu não é recebido aqui (vai ganhar o convite)", !await R.receberQuemJaTemIdioma(membro("novo")));
+      idiomaSalvo = "ja";
+      verdade("língua sem sala neste servidor fica com a varredura", !await R.receberQuemJaTemIdioma(membro("ja")));
+      idiomaSalvo = "en";
+      verdade("servidor sem a CYRON instalada: nada", !await R.receberQuemJaTemIdioma(membro("y", [], "g-outro")));
+      verdade("bot não é recebido", !await R.receberQuemJaTemIdioma({ ...membro("bot"), user: { bot: true } }));
+      ok("nenhum desses chegou às boas-vindas", recebidos, []);
+
+      const falha = membro("z");
+      falha.roles.add = async () => { throw new Error("Missing Permissions"); };
+      verdade("sem permissão de dar cargo, as boas-vindas saem do mesmo jeito", await R.receberQuemJaTemIdioma(falha));
+    } finally {
+      Object.assign(globalThis, antes2);
+    }
+    verdade("a entrada chama quem recebe os que já têm idioma",
+      /receberQuemJaTemIdioma\(member\)/.test(idx.slice(idx.indexOf('client.on("guildMemberAdd"'), idx.indexOf('client.on("guildMemberAdd"') + 3000)));
+  }
 }
 
 /* ====== A SALA ⚙️-CYRON NA LÍNGUA DO DONO ======
