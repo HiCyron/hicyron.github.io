@@ -1,2 +1,4 @@
 node_modules/
 .env
+# Escrito pelo deploy (passo "Anotar o que mudou"); nunca entra no git.
+novidades.json
