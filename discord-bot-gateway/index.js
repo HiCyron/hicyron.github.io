@@ -19829,6 +19829,99 @@ async function funilDoDono(agora = Date.now()) {
   return { etapas: resumoDoFunil(lista), servidores: lista, nomes: Object.fromEntries(ETAPAS_DO_FUNIL), medindoDesde };
 }
 
+/* ---------------- 📅 o resumo da semana no #📊-diario ----------------
+
+   O painel responde quando alguem pergunta; o resumo chega sem ninguem
+   perguntar. Toda segunda, a partir das 9h de Brasilia, um cartao com a
+   semana: traducoes contra a semana anterior, quem chegou e quem saiu, o
+   funil (e quem pede atencao nele), os mais ativos, as funcoes mais usadas,
+   erros abertos e dinheiro. Bot fora do ar na segunda: o resumo sai quando
+   ele voltar, ainda na mesma semana -- nunca dois na mesma semana. */
+const RESUMO_HORA = 9; // horas, em Brasilia
+const FUSO_BRASILIA = -3 * 3600 * 1000; // sem horario de verao desde 2019
+
+/* Pura. A semana do resumo, pela segunda-feira dela ("2026-11-09"). Segunda
+   antes das 9h ainda e' a semana anterior -- a que ja' foi resumida. */
+function semanaDoResumo(agora) {
+  const brt = new Date(agora + FUSO_BRASILIA);
+  const desdeSegunda = (brt.getUTCDay() + 6) % 7;
+  const volta = desdeSegunda === 0 && brt.getUTCHours() < RESUMO_HORA ? 7 : desdeSegunda;
+  return new Date(Date.UTC(brt.getUTCFullYear(), brt.getUTCMonth(), brt.getUTCDate() - volta)).toISOString().slice(0, 10);
+}
+
+/* Pura. "+1.240 (▲ 25%)", "−80 (▼ 12%)", "= igual". */
+function comparacaoDaSemana(agora, antes) {
+  agora = Number(agora) || 0; antes = Number(antes) || 0;
+  const d = agora - antes;
+  if (!d) return "= igual";
+  const pct = antes ? ` (${d > 0 ? "▲" : "▼"} ${Math.abs(Math.round((d / antes) * 100))}%)` : "";
+  return `${d > 0 ? "+" : "−"}${Math.abs(d).toLocaleString("pt-BR")}${pct}`;
+}
+
+/* Pura: os numeros do painel viram o cartao. Os numeros vao nos campos, e
+   nao no comeco do texto: a notificacao do celular mostra o titulo. */
+function cartaoDoResumoSemanal(n, agora = Date.now()) {
+  const mil = (v) => (Number(v) || 0).toLocaleString("pt-BR");
+  const dia = (ms) => {
+    const d = new Date(ms + FUSO_BRASILIA);
+    return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  };
+  const cr = n?.crescimento || {}, sv = n?.servidores || {}, din = n?.dinheiro || {}, fu = n?.funil;
+  const campos = [
+    { name: "🌐 Traduções em 7 dias", inline: true,
+      value: `${mil(cr.semana)}\n${comparacaoDaSemana(cr.semana, cr.semanaAntes)} contra a semana anterior` },
+    { name: "🖥️ Servidores", inline: true,
+      value: (`${mil(sv.ativos)} com a CYRON\n+${mil(sv.novos7)} chegaram · −${mil(sv.sairam7)} saíram` +
+        (cr.novos?.length ? `\nNovos: ${cr.novos.slice(0, 5).join(", ")}` : "")).slice(0, 1024) },
+  ];
+  if (fu?.etapas?.length) {
+    const atencao = (fu.servidores || []).filter((x) => x.etapa === "conversa-fora" || x.etapa === "sem-idioma");
+    const nomeDaEtapa = (k) => String(fu.nomes?.[k] || k).replace(/^\S+\s/, "");
+    campos.push({ name: "🧭 Funil", value: (fu.etapas.map((e) => `${e.n} ${String(e.nome).toLowerCase()}`).join(" → ") +
+      (atencao.length ? `\nPedem atenção: ${atencao.slice(0, 6).map((x) => `${x.nome} (${nomeDaEtapa(x.etapa)})`).join(", ")}` : "")).slice(0, 1024) });
+  }
+  if (n?.top?.length) {
+    campos.push({ name: "🏆 Mais ativos", inline: true,
+      value: n.top.slice(0, 3).map((x, i) => `${i + 1}. ${x.nome} · ${mil(x.traducoes)}`).join("\n").slice(0, 1024) });
+  }
+  if (n?.funcoes?.length) {
+    campos.push({ name: "📊 Funções mais usadas no mês", inline: true,
+      value: n.funcoes.slice(0, 3).map((x) => `${x.nome} · ${mil(x.n)}`).join("\n").slice(0, 1024) });
+  }
+  campos.push({ name: "🐛 Erros abertos", inline: true, value: n?.erros ? `${mil(n.erros)} — veja o 🐛-erros` : "nenhum" });
+  campos.push({ name: "💰 Dinheiro", inline: true,
+    value: `${mil(din.pagando)} pagando` + (din.vencendo?.length ? ` · ${din.vencendo.length} vencem em 7 dias` : "") +
+      (n?.beta?.ligado ? "\n🧪 beta ligado: todos no plano Aliança" : "") });
+  return {
+    color: 0x5865F2,
+    title: `📅 Resumo da semana · ${dia(agora - 6 * 864e5)} a ${dia(agora)}`,
+    fields: campos.slice(0, 25),
+    footer: { text: "toda segunda às 9h · os números ao vivo estão no app do dono" },
+    timestamp: new Date(agora).toISOString(),
+  };
+}
+
+let resumoFeito = "";     // a semana que ja' resumi (guarda de memoria, alem do banco)
+let resumoRodando = false;
+
+async function talvezResumoDaSemana(agora = Date.now()) {
+  const semana = semanaDoResumo(agora);
+  if (resumoRodando || resumoFeito === semana) return false;
+  const marcas = await ajustes();
+  if (marcas.falhou) return false;
+  if (marcas.resumo_semanal === semana) { resumoFeito = semana; return false; }
+  resumoRodando = true;
+  try {
+    const n = await numerosDoDono();
+    if (!await avisarNoPainel(CANAL_DIARIO, { embeds: [cartaoDoResumoSemanal(n, agora)] })) return false;
+    resumoFeito = semana;
+    await porAjuste("resumo_semanal", semana).catch(() => {});
+    return true;
+  } finally {
+    resumoRodando = false;
+  }
+}
+
 async function numerosDoDono() {
   const DIAS = 14;
   const dias = Array.from({ length: DIAS }, (_, i) => diaISO(Date.now() - (DIAS - 1 - i) * 864e5));
@@ -27300,6 +27393,7 @@ client.once("clientReady", () => {
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
+    talvezResumoDaSemana().catch((e) => console.error("resumo: o resumo da semana falhou:", e?.message || e));
   }, 60 * 1000);
 });
 
