@@ -16354,10 +16354,10 @@ function conferirCartao(onde, embed, componentes = []) {
           edit: async (m) => { editadas.push(["pt", m.embeds[0].description, JSON.stringify(m.attachments)]); } }]]));
       ok("posta", await ursoNosCanais(), "postado");
       ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 3)),
-        JSON.stringify([["marca", "urso_no_canal:top:3"], ["f", "urso-en"], ["en", "urso-en"]]));
+        JSON.stringify([["marca", "urso_no_canal:top:4"], ["f", "urso-en"], ["en", "urso-en"]]));
       ok("a ficha velha (minha) é atualizada no lugar, com a foto trocada", JSON.stringify(editadas), JSON.stringify([["pt", "urso-pt", "[]"]]));
       verdade("e nada de ficha repetida nessa sala", !enviados.some(([id]) => id === "pt"));
-      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:3"]));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:4"]));
       ok("mensagem de outro, com o mesmo cartão, não é minha", fichaDoUrsoNaSala(new Map([["a", { author: { id: "x" },
         embeds: [{ description: "<a:ks_urso_abc123:1> **Bear**" }] }]]), "eu"), null);
       ok("cartão meu que não é a ficha do Urso fica", fichaDoUrsoNaSala(new Map([["a", { author: { id: "eu" },
@@ -16374,6 +16374,33 @@ function conferirCartao(onde, embed, componentes = []) {
     }
     verdade("só o TOP, só a sala do Urso", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, canal: \/hunting-trap\//.test(pedaco("URSO_NO_CANAL")));
     verdade("o envio para os canais está agendado ao subir", /setTimeout\(\(\) => urso\(2\), 4 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
+  /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
+  {
+    verdade("dica: sem nenhum desses, só a tropa (guia do Urso; e é o que a aliança faz)",
+      H.dicasDoUrso(g).some((d) => /Entre só com a tropa, sem herói/.test(d)));
+    const txt = H.textoParaOJogo(g, H.TEXTOS_DO_URSO);
+    const linhas = txt.split("\n");
+    ok("texto do jogo: título, os S+ na ordem da ficha, e 'sem herói' no fim", linhas.map((l) => l.split(" | ")[0]).join(","),
+      "🐻 Urso: quem entra no rally (o 1º herói é o que conta),🔥 AMANE,🔥 CHENKO,🔥 YEONWOO,🔥 AMADEUS,🔥 MARGOT,🔥 VIVIAN,🔥 AVA,🔥 WEE & WOO,🔥 SEM HERÓI");
+    ok("as outras duas vagas ficam livres", linhas[1], "🔥 AMANE | herói | herói");
+    verdade("nota A (Hilde) fica fora do texto curto", !/HILDE/.test(txt));
+    verdade("sem marcação do Discord (o jogo não entende e o Copiar texto levaria junto)", !/[*_`]|<a?:/.test(txt));
+
+    const respostas = [];
+    Object.assign(globalThis, {
+      linguaDe: async () => "pt", motorDoGuild: async () => undefined, textoDoJogo: async (v) => v,
+      heroisDoUrso: H.heroisDoUrso, textoParaOJogo: H.textoParaOJogo, TEXTOS_DO_URSO: H.TEXTOS_DO_URSO,
+    });
+    const { cliqueUrsoJogo } = carregar(["cliqueUrsoJogo"]);
+    await cliqueUrsoJogo({ guildId: "g", deferReply: async (o) => respostas.push(["defer", o?.flags]), editReply: async (r) => respostas.push(["fim", r]) });
+    ok("o texto do jogo é só para quem tocou", JSON.stringify(respostas[0]), JSON.stringify(["defer", 64]));
+    verdade("o texto vai sozinho na mensagem (o Copiar texto copia só ele)", respostas[1][1].content.startsWith("🐻 Urso") &&
+      !/Copiar/.test(respostas[1][1].content));
+    verdade("e o como copiar vai no cartão embaixo", /Copiar texto/.test(respostas[1][1].embeds[0].description));
+    verdade("a ficha do Urso traz o botão do texto do jogo", /custom_id: "urso:jogo"/.test(semComentarios(pedaco("cartaoDoUrso"))));
+    verdade("e o botão está ligado", /customId === "urso:jogo"\) return await cliqueUrsoJogo\(inter\)/.test(semComentarios(fonte)));
   }
 
   const amostra = semComentarios(pedaco("amostraDosHerois"));

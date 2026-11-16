@@ -246,6 +246,12 @@ export const TEXTOS_DO_URSO = {
   entrar: "Para entrar no rally",
   legenda: "dá para ter sem gastar",
   dicas: "Dicas",
+  jogo: "Urso: quem entra no rally (o 1º herói é o que conta)",
+  heroi: "herói",
+  semHeroi: "SEM HERÓI",
+  soTropa: "só a tropa",
+  botaoJogo: "Texto para o chat do jogo",
+  comoCopiar: "Toque e segure a mensagem de cima, Copiar texto, e cole no chat da aliança.",
 };
 const BOA = new Set(["S+", "S", "A"]);
 
@@ -286,6 +292,10 @@ export function dicasDoUrso({ lideres, entram }, herois = HEROIS) {
   dicas.push("Tropa: a maior parte arqueiros (os guias falam em 80% ou mais).");
   const nunca = NUNCA_NO_URSO.map((n) => herois.find((h) => h.name === n)).filter(Boolean);
   if (nunca.length) dicas.push(`Nunca mande como joiner: ${emLista(nunca)}. A 1ª habilidade deles não é de ataque.`);
+  /* kingshotmastery (guia do Bear Hunt): sem joiner bom, mande só a tropa. E
+     é o que a aliança do dono escreve no chat do jogo ("NO HEROES | Troops
+     Only"). */
+  if (entram.length) dicas.push("Sem nenhum desses heróis? Entre só com a tropa, sem herói: herói errado na frente não ajuda.");
   dicas.push("O Urso dura 30 minutos e volta a cada 2 dias. Crie o evento com /evento e a CYRON avisa antes.");
   return dicas;
 }
@@ -346,4 +356,19 @@ export function svgDoUrso(lado = 256) {
   </g>
   <polygon points="128,26 222,80 222,176 128,230 34,176 34,80" fill="none" stroke="#2a1800" stroke-opacity=".5" stroke-width="3"/>
 </svg>`;
+}
+
+/* Pura. A ficha do Urso em texto puro, para colar no chat da aliança DENTRO
+   do jogo -- do jeito que os R4 já escrevem lá à mão ("🔥 - AMADEUS | hero |
+   hero ... NO HEROES | Troops Only"), e às vezes errando o herói. Só os S+
+   para entrar, na ordem da ficha; as outras duas vagas ficam livres. Sem
+   marcação do Discord (negrito, emoji próprio): o jogo não entende, e o
+   "Copiar texto" do Discord copiaria os asteriscos. */
+export function textoParaOJogo({ entram }, t) {
+  const melhores = entram.filter((h) => notaDaFuncao(h.bear) === "S+");
+  return [
+    `🐻 ${t.jogo}`,
+    ...melhores.map((h) => `🔥 ${h.name.toUpperCase()} | ${t.heroi} | ${t.heroi}`),
+    `🔥 ${t.semHeroi} | ${t.soTropa}`,
+  ].join("\n");
 }
