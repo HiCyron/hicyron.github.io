@@ -15693,6 +15693,186 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o resumo é conferido de minuto em minuto", /talvezResumoDaSemana\(\)\.catch/.test(idx));
 }
 
+/* ====== 🛠️ A EQUIPE NOS SERVIDORES DA CASA (16/11) ======
+
+   "Não consigo entrar na conta antiga": toda conta da lista de donos ganha o
+   cargo da equipe no suporte, e convite para o painel se ainda não está lá. */
+{
+  const nomes = ["ajustes", "porAjuste", "client", "idsDeDono", "guildDoSuporte", "guildDoPainel", "CANAL_DIARIO"];
+  const antes = Object.fromEntries(nomes.map((k) => [k, globalThis[k]]));
+  try {
+    const E = carregar(["NOME_CARGO_EQUIPE", "PERMISSOES_DA_EQUIPE", "CONVITE_DO_PAINEL_DE_NOVO", "garantirEquipe",
+      "convidarDonosAoPainel", "sincronizarEquipe", "receberDaEquipe"]);
+    globalThis.CANAL_DIARIO = "📊-diário";
+    const criados = [], dms = [], convites = [];
+    let marcas = {};
+    globalThis.ajustes = async () => marcas;
+    globalThis.porAjuste = async (k, v) => { marcas = { ...marcas, [k]: v }; };
+    const membro = (id, cargos = []) => ({ id, user: { bot: false }, roles: { cache: new Set(cargos),
+      add: async function (c) { if (id === "sem-permissao") throw new Error("Missing Permissions"); this.cache.add(c.id); } } });
+    /* Coleção do discord.js: um Map com find. */
+    class Colecao extends Map { find(f) { for (const v of this.values()) if (f(v)) return v; return undefined; } }
+    const servidor = (id, membros, { cargoJa = false } = {}) => {
+      const cache = new Colecao(membros.map((m) => [m.id, m]));
+      const roles = new Colecao(cargoJa ? [["r-" + id, { id: "r-" + id, name: E.NOME_CARGO_EQUIPE }]] : []);
+      return { id,
+        roles: { cache: roles, fetch: async () => roles,
+          create: async (o) => { const r = { id: "r-" + id, ...o }; roles.set(r.id, r); criados.push([id, o]); return r; } },
+        members: { cache, fetch: async (uid) => { const m = cache.get(uid); if (!m) throw new Error("Unknown Member"); return m; } },
+        channels: { cache: new Colecao([["d", { type: ChannelType.GuildText, name: "📊-diário",
+          createInvite: async (o) => { convites.push([id, o]); return { url: `https://discord.gg/convite-${convites.length}` }; } }]]) } };
+    };
+    globalThis.client = { users: { fetch: async (id) => ({ send: async (m) => { if (id === "dm-fechada") throw new Error("Cannot send"); dms.push([id, m.content]); } }) } };
+
+    /* o cargo */
+    const nova = membro("conta-nova");
+    const suporte = servidor("suporte", [nova, membro("visitante")]);
+    const r = await E.garantirEquipe(suporte, new Set(["conta-nova", "conta-antiga-fora"]));
+    ok("a conta nova ganha o cargo da equipe no suporte", r.deram, ["conta-nova"]);
+    verdade("e ela tem o cargo de verdade", nova.roles.cache.has("r-suporte"));
+    ok("o cargo nasce uma vez, com o nome da equipe", criados.map(([g, o]) => [g, o.name]), [["suporte", E.NOME_CARGO_EQUIPE]]);
+    verdade("o cargo aparece separado na lista de membros e não é mencionável", criados[0][1].hoist && !criados[0][1].mentionable);
+    verdade("a equipe modera (apagar mensagem, cuidar de tópico)",
+      criados[0][1].permissions.includes(PermissionFlagsBits.ManageMessages) && criados[0][1].permissions.includes(PermissionFlagsBits.ManageThreads));
+    verdade("e não ganha poder de mexer em cargos, webhooks ou administrar",
+      ![PermissionFlagsBits.ManageRoles, PermissionFlagsBits.ManageWebhooks, PermissionFlagsBits.Administrator, PermissionFlagsBits.BanMembers]
+        .some((p) => criados[0][1].permissions.includes(p)));
+    ok("quem não é dono não ganha nada", suporte.members.cache.get("visitante").roles.cache.size, 0);
+    ok("rodar de novo não cria outro cargo nem dá de novo", (await E.garantirEquipe(suporte, new Set(["conta-nova"]))).deram, []);
+    ok("(um cargo só)", criados.length, 1);
+    ok("servidor sem nenhuma conta de dono dentro não ganha cargo vazio", (await E.garantirEquipe(servidor("vazio", []), new Set(["x"]))).cargo, null);
+    ok("(nenhum cargo criado lá)", criados.length, 1);
+    const travado = servidor("travado", [membro("sem-permissao")]);
+    ok("sem permissão de dar cargo: não estoura", (await E.garantirEquipe(travado, new Set(["sem-permissao"]))).deram, []);
+
+    /* o convite do painel */
+    const painel = servidor("painel", [membro("conta-antiga")]);
+    const t0 = Date.parse("2026-11-16T12:00:00Z");
+    ok("conta de dono fora do painel recebe o convite no privado",
+      await E.convidarDonosAoPainel(painel, new Set(["conta-antiga", "conta-nova"]), t0), ["conta-nova"]);
+    verdade("o convite vale uma vez e vence", convites[0][1].maxUses === 1 && convites[0][1].maxAge === 7 * 86400);
+    verdade("a mensagem leva o link", /discord\.gg\/convite-1/.test(dms[0][1]));
+    ok("quem já está no painel não é convidado", dms.map(([id]) => id), ["conta-nova"]);
+    ok("na hora seguinte não manda outro", await E.convidarDonosAoPainel(painel, new Set(["conta-nova"]), t0 + 3600e3), []);
+    ok("uma semana depois, se ainda não entrou, manda de novo",
+      await E.convidarDonosAoPainel(painel, new Set(["conta-nova"]), t0 + E.CONVITE_DO_PAINEL_DE_NOVO + 1), ["conta-nova"]);
+    ok("privado fechado: não insiste de hora em hora", [await E.convidarDonosAoPainel(painel, new Set(["dm-fechada"]), t0),
+      marcas["painel_convite:dm-fechada"]], [[], String(t0)]);
+    marcas = Object.defineProperty({}, "falhou", { value: true });
+    ok("banco fora: não convida no escuro", await E.convidarDonosAoPainel(painel, new Set(["outra"]), t0), []);
+    marcas = {};
+
+    /* a entrada e a ronda */
+    dms.length = 0;
+    const sup2 = servidor("suporte2", [membro("conta-nova")]);
+    const pai2 = servidor("painel2", [membro("conta-antiga")]);
+    globalThis.idsDeDono = async () => new Set(["conta-antiga", "conta-nova"]);
+    globalThis.guildDoSuporte = async () => sup2;
+    globalThis.guildDoPainel = async () => "painel2";
+    globalThis.client.guilds = { cache: new Map([["painel2", pai2]]) };
+    const chegou = sup2.members.cache.get("conta-nova");
+    chegou.guild = sup2;
+    verdade("a conta nova entra no suporte e é recebida na hora", await E.receberDaEquipe(chegou));
+    verdade("com o cargo", chegou.roles.cache.has("r-suporte2"));
+    ok("e com o convite do painel no privado", dms.map(([id]) => id), ["conta-nova"]);
+    const estranho = { ...membro("estranho"), guild: sup2 };
+    verdade("quem não é dono entra sem nada", !await E.receberDaEquipe(estranho) && !estranho.roles.cache.size);
+    const emOutro = { ...membro("conta-nova"), guild: servidor("cliente", []) };
+    verdade("conta de dono num servidor de cliente: nada (só nos da casa)", !await E.receberDaEquipe(emOutro));
+    await E.sincronizarEquipe(Date.parse("2026-11-16T13:00:00Z"));
+    verdade("a ronda dá o cargo também no painel, a quem está lá", pai2.members.cache.get("conta-antiga").roles.cache.has("r-painel2"));
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("a entrada chama a equipe", /receberDaEquipe\(member\)/.test(idx));
+  verdade("a ronda da equipe roda de hora em hora", /setInterval\(\(\) => sincronizarEquipe\(\)/.test(idx));
+}
+
+/* ====== 📣 AS ATUALIZAÇÕES NO SUPORTE (16/11) ======
+
+   "Fazer o canal de atualização para quando atualizar algo sair lá": o
+   📣・news do suporte recebe sozinho o que mudou para quem usa -- e só isso:
+   o que é de dentro do bot nunca sai. */
+{
+  const N = carregar(["NOVIDADES_POR_CARTAO", "ITENS_POR_NOVIDADE", "lerNovidades", "novidadesDesde", "encurtarNovidade",
+    "BLOCO_PUBLICO", "resumoDaMudanca", "notaPublica"]);
+  const interna = "Segurança da porta (#50)\n\nNovidades:\n- Coisa do dono.\n\n- detalhe técnico";
+  const publica = "Sala nova (#60)\n\nNovidades:\n- Para o dono.\n\nPublic:\n- Updates now land in 📣 news, in your language.\n- Newcomers are welcomed in every language channel.\n\nComo:\n- interno";
+  ok("mudança sem bloco público não tem nada para fora", N.resumoDaMudanca(interna, { bloco: N.BLOCO_PUBLICO, soBloco: true }).itens, []);
+  ok("com o bloco, só ele (nem o do dono, nem o técnico)", N.resumoDaMudanca(publica, { bloco: N.BLOCO_PUBLICO, soBloco: true }).itens,
+    ["Updates now land in 📣 news, in your language.", "Newcomers are welcomed in every language channel."]);
+  ok("o cartão do dono continua lendo o bloco dele", N.resumoDaMudanca(publica).itens, ["Para o dono."]);
+  const nota = N.notaPublica(["a", "b"], "c".repeat(40), Date.parse("2026-11-16T12:00:00Z"));
+  ok("a nota pública: título em inglês, itens e versão", [nota.title, nota.description, nota.footer.text],
+    ["🆕 CYRON update", "• a\n• b", "version ccccccc"]);
+
+  /* de ponta a ponta */
+  const nomes = ["ajustes", "porAjuste", "lerArquivoDeNovidades", "guildDoSuporte", "publicarNota",
+    "lerNovidades", "novidadesDesde", "resumoDaMudanca", "BLOCO_PUBLICO", "notaPublica", "encurtarNovidade",
+    "NOVIDADES_POR_CARTAO", "ITENS_POR_NOVIDADE"];
+  const antes = Object.fromEntries(nomes.map((k) => [k, globalThis[k]]));
+  try {
+    Object.assign(globalThis, N);
+    const P = carregar(["publicarNovidadesNoSuporte"]);
+    let marcas = { versao_publica: "a".repeat(40) }, posta = true;
+    const postadas = [];
+    globalThis.ajustes = async () => marcas;
+    globalThis.porAjuste = async (k, v) => { marcas = { ...marcas, [k]: v }; };
+    globalThis.guildDoSuporte = async () => ({ id: "g-sup" });
+    globalThis.publicarNota = async (g, embed) => { if (!posta) throw new Error("Missing Access"); postadas.push(embed.description); return true; };
+    const lista = (...m) => JSON.stringify(m.map(([c, msg]) => ({ sha: c.repeat(40), mensagem: msg })));
+    globalThis.lerArquivoDeNovidades = () => lista(["c", publica], ["b", interna], ["a", "velha"]);
+    verdade("versão nova com bloco público: posta no 📣 news", await P.publicarNovidadesNoSuporte());
+    ok("só os itens públicos", postadas, ["• Updates now land in 📣 news, in your language.\n• Newcomers are welcomed in every language channel."]);
+    ok("e marca a versão pública", marcas.versao_publica, "c".repeat(40));
+    verdade("reinício sem versão nova: nada", !await P.publicarNovidadesNoSuporte() && postadas.length === 1);
+    globalThis.lerArquivoDeNovidades = () => lista(["d", interna], ["c", publica]);
+    verdade("versão só interna: não posta nada", !await P.publicarNovidadesNoSuporte() && postadas.length === 1);
+    ok("mas marca, para não ficar pendente para sempre", marcas.versao_publica, "d".repeat(40));
+    globalThis.lerArquivoDeNovidades = () => lista(["e", publica], ["d", interna]);
+    posta = false;
+    verdade("o suporte recusou: não marca (sai na próxima volta)", !await P.publicarNovidadesNoSuporte() && marcas.versao_publica === "d".repeat(40));
+    marcas = Object.defineProperty({}, "falhou", { value: true });
+    verdade("banco fora: não posta no escuro", !await P.publicarNovidadesNoSuporte());
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+
+  /* o lado do suporte: a nota com o 🌐, e o 🌐 traduzindo a própria nota */
+  const S = await import("./suporte.js");
+  const enviados = [];
+  const sala = { type: ChannelType.GuildText, name: S.CANAL_DE_NOVIDADES, send: async (m) => { enviados.push(m); } };
+  const guild = { id: "g-sup", channels: { cache: new Map([["n", sala]]) } };
+  guild.channels.cache.find = function (f) { for (const v of this.values()) if (f(v)) return v; };
+  S.ligarSuporte({ client: { user: { id: "bot" } }, ChannelType,
+    traduzirEmbed: async (e, idioma) => ({ ...e, description: `[${idioma}] ${e.description}` }),
+    idiomaEscolhido: async (id) => (id === "japones" ? "ja" : ""), idiomaDoAplicativo: () => "", portaDoIdioma: async () => "porta" });
+  verdade("a nota vai para o 📣 news", await S.publicarNota(guild, { title: "🆕 CYRON update", description: "• x" }));
+  const botoes = enviados[0].components[0].components;
+  verdade("com o 🌐 dos textos do suporte (é ele que faz a nota ir, traduzida, para a sala de cada idioma)",
+    botoes.some((b) => b.custom_id === `${S.PREFIXO_LER}${S.CHAVE_DA_NOTA}`));
+  verdade("e com o caminho para escolher o idioma", botoes.some((b) => b.style === 5));
+  ok("sala de novidades inexistente: não estoura", await S.publicarNota({ channels: { cache: { find: () => undefined } } }, {}), false);
+  const respostas = [];
+  const clique = (user) => ({ customId: `${S.PREFIXO_LER}${S.CHAVE_DA_NOTA}`, user: { id: user }, locale: "ja",
+    message: { embeds: [{ toJSON: () => ({ title: "🆕 CYRON update", description: "• x" }) }] },
+    deferReply: async () => {}, editReply: async (r) => respostas.push(r), reply: async (r) => respostas.push(r) });
+  await S.cliqueSuporte(clique("japones"));
+  ok("o 🌐 da nota mostra a própria nota na língua de quem clicou", respostas[0].embeds[0].description, "[ja] • x");
+
+  /* os textos do suporte, de acordo com o que a CYRON é hoje */
+  const todos = JSON.stringify(S.TEXTOS);
+  verdade("nada de teste de 7 dias (no beta tudo é grátis)", !/7 dias de Pro|7 days of Pro|Teste grátis|Free trial/.test(todos));
+  verdade("nada de 'Seguir' (a sala não é de anúncios do Discord)", !/Toque em \*\*Seguir|Tap \*\*Follow/.test(todos));
+  verdade("os planos dizem que no beta é grátis", /beta/.test(JSON.stringify(S.TEXTOS.pagamento.pt)) && /beta/.test(JSON.stringify(S.TEXTOS.pagamento.en)));
+  verdade("o como usar fala da sala 🌍 e da recepção nas salas", /🌍/.test(JSON.stringify(S.TEXTOS.uso.en)) && /👋/.test(JSON.stringify(S.TEXTOS.uso.en)));
+  verdade("pt e en com os mesmos campos em cada texto", Object.values(S.TEXTOS).every((t) => (t.pt.fields || []).length === (t.en.fields || []).length));
+  verdade("todo campo cabe no limite do Discord", Object.values(S.TEXTOS).every((t) => [t.pt, t.en].every((x) => (x.fields || []).every((f) => f.value.length <= 1024))));
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("o bot publica as novidades ao subir", /publicarNovidadesNoSuporte\(\)\.catch/.test(idx.slice(idx.indexOf('client.once("clientReady"'))));
+}
+
 function NA_CONTA_DO_FONTE() {
   return carregar(["NA_CONTA"]).NA_CONTA;
 }

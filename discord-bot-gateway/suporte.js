@@ -148,6 +148,7 @@ export const TEXTOS = {
         { name: "3️⃣ Precisa de ajuda?", value: "Escreva no **💬 chat** do seu idioma, na sua língua. A equipe lê traduzido e responde." },
         { name: "💳 Quer assinar?", value: `Chame no privado o contato oficial ${CONTATO}. É o único que vende a CYRON.` },
         { name: "💡 Ideias e 🐞 defeitos", value: "Abra um post no fórum de sugestões ou no de bugs." },
+        { name: "📣 Novidades", value: "Toda atualização da CYRON sai no 📣 news, na sua língua." },
       ],
     },
     en: {
@@ -159,6 +160,7 @@ export const TEXTOS = {
         { name: "3️⃣ Need help?", value: "Write in your language's **💬 chat**, in your own language. The team reads it translated and replies." },
         { name: "💳 Want to subscribe?", value: `DM the official contact ${CONTATO}. It is the only account that sells CYRON.` },
         { name: "💡 Ideas and 🐞 defects", value: "Open a post in the suggestions or bugs forum." },
+        { name: "📣 Updates", value: "Every CYRON update lands in 📣 news, in your language." },
       ],
     },
   },
@@ -199,8 +201,10 @@ export const TEXTOS = {
         { name: "2️⃣ Configure com /cyron", value: "No painel, marque os canais que quer traduzir e veja o seu plano." },
         { name: "3️⃣ Cada pessoa escolhe o idioma", value: "No canal 🌐, uma vez só. Pronto." },
         { name: "💬 Traduzir uma mensagem solta", value: "Reaja com a bandeira do idioma, ou use o botão direito → Apps → Translate." },
-        { name: "⭐ No Pro e na Aliança", value: "Cada idioma ganha salas próprias e um chat onde todos conversam traduzidos, com nome e foto. Também traduz 🖼️ imagem e 🎧 áudio." },
-        { name: "🎁 Teste grátis", value: "No /cyron, o botão 🎁 liga 7 dias de Pro. É preciso estar neste servidor." },
+        { name: "🗣️ Salas por idioma", value: "Cada idioma ganha a sua sala de conversa: cada um escreve na sua língua e todos leem na sua, com nome e foto. Também traduz 🖼️ imagem e 🎧 áudio. São 22 idiomas." },
+        { name: "👋 Quem chega", value: "Quem entra e escolhe o idioma é recebido em todas as salas, cada uma na sua língua." },
+        { name: "🌍 Idioma que não coube", value: "Se o servidor chegou ao limite de idiomas, quem fala outra língua recebe a sala 🌍 world chat: lê em inglês e escreve na própria língua." },
+        { name: "🧪 Beta", value: "Enquanto a CYRON está em beta, tudo isso é grátis em qualquer servidor." },
       ],
     },
     en: {
@@ -211,8 +215,10 @@ export const TEXTOS = {
         { name: "2️⃣ Set it up with /cyron", value: "In the panel, mark the channels you want translated and see your plan." },
         { name: "3️⃣ Everyone picks their language", value: "In the 🌐 channel, just once. Done." },
         { name: "💬 Translate a single message", value: "React with the language's flag, or right-click → Apps → Translate." },
-        { name: "⭐ On Pro and Alliance", value: "Each language gets its own channels and a chat where everyone talks translated, with name and avatar. It also translates 🖼️ images and 🎧 audio." },
-        { name: "🎁 Free trial", value: "In /cyron, the 🎁 button turns on 7 days of Pro. You need to be in this server." },
+        { name: "🗣️ A channel per language", value: "Each language gets its own chat channel: everyone writes in their language and everyone reads in theirs, with name and avatar. It also translates 🖼️ images and 🎧 audio. 22 languages." },
+        { name: "👋 Newcomers", value: "Whoever joins and picks a language is welcomed in every language channel, each in its own language." },
+        { name: "🌍 A language that didn't fit", value: "If the server reached its language limit, speakers of another language get the 🌍 world chat channel: they read in English and write in their own language." },
+        { name: "🧪 Beta", value: "While CYRON is in beta, all of this is free on any server." },
       ],
     },
   },
@@ -221,6 +227,7 @@ export const TEXTOS = {
       title: "💳 Planos",
       description: "Comece de graça. Assine quando quiser mais.",
       fields: [
+        { name: "🧪 Agora, no beta", value: "Enquanto a CYRON está em beta, todo servidor tem o plano Aliança de graça. Os preços abaixo valem depois do beta." },
         { name: "🆓 Grátis", value: "Tradução por bandeira e botão de tradução, sem limite." },
         { name: "⭐ Pro · R$ 29,90 ou US$ 6 por mês", value: "Até 5 idiomas, 3 canais copiados, 🖼️ imagem e 🎧 áudio." },
         { name: "🏆 Aliança · R$ 79 ou US$ 15 por mês", value: "Até 20 idiomas, 10 canais copiados e o triplo de tradução e de áudio." },
@@ -233,6 +240,7 @@ export const TEXTOS = {
       title: "💳 Plans",
       description: "Start free. Subscribe when you want more.",
       fields: [
+        { name: "🧪 Right now, in beta", value: "While CYRON is in beta, every server gets the Alliance plan for free. The prices below apply after the beta." },
         { name: "🆓 Free", value: "Flag translation and the translate button, unlimited." },
         { name: "⭐ Pro · US$ 6 (R$ 29.90) per month", value: "Up to 5 languages, 3 mirrored channels, 🖼️ images and 🎧 audio." },
         { name: "🏆 Alliance · US$ 15 (R$ 79) per month", value: "Up to 20 languages, 10 mirrored channels and triple the translation and audio." },
@@ -243,8 +251,8 @@ export const TEXTOS = {
     },
   },
   novidades: {
-    pt: { title: "📣 Novidades", description: "Aqui saem as novidades da CYRON: recursos novos, correções e avisos importantes.\n\nToque em **Seguir** para receber no seu servidor." },
-    en: { title: "📣 News", description: "CYRON news lands here: new features, fixes and important notices.\n\nTap **Follow** to get them in your own server." },
+    pt: { title: "📣 Novidades", description: "Toda atualização da CYRON sai aqui sozinha, assim que entra no ar: recursos novos, correções e avisos importantes.\n\nQuem escolheu idioma recebe na sala da sua língua." },
+    en: { title: "📣 News", description: "Every CYRON update lands here by itself, as soon as it goes live: new features, fixes and important notices.\n\nIf you picked a language, you get it in your language's channel." },
   },
   sugestoes: {
     pt: { title: "💡 Sugestões", description: "Tem uma ideia para a CYRON? Abra um post, um por ideia.\n\nReaja com 👍 nas ideias que você também quer: as mais votadas vêm primeiro." },
@@ -600,9 +608,35 @@ async function limparSobras(guild) {
   return feito;
 }
 
+/* ---------------- as notas de atualizacao no 📣・news ----------------
+
+   A sala dizia "aqui saem as novidades" e nada saia: dependia de alguem
+   lembrar de escrever. Agora o bot, ao subir com versao nova, posta ali o
+   que mudou para quem usa (o index.js decide o texto). A nota leva o botao
+   🌐 como os outros textos: e' ele que faz a sala tratar a nota como
+   conteudo -- e entao ela vai, traduzida, para a sala de cada idioma. */
+export const CANAL_DE_NOVIDADES = "📣・news";
+export const CHAVE_DA_NOTA = "nota";
+
+export async function publicarNota(guild, embed) {
+  const canal = guild?.channels?.cache?.find?.((c) => c.type === d.ChannelType.GuildText && c.name === CANAL_DE_NOVIDADES);
+  if (!canal) return false;
+  const porta = await enderecoDaPorta(guild);
+  await canal.send({ embeds: [embed], components: [linhaDeLer(CHAVE_DA_NOTA, porta)], allowedMentions: { parse: [] } });
+  return true;
+}
+
 /* O 🌐 de cada texto: a copia na lingua de quem clicou, so' para ela. */
 export async function cliqueSuporte(inter) {
   const chave = inter.customId.slice(PREFIXO_LER.length);
+  /* A nota nao mora em TEXTOS: o original e' a propria mensagem clicada. */
+  if (chave === CHAVE_DA_NOTA) {
+    const original = inter.message?.embeds?.[0]?.toJSON?.() ?? inter.message?.embeds?.[0];
+    if (!original) return inter.reply({ flags: 64, content: "🤷" });
+    await inter.deferReply({ flags: 64 });
+    const idioma = (await d.idiomaEscolhido(inter.user.id).catch(() => "")) || d.idiomaDoAplicativo(inter.locale) || "en";
+    return inter.editReply({ embeds: [idioma === "en" ? original : await d.traduzirEmbed(original, idioma)] });
+  }
   if (!TEXTOS[chave]) return inter.reply({ flags: 64, content: "🤷" });
   await inter.deferReply({ flags: 64 });
   const idioma = (await d.idiomaEscolhido(inter.user.id).catch(() => "")) || d.idiomaDoAplicativo(inter.locale) || "en";
