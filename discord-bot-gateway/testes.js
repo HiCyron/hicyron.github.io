@@ -13558,8 +13558,11 @@ function conferirCartao(onde, embed, componentes = []) {
       create: async ({ attachment, name }) => { criados.push([name, attachment]); return { id: `n${criados.length}`, name }; },
     } } };
     globalThis.PASTA_DOS_ROSTOS = `${pasta}rostos/`;
+    /* Os emojis da ficha de herói têm bateria própria (lá embaixo); aqui a
+       pasta deles não existe, e a conta continua sendo figurinhas + rostos. */
+    Object.assign(globalThis, { readFileSync, readdirSync, PASTA_DO_KINGSHOT: `${pasta}nao-existe/` });
     const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "ROSTOS_DA_CYRON", "emojiPequeno", "emojiDaCyron",
-      "carinha", "fotoDaCyron", "anexoDaFigurinha", "garantirEmojisDaCyron"];
+      "carinha", "fotoDaCyron", "anexoDaFigurinha", "emojisDoKingshot", "garantirEmojisDaCyron"];
     const E = carregar(nomesE);
     ok("antes de subir, a reserva", E.emojiDaCyron("gg", "🏆"), "🏆");
     ok("cartão sem os emojis: sai como antes, sem foto", E.fotoDaCyron("amei"), {});
@@ -15970,6 +15973,108 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("todo campo cabe no limite do Discord", Object.values(S.TEXTOS).every((t) => [t.pt, t.en].every((x) => (x.fields || []).every((f) => f.value.length <= 1024))));
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
   verdade("o bot publica as novidades ao subir", /publicarNovidadesNoSuporte\(\)\.catch/.test(idx.slice(idx.indexOf('client.once("clientReady"'))));
+}
+
+/* ====== 🃏 A FICHA DE HERÓI DO KINGSHOT (16/11, teste no painel) ======
+
+   "Fazer o bot se encaixar no dia a dia de quem joga": /heroi Nome mostra a
+   ficha com os emojis da CYRON (animados) e a foto no hexágono. Por enquanto
+   só no servidor do painel. */
+{
+  const H = await import("./herois.js");
+  ok("os 31 heróis da base", H.HEROIS.length, 31);
+  verdade("todo herói tem nome, geração, raridade e tropa que a ficha conhece",
+    H.HEROIS.every((h) => h.name && Number.isInteger(h.gen) && H.COR_DA_RARIDADE[h.rarity] && H.TEXTOS_DA_FICHA.tropa[h.troop]));
+  ok("acha sem acento, espaço nem maiúscula", H.acharHeroi("long fei")?.name, "Long Fei");
+  ok("acha pelo nome exato", H.acharHeroi("Jabel")?.name, "Jabel");
+  ok("nome que não existe: nada", H.acharHeroi("Gandalf"), null);
+  ok("vazio: nada (não pega o primeiro da lista)", H.acharHeroi(""), null);
+  const sug = H.sugestoesDeHeroi("ja");
+  ok("autocompletar: quem começa com o digitado vem primeiro", sug[0].value, "Jabel");
+  verdade("autocompletar: nome · geração", /^Jabel · Gen \d$/.test(sug[0].name));
+  ok("autocompletar sem nada digitado: no máximo 25 (teto do Discord)", H.sugestoesDeHeroi("").length, 25);
+  verdade("autocompletar sem nada digitado: por geração", H.sugestoesDeHeroi("").every((s, i, a) => !i ||
+    H.acharHeroi(a[i - 1].value).gen <= H.acharHeroi(s.value).gen));
+  ok("nota estranha vira traço", H.notaDaFuncao("—"), "-");
+  ok("nota em minúscula vale", H.notaDaFuncao("s+"), "S+");
+  const lutador = { name: "X", gen: 1, rarity: "legendary", troop: "cavalry", garrison: "B", rally: "S+", bear: "A", joiner: "-" };
+  ok("árvore da nota mais alta para a mais baixa", H.funcoesDoHeroi(lutador).map(([k]) => k).join(","), "rally,bear,garrison,joiner");
+  ok("herói de coleta (geração 0): a árvore é só a coleta", H.funcoesDoHeroi(H.acharHeroi("Edwin")).map(([k]) => k).join(","), "gathering");
+
+  const t = { ...H.TEXTOS_DA_FICHA, melhor: "Rally lead", descricao: "Sobre o X." };
+  const comEmoji = H.fichaDoHeroi(lutador, { e: (n) => `<:${n}:1>`, t });
+  verdade("a ficha usa os emojis da CYRON", /<:ks_brilho:1> \*\*X\*\*/.test(comEmoji.description) && /<:ks_tropa_cavalaria:1>/.test(comEmoji.description));
+  verdade("nenhum emoji padrão do Discord na ficha (o dono achou feio)",
+    !/[🏰⚔️🐻🤝🔥🛡️🏹🐎]/u.test(comEmoji.description));
+  verdade("a nota vem antes do nome da função (fica em coluna)", /<:ks_nota_splus:1> Rally/.test(comEmoji.description));
+  verdade("o último galho fecha a árvore", /<:ks_galho_fim:1><:ks_joiner:1>/.test(comEmoji.description));
+  ok("cor da raridade", comEmoji.color, 0xF0B232);
+  ok("foto no canto", comEmoji.thumbnail?.url, "attachment://heroi.png");
+  verdade("rodapé com a fonte (a licença CC-BY pede)", /kingshotpro\.com/.test(comEmoji.footer.text));
+  const semEmoji = H.fichaDoHeroi(lutador, { e: (n, r) => r, t, foto: null });
+  verdade("emojis ainda não subiram: a ficha sai com a reserva, sem marcação quebrada", !/<:|undefined/.test(semEmoji.description));
+  verdade("sem foto: sem canto (url vazia o Discord recusa)", !("thumbnail" in semEmoji));
+  verdade("todas as 31 fichas cabem no limite do Discord", H.HEROIS.every((h) =>
+    H.fichaDoHeroi(h, { e: (n) => `<a:${n}:123456789012345678>`, t: { ...t, melhor: h.bestUse, descricao: h.desc } }).description.length < 4000));
+  const svg = H.svgDoRetrato({ name: "<b>", rarity: "epic" });
+  verdade("retrato sem foto: a inicial, sem deixar marcação entrar no SVG", !/<b>/.test(svg) && /#a855f7/.test(svg));
+  verdade("retrato com foto: a foto vai recortada no hexágono", /clip-path="url\(#miolo\)"/.test(H.svgDoRetrato({ name: "A", rarity: "rare" }, "QUJD")));
+
+  /* os emojis: subir com o tipo certo, e marcar os animados com "a:" */
+  Object.assign(globalThis, { readFileSync, readdirSync, PASTA_DO_KINGSHOT: `${aqui}/img/kingshot/` });
+  const K = carregar(["emojiKs", "emojisDoKingshot"]);
+  const arquivos = K.emojisDoKingshot("/p/", () => Buffer.from("GIF89a"), () => ["ks_brilho.gif", "ks_gen_1.png", "outro.png", "ks_x.txt"]);
+  ok("só os ks_ de imagem sobem", arquivos.map(([n]) => n).join(","), "ks_brilho,ks_gen_1");
+  verdade("GIF sobe como GIF (o discord.js chamaria de JPG)", arquivos[0][1]().startsWith("data:image/gif;base64,"));
+  verdade("PNG sobe como PNG", arquivos[1][1]().startsWith("data:image/png;base64,"));
+  ok("pasta faltando: nada sobe, e não estoura", K.emojisDoKingshot("/nao/", undefined, () => { throw new Error("ENOENT"); }).length, 0);
+  verdade("os 32 emojis da ficha estão no repositório", K.emojisDoKingshot(`${aqui}/img/kingshot/`).length === 32);
+  verdade("todo emoji que a ficha usa existe na pasta", (() => {
+    const tem = new Set(K.emojisDoKingshot(`${aqui}/img/kingshot/`).map(([n]) => n));
+    const usados = new Set();
+    for (const h of H.HEROIS) H.fichaDoHeroi(h, { e: (n) => { usados.add(n); return ""; }, t: { ...t, melhor: "", descricao: "" } });
+    return [...usados].every((n) => tem.has(n));
+  })());
+  EMOJIS_DA_CYRON.set("ks_brilho", { id: "9", name: "ks_brilho", animated: true });
+  EMOJIS_DA_CYRON.set("ks_gen_1", { id: "8", name: "ks_gen_1", animated: false });
+  ok("emoji animado leva o a:", K.emojiKs("ks_brilho"), "<a:ks_brilho:9>");
+  ok("emoji parado, sem a:", K.emojiKs("ks_gen_1"), "<:ks_gen_1:8>");
+  ok("emoji que não subiu: a reserva", K.emojiKs("ks_nada", "?"), "?");
+  EMOJIS_DA_CYRON.delete("ks_brilho");
+  EMOJIS_DA_CYRON.delete("ks_gen_1");
+
+  /* o comando: reconhece antes de ler o idioma; herói errado só para quem pediu */
+  const ordem = [];
+  Object.assign(globalThis, {
+    acharHeroi: H.acharHeroi, TEXTOS_DA_FICHA: H.TEXTOS_DA_FICHA,
+    linguaDe: async () => { ordem.push("lingua"); return "pt"; },
+    nalingua: async (_i, _g, ...f) => f,
+    cartaoDoHeroi: async (h) => ({ embeds: [{ description: h.name }] }),
+  });
+  const { comandoHeroi } = carregar(["comandoHeroi"]);
+  const inter = (nome) => ({ guildId: "g", options: { getString: () => nome },
+    deferReply: async (o) => { ordem.push(["defer", o?.flags || 0]); }, editReply: async (r) => { ordem.push(["fim", r]); } });
+  await comandoHeroi(inter("jabel"));
+  ok("reconhece primeiro, e em público", JSON.stringify(ordem[0]), JSON.stringify(["defer", 0]));
+  ok("e a ficha é do herói pedido", ordem.at(-1)[1].embeds[0].description, "Jabel");
+  ordem.length = 0;
+  await comandoHeroi(inter("Gandalf"));
+  ok("herói que não existe: só quem pediu vê", JSON.stringify(ordem[0]), JSON.stringify(["defer", 64]));
+  verdade("e diz como achar", /lista/.test(ordem.at(-1)[1].content));
+
+  /* a amostra: uma vez só, e a marca antes de postar */
+  const idx = semComentarios(fonte);
+  const amostra = semComentarios(pedaco("amostraDosHerois"));
+  verdade("amostra: a marca vem antes de postar", amostra.indexOf('porAjuste("heroi_amostra"') < amostra.indexOf("canal.send"));
+  verdade("amostra: já feita, não posta de novo", /if \(\(await ajustes\(\)\)\.heroi_amostra\) return "feito"/.test(amostra));
+  verdade("amostra: sem os emojis, espera (a ficha sairia sem graça)", /EMOJIS_DA_CYRON\.has\("ks_brilho"\)/.test(amostra));
+  verdade("o /heroi não está entre os comandos de todo mundo", !/name: "heroi"/.test(pedaco("COMANDOS_DE_TODOS")) &&
+    !/"heroi"/.test(pedaco("COMANDOS_DE_TODOS")));
+  verdade("o /heroi nasce só no servidor do painel", /guild\.commands\.create\(DEF_HEROI\)/.test(semComentarios(pedaco("arrumarOndeMoraOAdmin"))));
+  verdade("o comando e o autocompletar estão ligados", /nome === "heroi"\) return comandoHeroi\(inter\)/.test(idx) &&
+    /commandName === "heroi"\) \{\s*return inter\.respond\(sugestoesDeHeroi/.test(idx));
+  verdade("os emojis ks_ sobem junto com os da CYRON", /\.\.\.emojisDoKingshot\(\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+  verdade("a subida guarda se o emoji é animado", /animated: !!e\.animated/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
 }
 
 function NA_CONTA_DO_FONTE() {

@@ -31,8 +31,9 @@ import { ligarAlianca, COMANDOS_DA_ALIANCA, comandoDaAlianca, boasVindasDaAlianc
 import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSuporte, PREFIXO_LER,
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
+import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi } from "./herois.js";
 import { fileURLToPath } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 /* A fonte da imagem traduzida vai JUNTO com o bot, e nao e' a da maquina: a
    imagem do Fly e' um Alpine sem fonte nenhuma, e depender do que estiver
@@ -12257,6 +12258,31 @@ function emojiDaCyron(nome, reserva = "") {
   return e ? `<:${e.name}:${e.id}>` : reserva;
 }
 
+/* Os emojis da ficha de herói (/heroi): medalhões, chamas, losangos, galhos.
+   Os animados precisam do "a:" na marcação -- sem ele o Discord mostra o
+   primeiro quadro, parado, e a graça era justamente o brilho se mexendo. */
+const PASTA_DO_KINGSHOT = fileURLToPath(new URL("./img/kingshot/", import.meta.url));
+
+function emojiKs(nome, reserva = "") {
+  const e = EMOJIS_DA_CYRON.get(nome);
+  return e ? `<${e.animated ? "a" : ""}:${e.name}:${e.id}>` : reserva;
+}
+
+/* Pura. Os arquivos da pasta viram [nome, imagem]. GIF vai como data: com o
+   tipo certo: o discord.js chama todo arquivo de "image/jpg", e GIF com
+   rótulo de JPG é o tipo de coisa que um dia para de funcionar. */
+function emojisDoKingshot(pasta = PASTA_DO_KINGSHOT, ler = readFileSync, listar = readdirSync) {
+  let nomes = [];
+  try { nomes = listar(pasta); } catch { return []; }
+  return nomes
+    .filter((n) => /^ks_[a-z0-9_]+\.(png|gif)$/.test(n))
+    .sort()
+    .map((n) => {
+      const gif = n.endsWith(".gif");
+      return [n.replace(/\.(png|gif)$/, ""), () => `data:image/${gif ? "gif" : "png"};base64,${ler(`${pasta}${n}`).toString("base64")}`];
+    });
+}
+
 /* A CYRON GRANDE, no canto de um cartao (thumbnail, ~80 px): onde ha'
    cartao, e' ali que ela aparece de verdade. A figurinha inteira, servida
    pelo proprio Discord a partir do emoji do aplicativo. Sem o emoji
@@ -12285,20 +12311,127 @@ async function garantirEmojisDaCyron() {
   if (!umaVezPorProcesso("emojis-da-cyron")) return;
   try {
     const publicados = await client.application.emojis.fetch();
-    for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, { id: e.id, name: e.name });
+    for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, { id: e.id, name: e.name, animated: !!e.animated });
     let novos = 0;
     const subir = [...FIGURINHAS.map((f) => [f.id, anexoDaFigurinha(f).attachment]),
-      ...ROSTOS_DA_CYRON.map((n) => [`rosto_${n}`, `${PASTA_DOS_ROSTOS}${n}.png`])];
+      ...ROSTOS_DA_CYRON.map((n) => [`rosto_${n}`, `${PASTA_DOS_ROSTOS}${n}.png`]),
+      ...emojisDoKingshot()];
     for (const [nome, arquivo] of subir) {
       if (EMOJIS_DA_CYRON.has(nome)) continue;
-      const e = await client.application.emojis.create({ attachment: arquivo, name: nome });
-      EMOJIS_DA_CYRON.set(nome, { id: e.id, name: e.name });
+      const e = await client.application.emojis.create({ attachment: typeof arquivo === "function" ? arquivo() : arquivo, name: nome });
+      EMOJIS_DA_CYRON.set(nome, { id: e.id, name: e.name, animated: !!e.animated });
       novos++;
     }
     if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
   } catch (e) {
     console.error("emojis: não consegui publicar os emojis da CYRON:", e?.message || e);
   }
+}
+
+/* ---------------- 🃏 /heroi: a ficha de um herói do Kingshot ----------------
+
+   Em teste: o comando mora só no servidor do painel, e o dono vê a ficha
+   de verdade -- emojis animados, foto no hexágono -- antes de alguém de
+   fora ver. A ficha em si (o que vai em cada linha) é do herois.js. */
+const DEF_HEROI = {
+  name: "heroi",
+  description: "Ficha de um herói do Kingshot (teste)",
+  options: [{ type: 3, name: "nome", description: "Nome do herói", required: true, autocomplete: true }],
+};
+const CANAL_DE_TESTES = "🧪-testes";
+const AMOSTRA_DOS_HEROIS = ["Jabel", "Chenko", "Marlin"];
+/* Termo do jogo: o jogador lê "Rally" e "Joiner" no próprio Kingshot, e
+   traduzido ele não reconheceria. */
+const TERMOS_DO_JOGO = new Set(["Gen", "Rally", "Joiner"]);
+
+async function textosDaFicha(idioma, motor) {
+  if (!idioma || idioma === "pt") return TEXTOS_DA_FICHA;
+  const passar = (v) => (TERMOS_DO_JOGO.has(v) ? v : traduzirPara(v, idioma, motor));
+  const t = {};
+  for (const [k, v] of Object.entries(TEXTOS_DA_FICHA)) {
+    if (typeof v === "string") { t[k] = await passar(v); continue; }
+    t[k] = {};
+    for (const [k2, v2] of Object.entries(v)) t[k][k2] = await passar(v2);
+  }
+  return t;
+}
+
+/* A foto do herói no hexágono. A foto vem do armazenamento (a mesma dos
+   heróis do chat); sem foto, a inicial. Guardo só o que veio de uma
+   resposta de verdade: rede caída não vira "esse herói não tem foto". */
+const retratosDosHerois = new Map();
+
+async function retratoDoKingshot(h) {
+  const chave = normalizarHeroi(h.name);
+  if (retratosDosHerois.has(chave)) return retratosDosHerois.get(chave);
+  const sharp = await carregarSharp();
+  if (!sharp) return null;
+  let foto = "", respondeu = false;
+  try {
+    const r = await fetch(`${SB_URL}/storage/v1/object/public/top-avatars/herois/${chave}.png`, { signal: AbortSignal.timeout(5000) });
+    respondeu = r.ok || r.status === 400 || r.status === 404;
+    if (r.ok) {
+      foto = (await sharp(Buffer.from(await r.arrayBuffer()), { failOn: "none" })
+        .resize(256, 256, { fit: "cover" }).png().toBuffer()).toString("base64");
+    }
+  } catch { respondeu = false; }
+  const png = await sharp(Buffer.from(svgDoRetrato(h, foto))).png().toBuffer().catch(() => null);
+  if (png && respondeu) retratosDosHerois.set(chave, png);
+  return png;
+}
+
+async function cartaoDoHeroi(h, idioma, guildId) {
+  const motor = await motorDoGuild(guildId).catch(() => undefined);
+  const t = {
+    ...(await textosDaFicha(idioma, motor)),
+    melhor: await traduzirPara(h.bestUse || "", idioma, motor),
+    descricao: await traduzirPara(h.desc || "", idioma, motor),
+  };
+  const png = await retratoDoKingshot(h).catch(() => null);
+  return {
+    embeds: [fichaDoHeroi(h, { e: emojiKs, t, foto: png ? "attachment://heroi.png" : null })],
+    files: png ? [{ attachment: png, name: "heroi.png" }] : [],
+  };
+}
+
+async function comandoHeroi(inter) {
+  const h = acharHeroi(inter.options.getString("nome"));
+  /* Reconheço antes de ler o idioma: são três segundos, e o idioma vem do
+     banco. Herói que não existe responde só para quem pediu. */
+  await inter.deferReply(h ? {} : { flags: 64 });
+  const idioma = await linguaDe(inter);
+  if (!h) {
+    const [frase] = await nalingua(idioma, inter.guildId, TEXTOS_DA_FICHA.naoAchei);
+    return inter.editReply({ content: frase });
+  }
+  return inter.editReply(await cartaoDoHeroi(h, idioma, inter.guildId));
+}
+
+/* Uma vez só: três fichas de exemplo num canal de testes do painel, para o
+   dono ver como ficou sem precisar digitar nada. A marca vai ANTES de
+   postar -- se algo cair no meio, falta um exemplo; o contrário seria o
+   canal recebendo as mesmas fichas a cada reinício. */
+async function amostraDosHerois() {
+  if ((await ajustes()).heroi_amostra) return "feito";
+  if (!EMOJIS_DA_CYRON.has("ks_brilho")) return "sem-emoji";
+  const gid = await guildDoPainel();
+  const guild = gid && client.guilds.cache.get(gid);
+  if (!guild) return "sem-painel";
+  const canal = await canalDoPainel(guild, CANAL_DE_TESTES);
+  if (!canal) return "sem-canal";
+  await porAjuste("heroi_amostra", new Date().toISOString());
+  await canal.send({
+    content: "🧪 **Teste: ficha de herói do Kingshot**\n" +
+      "Só aqui no painel, ninguém de fora vê. Digite `/heroi` e escolha o herói na lista.\n" +
+      "Três exemplos:",
+    allowedMentions: { parse: [] },
+  });
+  for (const nome of AMOSTRA_DOS_HEROIS) {
+    const h = acharHeroi(nome);
+    if (h) await canal.send({ ...(await cartaoDoHeroi(h, "pt", gid)), allowedMentions: { parse: [] } });
+  }
+  console.log(`herois: amostra postada em #${CANAL_DE_TESTES}`);
+  return "postado";
 }
 
 /* ---------------- 🛠️ /suporte: acesso do dono da CYRON, COM permissao ----------------
@@ -24527,6 +24660,7 @@ async function comandoDeInteracao(inter) {
      mesmo estado: mexer aqui atualiza o fixado tambem. */
   if (nome === "help") return comandoAjuda(inter);
   if (nome === "figurinha") return comandoFigurinha(inter);
+  if (nome === "heroi") return comandoHeroi(inter);
   if (nome === "admin") return comandoAdmin(inter);
   if (nome === "arena") return inter.reply({ flags: 64, content: ARENA_ENCERRADA });
   if (nome === "hora") return comandoHora(inter);
@@ -24813,6 +24947,9 @@ client.on("interactionCreate", async (inter) => {
          aparelho, que e' a que a pessoa esta' lendo agora. */
       if (inter.commandName === "figurinha") {
         return inter.respond(sugestoesDeFigurinha(String(inter.options.getFocused() || ""), inter.locale)).catch(() => {});
+      }
+      if (inter.commandName === "heroi") {
+        return inter.respond(sugestoesDeHeroi(String(inter.options.getFocused() || ""))).catch(() => {});
       }
       /* "membro" do /abraco, /beijo, /tapa, /cafune e /perfil, e o
          "oponente" do /duelo: o servidor inteiro, e nao so' quem enxerga a
@@ -26805,6 +26942,11 @@ async function arrumarOndeMoraOAdmin() {
       await guild.commands.create(def);
       console.log(`comandos: /admin agora é só de ${guild.name}`);
     }
+    /* O /heroi em teste: só aqui, até o dono aprovar a ficha. */
+    if (![...doGuild.values()].some((c) => c.name === DEF_HEROI.name)) {
+      await guild.commands.create(DEF_HEROI);
+      console.log(`comandos: /heroi (teste) em ${guild.name}`);
+    }
     /* Tira do global DEPOIS de existir no servidor. Na ordem inversa, o dono
        ficaria alguns minutos sem nenhum /admin em lugar nenhum. */
     if (noGlobal) {
@@ -27665,6 +27807,11 @@ client.once("clientReady", () => {
   /* A equipe: dois minutos depois de subir, e de hora em hora. */
   setTimeout(() => sincronizarEquipe().catch((e) => console.log("equipe: ronda falhou:", e?.message || e)), 2 * 60 * 1000);
   setInterval(() => sincronizarEquipe().catch((e) => console.log("equipe: ronda falhou:", e?.message || e)), 60 * 60 * 1000);
+  /* A amostra do /heroi espera os emojis subirem (são 32 na primeira vez). */
+  const amostra = (resta) => amostraDosHerois()
+    .then((r) => { if (r === "sem-emoji" && resta) setTimeout(() => amostra(resta - 1), 10 * 60 * 1000); })
+    .catch((e) => console.log("herois: amostra falhou:", e?.message || e));
+  setTimeout(() => amostra(2), 3 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));

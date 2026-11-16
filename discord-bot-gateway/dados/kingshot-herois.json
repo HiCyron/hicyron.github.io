@@ -1,0 +1,611 @@
+{
+  "_meta": {
+    "dataset": "kingshot-heroes",
+    "title": "Kingshot Hero Database",
+    "description": "Every Kingshot hero with generation, rarity, troop type, rally/garrison/bear/joiner tiers (plus a gathering tier for the four Generation 0 heroes) and F2P notes.",
+    "count": 31,
+    "provenance": {
+      "sources": [
+        "kingshotmastery.com/guides/kingshot-hero-tier-list-2025",
+        "kingshotguides.com/guide/the-only-kingshot-hero-tier-list-you-actually-need/",
+        "grindnstrat.com/kingshot-hero-lineup-guide-year-solo-rally-garrison/",
+        "kingshotdata.com/category/heroes/",
+        "kingshotguide.org/heroes/ (the four Generation 0 gathering heroes)"
+      ],
+      "method": "Community tier-list consensus cross-referenced across the sources above (April 2026). Hero names and generation assignments are cross-verified: 27 heroes against four sites, and the four Generation 0 gathering heroes (Edwin, Forrest, Olive, Seth) against two, kingshotdata.com and kingshotguide.org (2026-04-14). Tier rankings reflect community consensus, not a single authority.",
+      "confidence": {
+        "names_generations": "verified",
+        "tier_rankings": "editorial"
+      },
+      "accuracyScore": 95,
+      "editorialNote": "Hero names, rarities, troop types and generations are verified facts (95). The tier rankings (rally/garrison/bear/joiner) are our team and community judgement — opinion, not a measured game value.",
+      "verified": "2026-04"
+    },
+    "license": "CC-BY-4.0 — free to reuse, including by AI assistants and apps, with attribution to https://kingshotpro.com",
+    "canonical": "https://kingshotpro.com/data/heroes.json",
+    "updated": "2026-10-14",
+    "note": "Machine-readable Canon data. See https://kingshotpro.com/methodology.html for how we verify."
+  },
+  "heroes": [
+    {
+      "name": "Amadeus",
+      "gen": 1,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "S",
+      "garrison": "B",
+      "bear": "S",
+      "joiner": "A",
+      "f2p": false,
+      "vip": true,
+      "bestUse": "Rally lead & bear hunt (VIP hero)",
+      "desc": "One of the strongest offensive heroes in the game. His first skill provides dependable rally value. Remains S-tier for rallies across all generations. Amadeus is a VIP hero — access is gated behind VIP progression, which in practice requires spending to reach quickly.",
+      "tags": [
+        "rally-lead",
+        "bear",
+        "offensive",
+        "long-term",
+        "vip"
+      ]
+    },
+    {
+      "name": "Jabel",
+      "gen": 1,
+      "rarity": "legendary",
+      "troop": "cavalry",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "Garrison defender",
+      "desc": "The foundational garrison tank. Extremely robust and available early. Core of any defensive lineup from day one through late game.",
+      "tags": [
+        "garrison",
+        "defensive",
+        "f2p-friendly",
+        "tank"
+      ]
+    },
+    {
+      "name": "Helga",
+      "gen": 1,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "A",
+      "garrison": "B",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Early rally alternative",
+      "desc": "A decent early offensive hero who serves as an Amadeus alternative. Falls off in later generations as stronger rally leads become available.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "early-game"
+      ]
+    },
+    {
+      "name": "Saul",
+      "gen": 1,
+      "rarity": "legendary",
+      "troop": "archer",
+      "rally": "B",
+      "garrison": "A",
+      "bear": "B",
+      "joiner": "S",
+      "f2p": true,
+      "bestUse": "Garrison joiner & stacking",
+      "desc": "An S-tier joiner for garrison defense via stacking. Also invaluable for F2P players due to construction speed boosts. Dual-purpose hero: city management and garrison.",
+      "tags": [
+        "garrison",
+        "joiner",
+        "stacking",
+        "f2p-friendly",
+        "construction"
+      ]
+    },
+    {
+      "name": "Zoe",
+      "gen": 2,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "-",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "F2P garrison tank",
+      "desc": "The F2P garrison MVP. Remains viable well into Gen 5-6 with proper support. Her defensive capabilities, damage reduction, and crowd control are unmatched for free players.",
+      "tags": [
+        "garrison",
+        "defensive",
+        "f2p-friendly",
+        "tank",
+        "long-term"
+      ]
+    },
+    {
+      "name": "Hilde",
+      "gen": 2,
+      "rarity": "legendary",
+      "troop": "cavalry",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "A",
+      "joiner": "S",
+      "f2p": false,
+      "bestUse": "Garrison joiner & healer",
+      "desc": "A dedicated healer who can also disable enemies briefly. One of the best healers in the game. S-tier joiner for garrison stacking.",
+      "tags": [
+        "garrison",
+        "joiner",
+        "stacking",
+        "healer",
+        "support"
+      ]
+    },
+    {
+      "name": "Marlin",
+      "gen": 2,
+      "rarity": "legendary",
+      "troop": "archer",
+      "rally": "S",
+      "garrison": "B",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "Long-term archer carry",
+      "desc": "Excellent ranged damage dealer. A long-term F2P investment — aim for 465 shards to reach 4-stars quickly when available. Excels in both PvE and PvP, powerful in arena and expedition.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "f2p-friendly",
+        "long-term",
+        "arena"
+      ]
+    },
+    {
+      "name": "Petra",
+      "gen": 3,
+      "rarity": "legendary",
+      "troop": "cavalry",
+      "rally": "S",
+      "garrison": "B",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "Cavalry rally lead",
+      "desc": "The premier cavalry rally lead. Often featured in Hero Roulette events, making her accessible to F2P players. Flexible hero that excels on offense.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "cavalry",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Eric",
+      "gen": 3,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Garrison defender",
+      "desc": "A solid garrison infantry defender who joins the defensive rotation. Reliable but not as impactful as Zoe for F2P players.",
+      "tags": [
+        "garrison",
+        "defensive"
+      ]
+    },
+    {
+      "name": "Jaeger",
+      "gen": 3,
+      "rarity": "legendary",
+      "troop": "archer",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Garrison archer",
+      "desc": "Garrison-oriented archer who strengthens defensive lineups. Lower priority for F2P players compared to Marlin.",
+      "tags": [
+        "garrison",
+        "defensive"
+      ]
+    },
+    {
+      "name": "Rosa",
+      "gen": 4,
+      "rarity": "legendary",
+      "troop": "archer",
+      "rally": "A",
+      "garrison": "B",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Arena specialist",
+      "desc": "Strong offensive archer and arena specialist. Accessible through specific events. Only invest if you see a clear path to consistent shard collection.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "arena"
+      ]
+    },
+    {
+      "name": "Alcar",
+      "gen": 4,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "A",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Garrison infantry",
+      "desc": "Premium garrison infantry defender. Strong in garrison and bear hunt but typically requires significant investment.",
+      "tags": [
+        "garrison",
+        "defensive",
+        "bear"
+      ]
+    },
+    {
+      "name": "Margot",
+      "gen": 4,
+      "rarity": "legendary",
+      "troop": "cavalry",
+      "rally": "B",
+      "garrison": "S",
+      "bear": "S",
+      "joiner": "A",
+      "f2p": false,
+      "bestUse": "Garrison & bear joiner",
+      "desc": "Excels in garrison defense and bear hunt. A strong joiner who adds depth to both defensive and PvE lineups.",
+      "tags": [
+        "garrison",
+        "joiner",
+        "bear",
+        "defensive"
+      ]
+    },
+    {
+      "name": "Vivian",
+      "gen": 5,
+      "rarity": "legendary",
+      "troop": "archer",
+      "rally": "S+",
+      "garrison": "B",
+      "bear": "S",
+      "joiner": "S",
+      "f2p": false,
+      "bestUse": "Army-wide damage buff",
+      "desc": "One of the most impactful heroes in the game. Provides army-wide damage buffs that elevate entire rally lineups. S+ tier for rallies.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "bear",
+        "joiner",
+        "buff",
+        "long-term"
+      ]
+    },
+    {
+      "name": "Thrud",
+      "gen": 5,
+      "rarity": "legendary",
+      "troop": "cavalry",
+      "rally": "S",
+      "garrison": "A",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Cavalry multiplier",
+      "desc": "A powerful cavalry multiplier who amplifies cavalry-heavy rally compositions. Strong on offense with some garrison flexibility.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "cavalry"
+      ]
+    },
+    {
+      "name": "Long Fei",
+      "gen": 5,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "A",
+      "garrison": "S",
+      "bear": "A",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Garrison infantry",
+      "desc": "Late-game garrison infantry specialist. Strong across garrison and bear hunt. A premium investment for defensive players.",
+      "tags": [
+        "garrison",
+        "defensive",
+        "bear"
+      ]
+    },
+    {
+      "name": "Yang",
+      "gen": 6,
+      "rarity": "legendary",
+      "troop": "archer",
+      "rally": "S+",
+      "garrison": "B",
+      "bear": "S",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "F2P rally carry",
+      "desc": "The F2P late-game MVP. Provides significant rally impact and is accessible through challenging events, alliance activities, and daily play. Prioritize saving shards for Yang from Gen 5 onward.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "f2p-friendly",
+        "long-term"
+      ]
+    },
+    {
+      "name": "Sophia",
+      "gen": 6,
+      "rarity": "legendary",
+      "troop": "cavalry",
+      "rally": "S",
+      "garrison": "A",
+      "bear": "B",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Confusion-based debuffer",
+      "desc": "A cavalry debuffer who disrupts enemy formations with confusion effects. Strong rally presence with some garrison capability.",
+      "tags": [
+        "rally-lead",
+        "offensive",
+        "cavalry",
+        "debuff"
+      ]
+    },
+    {
+      "name": "Triton",
+      "gen": 6,
+      "rarity": "legendary",
+      "troop": "infantry",
+      "rally": "A",
+      "garrison": "S",
+      "bear": "A",
+      "joiner": "-",
+      "f2p": false,
+      "bestUse": "Garrison infantry",
+      "desc": "The strongest frontline unit in Gen 6. Dominates garrison defense and is a solid bear hunt contributor.",
+      "tags": [
+        "garrison",
+        "defensive",
+        "bear",
+        "tank"
+      ]
+    },
+    {
+      "name": "Chenko",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "cavalry",
+      "rally": "-",
+      "garrison": "-",
+      "bear": "S",
+      "joiner": "S",
+      "f2p": true,
+      "bestUse": "Best F2P rally joiner",
+      "desc": "His first skill provides dependable rally value — considered the best rally joiner skill for F2P players. Essential for bear hunt participation.",
+      "tags": [
+        "joiner",
+        "bear",
+        "f2p-friendly",
+        "long-term"
+      ]
+    },
+    {
+      "name": "Amane",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "archer",
+      "rally": "-",
+      "garrison": "-",
+      "bear": "S",
+      "joiner": "S",
+      "f2p": true,
+      "bestUse": "Offensive stacking joiner",
+      "desc": "An excellent offensive stacking joiner for bear hunt and rallies. Pairs well with archer-heavy compositions.",
+      "tags": [
+        "joiner",
+        "bear",
+        "stacking",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Yeonwoo",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "archer",
+      "rally": "-",
+      "garrison": "-",
+      "bear": "S",
+      "joiner": "S",
+      "f2p": true,
+      "bestUse": "Non-chance offensive joiner",
+      "desc": "A reliable joiner whose offensive contribution does not rely on chance mechanics. Consistent value in rally and bear hunt.",
+      "tags": [
+        "joiner",
+        "bear",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Gordon",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "cavalry",
+      "rally": "B",
+      "garrison": "-",
+      "bear": "-",
+      "joiner": "A",
+      "f2p": true,
+      "bestUse": "Early-game reliable",
+      "desc": "A reliable early-game hero who provides decent value until stronger options become available.",
+      "tags": [
+        "early-game",
+        "f2p-friendly",
+        "joiner"
+      ]
+    },
+    {
+      "name": "Howard",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "infantry",
+      "rally": "-",
+      "garrison": "B",
+      "bear": "-",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "Garrison only",
+      "desc": "Limited utility — garrison only. Quickly outclassed by Gen 2+ heroes. Low priority for investment.",
+      "tags": [
+        "garrison",
+        "early-game",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Quinn",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "archer",
+      "rally": "-",
+      "garrison": "-",
+      "bear": "-",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "Low priority",
+      "desc": "Low boost value with limited combat utility. Not recommended for significant investment.",
+      "tags": [
+        "f2p-friendly",
+        "early-game"
+      ]
+    },
+    {
+      "name": "Diana",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "archer",
+      "rally": "-",
+      "garrison": "-",
+      "bear": "-",
+      "joiner": "-",
+      "f2p": true,
+      "bestUse": "Gathering (no battle skills)",
+      "desc": "No battle skills — she is a gathering hero only. Useful for resource farming with farm accounts but has zero combat value.",
+      "tags": [
+        "gathering",
+        "f2p-friendly",
+        "farm"
+      ]
+    },
+    {
+      "name": "Fahd",
+      "gen": 1,
+      "rarity": "epic",
+      "troop": "cavalry",
+      "rally": "-",
+      "garrison": "-",
+      "bear": "D",
+      "joiner": "B",
+      "f2p": true,
+      "bestUse": "Low priority joiner",
+      "desc": "Very low priority. Only use if you have absolutely no other joiner options. Quickly outclassed.",
+      "tags": [
+        "f2p-friendly",
+        "early-game"
+      ]
+    },
+    {
+      "name": "Edwin",
+      "gen": 0,
+      "rarity": "rare",
+      "troop": "cavalry",
+      "rally": "—",
+      "garrison": "—",
+      "bear": "—",
+      "joiner": "—",
+      "gathering": "S",
+      "f2p": true,
+      "bestUse": "Stone gathering",
+      "desc": "Edwin is a Rare (R-grade) cavalry gathering hero in Kingshot — used on farm accounts for stone production. His Expedition skills directly boost Town Quarry Output (+25%) and Wilderness Stone Gathering Speed (+25%), making him essential for players who maintain gathering marches.",
+      "tags": [
+        "gathering",
+        "stone",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Forrest",
+      "gen": 0,
+      "rarity": "rare",
+      "troop": "infantry",
+      "rally": "—",
+      "garrison": "—",
+      "bear": "—",
+      "joiner": "—",
+      "gathering": "S",
+      "f2p": true,
+      "bestUse": "Wood gathering",
+      "desc": "Forrest is a Rare infantry gathering hero — the wood-focused counterpart to Edwin (stone) and Seth (iron). His Expedition boosts Town Sawmill Output and Wood Gathering Speed by up to +25% each.",
+      "tags": [
+        "gathering",
+        "wood",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Olive",
+      "gen": 0,
+      "rarity": "rare",
+      "troop": "archer",
+      "rally": "—",
+      "garrison": "—",
+      "bear": "—",
+      "joiner": "—",
+      "gathering": "S",
+      "f2p": true,
+      "bestUse": "Bread gathering",
+      "desc": "Olive is a Rare archer gathering hero — the bread-focused specialist. Her Expedition boosts Town Mill Output and Wilderness Bread Gathering Speed by up to +25% each.",
+      "tags": [
+        "gathering",
+        "bread",
+        "f2p-friendly"
+      ]
+    },
+    {
+      "name": "Seth",
+      "gen": 0,
+      "rarity": "rare",
+      "troop": "infantry",
+      "rally": "—",
+      "garrison": "—",
+      "bear": "—",
+      "joiner": "—",
+      "gathering": "S",
+      "f2p": true,
+      "bestUse": "Iron gathering",
+      "desc": "Seth is a Rare infantry gathering hero — the iron-focused specialist completing the R-grade gathering quartet (Edwin/stone, Forrest/wood, Olive/bread, Seth/iron). His Expedition boosts Town Iron Output and Wilderness Iron Gathering Speed by up to +25%.",
+      "tags": [
+        "gathering",
+        "iron",
+        "f2p-friendly"
+      ]
+    }
+  ]
+}
