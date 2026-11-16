@@ -14542,6 +14542,10 @@ function conferirCartao(onde, embed, componentes = []) {
     guilds: { cache: new Map([["g", { id: "g", name: "Servidor", memberCount: 5, members: { me: {} }, channels: { cache: new Map() } }]]) },
     channels: { cache: new Map([[canalFalso.id, canalFalso], [dmFalso.id, dmFalso]]), fetch: async () => null },
     users: { cache: new Map(), fetch: async () => null },
+    application: { emojis: { cache: new Map([
+      ["e1", { id: "900000000000000001", name: "ks_brilho_abc123", animated: true }],
+      ["e2", { id: "900000000000000002", name: "rosto_feliz", animated: false }],
+      ["e3", { id: "900000000000000003", name: "gg", animated: false }]]) } },
   };
   const perguntas = [];
   const buscar = async (url, o) => {
@@ -14584,7 +14588,34 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("o painel do dono responde os números", [painel.servidores.ativos, painel.marca].join(), "7,painel-do-dono");
     ok("quem não é dono não vê os números", (await pedir("/visao/admin/numeros", "token-de-outro-123")).status, 403);
     ok("a saúde responde sem login", (await pedir("/saude")).status, 200);
+
+    /* os emojis da CYRON no app */
+    const emo = await (await pedir("/visao/emojis", "token-do-dono-123")).json();
+    ok("o app recebe os emojis da CYRON, em grupos, com atalho sem a marca do desenho",
+      emo.emojis.map((e) => `${e.grupo}:${e.atalho}`).join(","), "kingshot:ks_brilho,cyron:rosto_feliz,figurinhas:gg");
+    ok("quem não é dono não vê a lista", (await pedir("/visao/emojis", "token-de-outro-123")).status, 403);
+    enviadas.length = 0;
+    await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "111111111111111111", texto: "bora :ks_brilho: :rosto_feliz:" }) });
+    ok("o atalho vira o emoji de verdade na hora de enviar", enviadas[0]?.content,
+      "bora <a:ks_brilho_abc123:900000000000000001> <:rosto_feliz:900000000000000002>");
+    const grande = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST",
+      body: JSON.stringify({ c: "111111111111111111", texto: ":gg:".repeat(450) }) });
+    ok("com os emojis passando de 2000 letras: recusa antes do Discord", grande.status, 400);
+    verdade("e diz o porquê", /com os emojis/.test((await grande.json()).erro));
   } finally { srv.close(); }
+
+  /* as duas peças puras dos emojis no app */
+  {
+    const lista = V.emojisParaVisao([
+      { id: "900000000000000001", name: "ks_gen_1", animated: false },
+      { id: "900000000000000002", name: "ks_gen_1_0f0f0f", animated: true },
+      { id: "x", name: "quebrado" }, { id: "900000000000000004", name: "<b>" }]);
+    ok("versão velha e nova do mesmo desenho: fica a nova", JSON.stringify(lista.map((e) => [e.atalho, e.nome])), JSON.stringify([["ks_gen_1", "ks_gen_1_0f0f0f"]]));
+    verdade("id ou nome estranho fica de fora (o app desenha isso numa página)", lista.length === 1);
+    ok("emoji já pronto não é tocado", V.trocarAtalhos("<a:ks_gen_1_0f0f0f:900000000000000002>", lista), "<a:ks_gen_1_0f0f0f:900000000000000002>");
+    ok("atalho que não é da CYRON fica como texto", V.trocarAtalhos("oi :pepe: :ks_gen_1:", lista), "oi :pepe: <a:ks_gen_1_0f0f0f:900000000000000002>");
+    ok("o nome completo também vale", V.trocarAtalhos(":ks_gen_1_0f0f0f:", lista), "<a:ks_gen_1_0f0f0f:900000000000000002>");
+  }
 
   /* Ao vivo: WebSocket com o BOT, que repassa o que o gateway do Discord já
      entrega a ele. A página nunca abre o gateway do Discord (isso exigiria o

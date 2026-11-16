@@ -270,6 +270,51 @@ export function lerEnvio(corpo) {
   return { canal, texto };
 }
 
+/* ---------------- os emojis da CYRON no app ----------------
+
+   "No app da CYRON consigo utilizar os emojis? Tipo já deixar tudo lá para
+   eu utilizar?" (dono, 16/11). Consegue: o app fala COMO a CYRON, e emoji
+   do aplicativo é justamente o que só ela pode usar -- inclusive os
+   animados, sem Nitro. A conta pessoal do dono não usaria nenhum deles.
+
+   O app lista os emojis (GET /visao/emojis), o dono toca, e a caixa de texto
+   recebe o atalho :nome:, como no próprio Discord. Na hora de enviar, o
+   atalho vira o emoji de verdade.
+
+   Pura. Os emojis do aplicativo viram { atalho, nome, id, animado, grupo }.
+   Os da ficha de herói carregam a marca do desenho no nome (ks_gen_1_3fa2c9);
+   o atalho é o nome sem a marca, que é o que alguém lembra. Dois com o mesmo
+   atalho (a troca de desenho no meio do caminho): fica o que tem marca. */
+const MARCA_DO_DESENHO = /_[0-9a-f]{6}$/;
+export function emojisParaVisao(emojis) {
+  const porAtalho = new Map();
+  for (const e of emojis || []) {
+    const nome = String(e?.name || "");
+    if (!ehId(String(e?.id || "")) || !/^[\w]{2,32}$/.test(nome)) continue;
+    const ks = nome.startsWith("ks_");
+    const atalho = ks ? nome.replace(MARCA_DO_DESENHO, "") : nome;
+    const ja = porAtalho.get(atalho);
+    if (ja && MARCA_DO_DESENHO.test(ja.nome) && !MARCA_DO_DESENHO.test(nome)) continue;
+    porAtalho.set(atalho, { atalho, nome, id: String(e.id), animado: !!e.animated,
+      grupo: ks ? "kingshot" : nome.startsWith("rosto_") ? "cyron" : "figurinhas" });
+  }
+  const ordem = { kingshot: 0, cyron: 1, figurinhas: 2 };
+  return [...porAtalho.values()].sort((a, b) => ordem[a.grupo] - ordem[b.grupo] || a.atalho.localeCompare(b.atalho));
+}
+
+/* Pura. :atalho: vira <a:nome:id> (ou <:nome:id>). O que JÁ é emoji fica
+   como está: dentro de <a:ks_brilho_3fa2c9:123> também há ":ks_brilho_3fa2c9:",
+   e trocar ali quebraria o emoji. Atalho que não é da CYRON fica como texto
+   (pode ser um emoji do servidor que o Discord resolve). */
+export function trocarAtalhos(texto, lista) {
+  const mapa = new Map();
+  for (const e of lista || []) { mapa.set(e.atalho, e); mapa.set(e.nome, e); }
+  return String(texto).replace(/<a?:\w+:\d+>|:(\w{2,32}):/g, (tudo, atalho) => {
+    const e = atalho && mapa.get(atalho);
+    return e ? `<${e.animado ? "a" : ""}:${e.nome}:${e.id}>` : tudo;
+  });
+}
+
 /* ---------------- quem esta pedindo ---------------- */
 
 /* Login ja' conferido: hash do token -> { id (ou null se recusado), ate }.
@@ -509,6 +554,10 @@ async function atender(req, res) {
     }, cab);
   }
 
+  if (rota === "GET /visao/emojis") {
+    return responder(res, 200, { emojis: emojisParaVisao(c.application?.emojis?.cache?.values?.() || []) }, cab);
+  }
+
   if (rota === "GET /visao/servidores") {
     return responder(res, 200, { servidores: servidoresParaVisao(c.guilds.cache) }, cab);
   }
@@ -574,11 +623,17 @@ async function atender(req, res) {
     if (envio.erro) return responder(res, 400, { erro: envio.erro }, cab);
     const canal = await canalDeTexto(envio.canal);
     if (!canal) return responder(res, 404, { erro: "canal nao encontrado" }, cab);
+    /* O atalho :nome: vira o emoji da CYRON. Emoji ocupa mais letras que o
+       atalho: o limite do Discord é conferido DEPOIS da troca. */
+    const conteudo = trocarAtalhos(envio.texto, emojisParaVisao(c.application?.emojis?.cache?.values?.() || []));
+    if (conteudo.length > MAX_TEXTO) {
+      return responder(res, 400, { erro: `com os emojis, a mensagem passa de ${MAX_TEXTO} caracteres` }, cab);
+    }
     try {
       /* Mencao a pessoa toca sino, como o dono espera ao escrever @alguem.
          @everyone e cargo, nao: um toque errado no celular nao pode chamar um
          servidor inteiro. */
-      const enviada = await canal.send({ content: envio.texto, allowedMentions: { parse: ["users"] } });
+      const enviada = await canal.send({ content: conteudo, allowedMentions: { parse: ["users"] } });
       const onde = canal.guild ? `#${canal.name} (${canal.guild.name})` : `DM com ${canal.recipient?.username || canal.recipientId || "alguém"}`;
       console.log(`visao: o dono ${dono} falou como a CYRON em ${onde}`);
       return responder(res, 200, { mensagem: mensagemParaVisao(enviada) }, cab);
