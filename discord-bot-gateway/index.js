@@ -32,7 +32,7 @@ import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSupor
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
-  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso } from "./herois.js";
+  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS } from "./herois.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 
@@ -12465,9 +12465,22 @@ async function cartaoDoHeroi(h, idioma, guildId) {
 /* ---- 🐻 o Urso ---- */
 let emblemaDoUrso = null;
 
+/* Termos do jogo que o tradutor não pode tocar. "rally" já virou
+   "manifestação" em alemão (ver regraDosTermos), e nome de herói é nome:
+   "Rosa" não pode virar "Pink". Vai pelo mesmo caminho que protege os
+   termos de cada servidor. */
+const TERMOS_DO_JOGO_NA_TRADUCAO = ["rally", "joiner", "Bear Trap", "/evento", "Gen", ...HEROIS.map((h) => h.name)];
+
+async function textoDoJogo(texto, idioma, motor) {
+  if (!texto || !idioma || idioma === "pt") return texto;
+  const { marcado, pecas } = protegerDoTradutor(texto, TERMOS_DO_JOGO_NA_TRADUCAO);
+  const t = await comoTextoDoBot(() => traduzirComCache(marcado.trim(), idioma, motor)).catch(() => null);
+  return t ? devolverPecas(t, pecas) : texto;
+}
+
 async function cartaoDoUrso(idioma, guildId) {
   const motor = await motorDoGuild(guildId).catch(() => undefined);
-  const passar = (v) => (!idioma || idioma === "pt" ? v : traduzirPara(v, idioma, motor));
+  const passar = (v) => textoDoJogo(v, idioma, motor);
   const t = { dados: (await textosDaFicha(idioma, motor)).dados };
   for (const [k, v] of Object.entries(TEXTOS_DO_URSO)) t[k] = await passar(v);
   const grupos = heroisDoUrso();
@@ -12514,6 +12527,67 @@ function botaoDoUrso() {
   const e = EMOJIS_DA_CYRON.get("ks_urso");
   return { type: 1, components: [{ type: 2, custom_id: "herois:urso", style: 2, label: "Bear heroes",
     emoji: e ? { id: e.id, name: e.name, animated: !!e.animated } : { name: "🐻" } }] };
+}
+
+/* ---- a ficha do Urso no canal do Urso de um servidor (pedido do dono) ----
+
+   "Pode mandar no canal do bear aí, só cuida se ele vai traduzido sem
+   quebrar para os demais canais" (dono, 16/11, no TOP).
+
+   O bot não replica a própria mensagem -- o replicador só leva o que gente
+   e webhook escrevem --, e mesmo que levasse, a cópia sairia por webhook,
+   onde emoji do aplicativo é aposta. Então a ficha é MONTADA em cada sala,
+   na língua dela, e postada pelo próprio bot: o tradutor só vê as frases
+   (com os termos do jogo protegidos), nunca os emojis.
+
+   Uma vez só por servidor: a marca vai ANTES de postar, e com o banco fora
+   não posta (sem ler a marca, postaria de novo a cada reinício). */
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top" }];
+
+/* Pura. As salas da conversa do Urso: a fonte (em inglês: ali lê quem ainda
+   não escolheu língua) e as réplicas, cada uma na sua. Acha a conversa por
+   qualquer sala dela que tenha o nome procurado. */
+function salasDoUrso(nomeDoCanal, replicas, fontes, padrao) {
+  const casa = (id) => padrao.test(rotuloDoCanal(nomeDoCanal(id)));
+  const tipo = replicas.find((r) => casa(r.canal_id))?.tipo ?? [...fontes].find(([id]) => casa(id))?.[1];
+  if (!tipo) return [];
+  return [
+    ...[...fontes].filter(([, t]) => t === tipo).map(([id]) => ({ canal: id, idioma: "en" })),
+    ...replicas.filter((r) => r.tipo === tipo).map((r) => ({ canal: r.canal_id, idioma: r.idioma })),
+  ];
+}
+
+async function ursoNosCanais() {
+  if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  let feito = 0;
+  for (const alvo of URSO_NO_CANAL) {
+    if (a[alvo.marca]) continue;
+    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+      await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), alvo.canal);
+    if (!salas.length) {
+      console.log(`urso: não achei a sala do Urso em ${guild.name}`);
+      continue;
+    }
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|0/${salas.length}`);
+    let aqui = 0;
+    for (const sala of salas) {
+      const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
+      if (typeof canal?.send !== "function") continue;
+      const foi = await canal.send({ ...(await cartaoDoUrso(sala.idioma, guild.id)), allowedMentions: { parse: [] } })
+        .then(() => true)
+        .catch((e) => { console.error(`urso: não postei em #${canal.name}:`, e?.message || e); return false; });
+      if (foi) aqui++;
+    }
+    feito += aqui;
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|${aqui}/${salas.length}|${salas.map((x) => x.idioma).join(",")}`);
+    console.log(`urso: ficha postada em ${aqui} de ${salas.length} salas de ${guild.name}`);
+  }
+  return feito ? "postado" : "nada";
 }
 
 async function comandoHeroi(inter) {
@@ -27932,6 +28006,10 @@ client.once("clientReady", () => {
     .then((r) => { if (r === "sem-emoji" && resta) setTimeout(() => amostra(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("herois: amostra falhou:", e?.message || e));
   setTimeout(() => amostra(2), 3 * 60 * 1000);
+  const urso = (resta) => ursoNosCanais()
+    .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
+    .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));
+  setTimeout(() => urso(2), 4 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
