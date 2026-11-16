@@ -32,7 +32,7 @@ import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSupor
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
-  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi } from "./herois.js";
+  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo } from "./herois.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 
@@ -12491,10 +12491,28 @@ async function cartaoDoUrso(idioma, guildId) {
     const sharp = await carregarSharp();
     emblemaDoUrso = sharp && await sharp(Buffer.from(svgDoUrso())).png().toBuffer().catch(() => null);
   }
+  const pergaminho = EMOJIS_DA_CYRON.get("ks_pergaminho");
   return {
     embeds: [fichaDoUrso(grupos, { e: emojiKs, t, dicas, foto: emblemaDoUrso ? "attachment://urso.png" : null })],
     files: emblemaDoUrso ? [{ attachment: emblemaDoUrso, name: "urso.png" }] : [],
+    /* O botão do texto para o chat do jogo: quem tocar recebe, só para ele e
+       na língua dele, a lista pronta para colar no chat da aliança. */
+    components: [{ type: 1, components: [{ type: 2, custom_id: "urso:jogo", style: 2, label: String(t.botaoJogo).slice(0, 80),
+      emoji: pergaminho ? { id: pergaminho.id, name: pergaminho.name, animated: !!pergaminho.animated } : { name: "📋" } }] }],
   };
+}
+
+/* O texto para o chat do jogo, na língua de quem tocou. O texto vai SOZINHO
+   na mensagem (o "Copiar texto" do Discord copia só ela, sem o cartão), e o
+   como copiar vai no cartão embaixo. */
+async function cliqueUrsoJogo(inter) {
+  await inter.deferReply({ flags: 64 });
+  const idioma = await linguaDe(inter);
+  const motor = await motorDoGuild(inter.guildId).catch(() => undefined);
+  const t = {};
+  for (const [k, v] of Object.entries(TEXTOS_DO_URSO)) t[k] = await textoDoJogo(v, idioma, motor);
+  return inter.editReply({ content: textoParaOJogo(heroisDoUrso(), t).slice(0, 2000),
+    embeds: [{ color: 0xB8641E, description: `📋 ${t.comoCopiar}` }] });
 }
 
 async function comandoUrso(inter) {
@@ -12545,7 +12563,7 @@ function botaoDoUrso() {
    não posta (sem ler a marca, postaria de novo a cada reinício). */
 /* A marca tem versão: ficha nova (16/11, base conferida com a geração 7),
    versão nova -- e a mensagem que já está lá é ATUALIZADA, não repetida. */
-const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:3" }];
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:4" }];
 
 /* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
    e o cartão começa com o emoji do urso. */
@@ -25032,6 +25050,7 @@ client.on("interactionCreate", async (inter) => {
       return await cliqueEvento(inter);
     }
     if (inter.isButton() && inter.customId === "herois:urso") return await cliqueUrso(inter);
+    if (inter.isButton() && inter.customId === "urso:jogo") return await cliqueUrsoJogo(inter);
     /* "sa:" e nao "sup:": o "sup:ler:" e' do botao 🌐 do servidor de suporte. */
     if (inter.isMessageComponent() && inter.customId.startsWith("sa:")) {
       return await cliqueAcessoSuporte(inter);
