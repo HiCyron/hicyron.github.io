@@ -16127,8 +16127,9 @@ function conferirCartao(onde, embed, componentes = []) {
   const g = H.heroisDoUrso();
   ok("para liderar: nota boa no Urso e forte no rally", g.lideres.map((h) => h.name).join(","), "Yang,Vivian,Amadeus");
   ok("para entrar: forte no Urso e bom joiner, quem é grátis primeiro", g.entram.map((h) => h.name).join(","), "Chenko,Amane,Yeonwoo,Margot");
-  ok("também rendem: o resto com nota boa no Urso", g.tambem.map((h) => h.name).join(","), "Hilde,Alcar,Long Fei,Triton");
-  const todos = [...g.lideres, ...g.entram, ...g.tambem];
+  verdade("a lista 'também rendem' caiu na conferência (um guia: nunca mande o Long Fei)", !("tambem" in g) &&
+    ![...g.lideres, ...g.entram].some((h) => h.name === "Long Fei"));
+  const todos = [...g.lideres, ...g.entram];
   verdade("ninguém aparece duas vezes", new Set(todos.map((h) => h.name)).size === todos.length);
   verdade("herói de coleta fica de fora", !todos.some((h) => h.gathering));
   verdade("todo mundo da lista tem nota A ou melhor no Urso", todos.every((h) => ["S+", "S", "A"].includes(H.notaDaFuncao(h.bear))));
@@ -16137,18 +16138,29 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("entre iguais, o grátis vem antes", H.heroisDoUrso(falsos).entram.map((h) => h.name).join(","), "Y,Z");
 
   const dicas = H.dicasDoUrso(g);
-  verdade("dica: os joiners grátis, com os nomes calculados", dicas.some((d) => d.includes("Chenko, Amane e Yeonwoo") && /sem gastar/.test(d)));
-  verdade("dica: liderar sem gastar é o Yang, guardando fragmentos da Gen 5", dicas.some((d) => /Yang: guarde fragmentos dele a partir da Gen 5/.test(d)));
-  verdade("dica: Amane com arqueiros (está na descrição dela)", dicas.some((d) => /Amane/.test(d) && /arqueiros/.test(d)) && /archer/.test(H.acharHeroi("Amane").desc));
-  verdade("dica: a duração e a volta do Urso batem com a agenda (30 min, 48 h)", dicas.some((d) => /30 minutos e volta a cada 48 horas/.test(d)) &&
+  verdade("dica: no rally dos outros só conta a 1ª habilidade do 1º herói, com os joiners grátis calculados",
+    dicas.some((d) => /só conta a 1ª habilidade do 1º herói: coloque Chenko, Amane ou Yeonwoo na frente/.test(d)));
+  verdade("dica: misturar letalidade com ataque", dicas.some((d) => /letalidade \(Chenko, Yeonwoo\) com ataque \(Amane, Margot\)/.test(d)));
+  verdade("dica: o líder leva as 3 habilidades", dicas.some((d) => /as 3 habilidades valem para o rally inteiro/.test(d)));
+  verdade("dica: tropa com a maior parte arqueiros", dicas.some((d) => /maior parte arqueiros/.test(d)));
+  verdade("dica: 30 minutos, a cada 2 dias (bate com a agenda)", dicas.some((d) => /30 minutos e volta a cada 2 dias/.test(d)) &&
     URSO.duracao === 1800 && URSO.repetir + URSO.duracao / 60 === 48 * 60);
-  ok("sem joiner grátis na base, sem a dica dele", H.dicasDoUrso({ lideres: [], entram: [falsos[0]] }, []).some((d) => /entra no rally/.test(d)), false);
-  ok("o Yang só aparece na dica se estiver na lista", H.dicasDoUrso({ lideres: [], entram: [] }, []).some((d) => /Yang/.test(d)), false);
+  verdade("nenhuma dica diz que o Yang é grátis (as fontes brigam)", !dicas.some((d) => /Yang/.test(d)));
+  ok("sem joiner grátis na lista, sem a dica dele", H.dicasDoUrso({ lideres: [], entram: [falsos[0]] }, []).some((d) => /só conta a 1ª/.test(d)), false);
+  ok("sem os quatro na lista, sem a dica de misturar", H.dicasDoUrso({ lideres: [], entram: [falsos[1]] }, []).some((d) => /letalidade/.test(d)), false);
+  ok("Yang: grátis em disputa, sem a marca", H.ehF2P(H.acharHeroi("Yang")), false);
+  ok("Chenko: grátis confirmado", H.ehF2P(H.acharHeroi("Chenko")), true);
+  {
+    const fichaYang = H.fichaDoHeroi(H.acharHeroi("Yang"), { e: (n) => `<:${n}:1>`, t: { ...H.TEXTOS_DA_FICHA, melhor: "x", descricao: "y" } });
+    verdade("ficha do Yang não afirma nem grátis nem pago", !/sem gastar|investe|VIP/.test(fichaYang.description));
+    verdade("VIP diz que vem em pacote pago (Amadeus: pacotes de VIP)", /pacotes de VIP \(pago\)/.test(H.TEXTOS_DA_FICHA.vip));
+  }
 
   const t = { ...H.TEXTOS_DO_URSO, dados: "dados" };
   const ficha = H.fichaDoUrso(g, { e: (n) => `<a:${n}:1>`, t, dicas });
   verdade("a ficha do Urso abre com o emoji do urso", ficha.description.startsWith("<a:ks_urso:1> **Heróis para o Urso**"));
-  verdade("cada herói com nota, tropa, nome e geração", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1> <a:ks_bau:1>/.test(ficha.description));
+  verdade("cada herói com nota, tropa, nome e geração", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1>\n/.test(ficha.description));
+  verdade("o baú marca quem é grátis de verdade", /\*\*Chenko\*\* <a:ks_gen_1:1> <a:ks_bau:1>/.test(ficha.description));
   verdade("o VIP marcado", /\*\*Amadeus\*\* <a:ks_gen_1:1> VIP/.test(ficha.description));
   verdade("o último de cada grupo fecha o galho", /<a:ks_galho_fim:1><a:ks_nota_s:1> <a:ks_tropa_infantaria:1> \*\*Amadeus\*\*/.test(ficha.description));
   verdade("as dicas entram", ficha.description.includes(dicas[0]));
@@ -16209,6 +16221,69 @@ function conferirCartao(onde, embed, componentes = []) {
   await cliqueUrso({ guildId: "g", deferReply: async (o) => passos.push(["defer", o?.flags]), editReply: async (r) => passos.push(["fim", r]) });
   ok("o clique reconhece primeiro, só para quem clicou", JSON.stringify(passos[0]), JSON.stringify(["defer", 64]));
   ok("e a ficha vem na língua de quem clicou", passos.at(-1)[1].embeds[0].description, "urso-en");
+
+  /* a tradução não encosta nos termos do jogo */
+  {
+    let mandado = "";
+    Object.assign(globalThis, {
+      HEROIS: H.HEROIS,
+      traduzirComCache: async (txt) => { mandado = txt; return txt.replace(/rally/gi, "Kundgebung").replace(/Chenko/g, "Tschenko").replace(/\/evento/g, "/veranstaltung").replace(/coloque/g, "setze"); },
+    });
+    const { textoDoJogo } = carregar(["PEDACOS_INTOCAVEIS", "regraDosTermos", "protegerDoTradutor", "devolverPecas",
+      "TERMOS_DO_JOGO_NA_TRADUCAO", "textoDoJogo"]);
+    const saiu = await textoDoJogo("Para entrar no rally, coloque Chenko na frente. Crie o evento com /evento.", "de");
+    verdade("o tradutor não vê 'rally', nome de herói nem /evento", !/rally|Chenko|\/evento/.test(mandado));
+    verdade("e eles voltam intactos depois", /rally/.test(saiu) && /Chenko/.test(saiu) && /\/evento/.test(saiu) && /setze/.test(saiu));
+    ok("em português não chama o tradutor", await textoDoJogo("rally", "pt"), "rally");
+    verdade("a ficha do Urso traduz pelo caminho protegido", /const passar = \(v\) => textoDoJogo\(v, idioma, motor\)/.test(semComentarios(pedaco("cartaoDoUrso"))));
+  }
+
+  /* a ficha no canal do Urso: montada em cada sala, na língua dela */
+  {
+    const { salasDoUrso } = carregar(["rotuloDoCanal", "salasDoUrso"]);
+    const nomes = { f: "🐻hunting-trap🐼", en: "🐻hunting-trap🐼-en", pt: "🐻hunting-trap🐼-pt", x: "📅-schedule-en" };
+    const replicas = [{ canal_id: "en", idioma: "en", tipo: "urso" }, { canal_id: "pt", idioma: "pt", tipo: "urso" },
+      { canal_id: "x", idioma: "en", tipo: "agenda" }];
+    const fontes = new Map([["f", "urso"], ["fa", "agenda"]]);
+    ok("acha a conversa do Urso e todas as salas dela, cada uma na sua língua",
+      JSON.stringify(salasDoUrso((id) => nomes[id] || "", replicas, fontes, /hunting-trap/)),
+      JSON.stringify([{ canal: "f", idioma: "en" }, { canal: "en", idioma: "en" }, { canal: "pt", idioma: "pt" }]));
+    ok("sem sala com esse nome: nada", salasDoUrso(() => "geral", replicas, fontes, /hunting-trap/).length, 0);
+
+    const enviados = [];
+    let marcas = {};
+    const canal = (id) => ({ name: nomes[id], send: async (m) => { enviados.push([id, m.embeds[0].description]); } });
+    const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot",
+      channels: { cache: { get: (id) => (nomes[id] ? canal(id) : null) } } };
+    const antes = { client: globalThis.client };
+    Object.assign(globalThis, {
+      SUBIDA_DOS_EMOJIS: { pronta: true },
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { enviados.push(["marca", k]); marcas = { ...marcas, [k]: v }; },
+      client: { guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-top" }),
+      replicasDoIdioma: async () => replicas, fontesReplica: async () => fontes,
+      cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
+    });
+    try {
+      const { ursoNosCanais } = carregar(["URSO_NO_CANAL", "ursoNosCanais"]);
+      ok("posta", await ursoNosCanais(), "postado");
+      ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 4)),
+        JSON.stringify([["marca", "urso_no_canal:top"], ["f", "urso-en"], ["en", "urso-en"], ["pt", "urso-pt"]]));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top"]));
+      enviados.length = 0;
+      ok("já postado: não posta de novo", await ursoNosCanais(), "nada");
+      ok("e não mexe em nada", enviados.length, 0);
+      marcas = Object.defineProperty({}, "falhou", { value: true });
+      ok("banco fora: não posta no escuro", await ursoNosCanais(), "sem-banco");
+      globalThis.SUBIDA_DOS_EMOJIS = { pronta: false };
+      ok("emojis ainda subindo: espera", await ursoNosCanais(), "sem-emoji");
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    verdade("só o TOP, só a sala do Urso", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, canal: \/hunting-trap\//.test(pedaco("URSO_NO_CANAL")));
+    verdade("o envio para os canais está agendado ao subir", /setTimeout\(\(\) => urso\(2\), 4 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
 
   const amostra = semComentarios(pedaco("amostraDosHerois"));
   verdade("amostra 3: a ficha do Urso e o aviso com o botão", /cartaoDoUrso\("pt", gid\)/.test(amostra) &&
