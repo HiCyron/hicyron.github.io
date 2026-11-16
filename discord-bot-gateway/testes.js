@@ -13560,9 +13560,10 @@ function conferirCartao(onde, embed, componentes = []) {
     globalThis.PASTA_DOS_ROSTOS = `${pasta}rostos/`;
     /* Os emojis da ficha de herói têm bateria própria (lá embaixo); aqui a
        pasta deles não existe, e a conta continua sendo figurinhas + rostos. */
-    Object.assign(globalThis, { readFileSync, readdirSync, PASTA_DO_KINGSHOT: `${pasta}nao-existe/` });
+    Object.assign(globalThis, { readFileSync, readdirSync, createHash, PASTA_DO_KINGSHOT: `${pasta}nao-existe/` });
     const nomesE = ["jaTentado", "umaVezPorProcesso", "EMOJIS_DA_CYRON", "ROSTOS_DA_CYRON", "emojiPequeno", "emojiDaCyron",
-      "carinha", "fotoDaCyron", "anexoDaFigurinha", "emojisDoKingshot", "garantirEmojisDaCyron"];
+      "carinha", "fotoDaCyron", "anexoDaFigurinha", "emojisDoKingshot", "ehVersaoVelha", "trocarEmojisDoKingshot",
+      "SUBIDA_DOS_EMOJIS", "garantirEmojisDaCyron"];
     const E = carregar(nomesE);
     ok("antes de subir, a reserva", E.emojiDaCyron("gg", "🏆"), "🏆");
     ok("cartão sem os emojis: sai como antes, sem foto", E.fotoDaCyron("amei"), {});
@@ -16021,16 +16022,50 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("retrato com foto: a foto vai recortada no hexágono", /clip-path="url\(#miolo\)"/.test(H.svgDoRetrato({ name: "A", rarity: "rare" }, "QUJD")));
 
   /* os emojis: subir com o tipo certo, e marcar os animados com "a:" */
-  Object.assign(globalThis, { readFileSync, readdirSync, PASTA_DO_KINGSHOT: `${aqui}/img/kingshot/` });
-  const K = carregar(["emojiKs", "emojisDoKingshot"]);
-  const arquivos = K.emojisDoKingshot("/p/", () => Buffer.from("GIF89a"), () => ["ks_brilho.gif", "ks_gen_1.png", "outro.png", "ks_x.txt"]);
-  ok("só os ks_ de imagem sobem", arquivos.map(([n]) => n).join(","), "ks_brilho,ks_gen_1");
-  verdade("GIF sobe como GIF (o discord.js chamaria de JPG)", arquivos[0][1]().startsWith("data:image/gif;base64,"));
-  verdade("PNG sobe como PNG", arquivos[1][1]().startsWith("data:image/png;base64,"));
+  Object.assign(globalThis, { readFileSync, readdirSync, createHash, PASTA_DO_KINGSHOT: `${aqui}/img/kingshot/`,
+    SUBIDA_DOS_EMOJIS: { pronta: false } });
+  const K = carregar(["emojiKs", "emojisDoKingshot", "ehVersaoVelha", "trocarEmojisDoKingshot"]);
+  const conteudo = { "/p/ks_brilho.gif": "GIF89a-v2", "/p/ks_gen_1.png": "PNG-v1" };
+  const arquivos = K.emojisDoKingshot("/p/", (c) => Buffer.from(conteudo[c] || "x"), () => ["ks_brilho.gif", "ks_gen_1.png", "outro.png", "ks_x.txt"]);
+  ok("só os ks_ de imagem sobem", arquivos.map((a) => a.base).join(","), "ks_brilho,ks_gen_1");
+  verdade("o nome publicado leva a marca do desenho", /^ks_brilho_[0-9a-f]{6}$/.test(arquivos[0].nome));
+  verdade("e cabe no limite de 32 letras do Discord", K.emojisDoKingshot(`${aqui}/img/kingshot/`).every((a) => a.nome.length <= 32 && /^[a-z0-9_]+$/.test(a.nome)));
+  conteudo["/p/ks_brilho.gif"] = "GIF89a-v3";
+  verdade("redesenhou: a marca muda", K.emojisDoKingshot("/p/", (c) => Buffer.from(conteudo[c] || "x"), () => ["ks_brilho.gif"])[0].nome !== arquivos[0].nome);
+  verdade("GIF sobe como GIF (o discord.js chamaria de JPG)", arquivos[0].imagem().startsWith("data:image/gif;base64,"));
+  verdade("PNG sobe como PNG", arquivos[1].imagem().startsWith("data:image/png;base64,"));
   ok("pasta faltando: nada sobe, e não estoura", K.emojisDoKingshot("/nao/", undefined, () => { throw new Error("ENOENT"); }).length, 0);
   verdade("os 32 emojis da ficha estão no repositório", K.emojisDoKingshot(`${aqui}/img/kingshot/`).length === 32);
+  verdade("versão 2: todos se mexem (o dono achou os parados simples)", K.emojisDoKingshot(`${aqui}/img/kingshot/`).every((a) => a.imagem().startsWith("data:image/gif")));
+  const galho = { base: "ks_galho", nome: "ks_galho_abc123" };
+  verdade("versão velha: o nome sem marca (a primeira leva)", K.ehVersaoVelha("ks_galho", galho));
+  verdade("versão velha: outra marca", K.ehVersaoVelha("ks_galho_0f0f0f", galho));
+  verdade("a de agora não é velha", !K.ehVersaoVelha("ks_galho_abc123", galho));
+  verdade("ks_galho_fim não é versão de ks_galho", !K.ehVersaoVelha("ks_galho_fim", galho) && !K.ehVersaoVelha("ks_galho_fim_abc123", galho));
+  verdade("emoji de outra coisa não é tocado", !K.ehVersaoVelha("gg", galho) && !K.ehVersaoVelha("rosto_feliz", galho));
+  {
+    const feito = [];
+    globalThis.client = { application: { emojis: {
+      create: async ({ name }) => { feito.push(["sobe", name]); return { id: `novo-${name}`, name, animated: true }; },
+      delete: async (id) => { feito.push(["apaga", id]); },
+    } } };
+    const publicados = new Map([["1", { id: "1", name: "ks_galho" }], ["2", { id: "2", name: "ks_galho_fim_abc123" }],
+      ["3", { id: "3", name: "ks_galho_fim" }], ["4", { id: "4", name: "gg" }]]);
+    const locais = [{ base: "ks_galho", nome: "ks_galho_999999", imagem: () => "data:image/gif;base64,AA" },
+      { base: "ks_galho_fim", nome: "ks_galho_fim_abc123", imagem: () => "data:image/gif;base64,AA" }];
+    ok("troca: só sobe o que mudou", await K.trocarEmojisDoKingshot(publicados, locais), 1);
+    ok("troca: sobe o novo ANTES de apagar o velho, e só o velho daquele desenho",
+      JSON.stringify(feito), JSON.stringify([["sobe", "ks_galho_999999"], ["apaga", "1"], ["apaga", "3"]]));
+    ok("a ficha passa a usar o novo pelo nome de sempre", K.emojiKs("ks_galho"), "<a:ks_galho_999999:novo-ks_galho_999999>");
+    ok("o que não mudou fica o mesmo", EMOJIS_DA_CYRON.get("ks_galho_fim").id, "2");
+    feito.length = 0;
+    globalThis.client.application.emojis.delete = async () => { throw new Error("404"); };
+    ok("apagar falhou: não derruba a subida", await K.trocarEmojisDoKingshot(new Map([["5", { id: "5", name: "ks_galho_0f0f0f" }]]), locais), 2);
+    EMOJIS_DA_CYRON.delete("ks_galho");
+    EMOJIS_DA_CYRON.delete("ks_galho_fim");
+  }
   verdade("todo emoji que a ficha usa existe na pasta", (() => {
-    const tem = new Set(K.emojisDoKingshot(`${aqui}/img/kingshot/`).map(([n]) => n));
+    const tem = new Set(K.emojisDoKingshot(`${aqui}/img/kingshot/`).map((a) => a.base));
     const usados = new Set();
     for (const h of H.HEROIS) H.fichaDoHeroi(h, { e: (n) => { usados.add(n); return ""; }, t: { ...t, melhor: "", descricao: "" } });
     return [...usados].every((n) => tem.has(n));
@@ -16066,14 +16101,16 @@ function conferirCartao(onde, embed, componentes = []) {
   const idx = semComentarios(fonte);
   const amostra = semComentarios(pedaco("amostraDosHerois"));
   verdade("amostra: a marca vem antes de postar", amostra.indexOf('porAjuste("heroi_amostra"') < amostra.indexOf("canal.send"));
-  verdade("amostra: já feita, não posta de novo", /if \(\(await ajustes\(\)\)\.heroi_amostra\) return "feito"/.test(amostra));
-  verdade("amostra: sem os emojis, espera (a ficha sairia sem graça)", /EMOJIS_DA_CYRON\.has\("ks_brilho"\)/.test(amostra));
+  verdade("amostra: já feita nesta versão, não posta de novo", /\.heroi_amostra === AMOSTRA_VERSAO\) return "feito"/.test(amostra));
+  verdade("amostra: marca com a versão (desenho novo posta uma vez de novo)", /porAjuste\("heroi_amostra", AMOSTRA_VERSAO\)/.test(amostra));
+  verdade("amostra: espera a subida terminar (antes, sairia com os emojis velhos)", /if \(!SUBIDA_DOS_EMOJIS\.pronta\) return "sem-emoji"/.test(amostra));
   verdade("o /heroi não está entre os comandos de todo mundo", !/name: "heroi"/.test(pedaco("COMANDOS_DE_TODOS")) &&
     !/"heroi"/.test(pedaco("COMANDOS_DE_TODOS")));
   verdade("o /heroi nasce só no servidor do painel", /guild\.commands\.create\(DEF_HEROI\)/.test(semComentarios(pedaco("arrumarOndeMoraOAdmin"))));
   verdade("o comando e o autocompletar estão ligados", /nome === "heroi"\) return comandoHeroi\(inter\)/.test(idx) &&
     /commandName === "heroi"\) \{\s*return inter\.respond\(sugestoesDeHeroi/.test(idx));
-  verdade("os emojis ks_ sobem junto com os da CYRON", /\.\.\.emojisDoKingshot\(\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+  verdade("os emojis ks_ sobem junto com os da CYRON", /novos \+= await trocarEmojisDoKingshot\(publicados\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+  verdade("a subida avisa quando terminou", /trocarEmojisDoKingshot\(publicados\);\s*SUBIDA_DOS_EMOJIS\.pronta = true/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
   verdade("a subida guarda se o emoji é animado", /animated: !!e\.animated/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
 }
 
