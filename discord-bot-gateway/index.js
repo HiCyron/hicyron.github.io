@@ -31,7 +31,8 @@ import { ligarAlianca, COMANDOS_DA_ALIANCA, comandoDaAlianca, boasVindasDaAlianc
 import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSuporte, PREFIXO_LER,
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
-import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi } from "./herois.js";
+import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
+  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso } from "./herois.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 
@@ -9045,7 +9046,8 @@ async function pintarSala(canal, eventos, cargaDe, aoPostar = null, agora = Date
 /* O aviso de inicio, na lingua da sala. */
 /* `antes`: minutos que faltam. Com ele, e' o aviso de "comeca em 15 min" --
    mesma mensagem, mesmas marcacoes, outra cor e outra frase. */
-function avisoDeInicio(ev, aviso, P = PALAVRAS_DO_CARTAO, titulo = ev.titulo, antes = 0) {
+/* `urso`: o aviso do Urso ganha o botão 🐻 com os melhores heróis. */
+function avisoDeInicio(ev, aviso, P = PALAVRAS_DO_CARTAO, titulo = ev.titulo, antes = 0, urso = false) {
   return {
     content: aviso.content,
     embeds: [{ color: antes ? COR_PERTO : COR_COMECOU,
@@ -9053,6 +9055,7 @@ function avisoDeInicio(ev, aviso, P = PALAVRAS_DO_CARTAO, titulo = ev.titulo, an
       description: antes ? `**${P.comecaEm} ${antes} min**` : `**${P.comecou}**` + (Number(ev.duracao_seg) > 0
         ? ` · ${P.fechaAs} <t:${Math.floor(new Date(ev.quando).getTime() / 1000 + Number(ev.duracao_seg))}:t>` : ""),
       ...(ev.gif_url ? { thumbnail: { url: String(ev.gif_url) } } : {}) }],
+    ...(urso ? { components: [botaoDoUrso()] } : {}),
     allowedMentions: aviso.allowedMentions,
   };
 }
@@ -9220,6 +9223,7 @@ async function desenharNasCopias(guild, servidor, eventos, aviso = null, agora =
   const motor = motorDe(servidor);
   const presencas = new Map();
   for (const ev of eventos) presencas.set(String(ev.id), await presencasComNomes(ev.id, guild));
+  const urso = !!aviso && ehEventoDoUrso(aviso.ev) && await heroisNoUrso(guild.id).catch(() => false);
 
   for (const { canal, idioma } of salas) {
     try {
@@ -9229,7 +9233,7 @@ async function desenharNasCopias(guild, servidor, eventos, aviso = null, agora =
         const P = await palavrasNaLingua(idioma, motor);
         const titulo = await traduzirPara(nomeLimpo(aviso.ev.titulo), idioma, motor);
         if (!aviso.antes) await apagarAvisosDeAntes(canal);
-        await canal.send(avisoDeInicio(aviso.ev, aviso.aviso, P, titulo, aviso.antes || 0)).catch((e) =>
+        await canal.send(avisoDeInicio(aviso.ev, aviso.aviso, P, titulo, aviso.antes || 0, urso)).catch((e) =>
           console.error(`eventos: nao consegui avisar em ${idioma}:`, e?.message || e));
       }
     } catch (e) {
@@ -10402,7 +10406,8 @@ async function avisarAntes(guild, ev, inscritos, minutos, agora = Date.now()) {
   const canal = canalDaAgenda(guild);
   if (!servidor || !canal) return;
   const aviso = mencoesDoAviso(ev, inscritos);
-  await canal.send(avisoDeInicio(ev, aviso, PALAVRAS_DO_CARTAO, ev.titulo, minutos)).catch((e) =>
+  const urso = ehEventoDoUrso(ev) && await heroisNoUrso(guild.id).catch(() => false);
+  await canal.send(avisoDeInicio(ev, aviso, PALAVRAS_DO_CARTAO, ev.titulo, minutos, urso)).catch((e) =>
     console.error("eventos: nao consegui avisar antes:", e?.message || e));
   await desenharNasCopias(guild, servidor, await eventosDoServidor(servidor.id), { ev, aviso, antes: minutos }, agora)
     .catch((e) => console.error("eventos: o aviso de antes nas salas falhou:", e?.message || e));
@@ -10431,7 +10436,8 @@ async function avisarNaHora(guild, servidor, ev, inscritos, marcar, agora = Date
      propria, embaixo de tudo. */
   if (marcar) {
     await apagarAvisosDeAntes(canal);
-    await canal.send(avisoDeInicio(ev, aviso)).catch((e) =>
+    const urso = ehEventoDoUrso(ev) && await heroisNoUrso(guild.id).catch(() => false);
+    await canal.send(avisoDeInicio(ev, aviso, PALAVRAS_DO_CARTAO, ev.titulo, 0, urso)).catch((e) =>
       console.error("eventos: nao consegui avisar na hora:", e?.message || e));
   }
   await desenharEventos(guild, servidor).catch(() => {});
@@ -12380,14 +12386,15 @@ const DEF_HEROI = {
   description: "Ficha de um herói do Kingshot (teste)",
   options: [{ type: 3, name: "nome", description: "Nome do herói", required: true, autocomplete: true }],
 };
+const DEF_URSO = { name: "urso", description: "Heróis e dicas para o Urso do Kingshot (teste)" };
 const CANAL_DE_TESTES = "🧪-testes";
-const AMOSTRA_DOS_HEROIS = ["Jabel", "Chenko", "Marlin"];
-/* Versão da amostra: desenho novo, versão nova, e o painel recebe as fichas
-   de novo -- uma vez por versão. */
-const AMOSTRA_VERSAO = "2";
-const AMOSTRA_TEXTO = "🧪 **Teste: ficha de herói do Kingshot** (versão 2)\n" +
-  "Agora todos os emojis da ficha se mexem e têm aro de metal: geração, notas, funções, baú, pergaminho e os galhos da árvore.\n" +
-  "Só aqui no painel. Digite `/heroi` e escolha o herói na lista. Três exemplos:";
+/* Versão da amostra: novidade nova, versão nova, e o painel recebe o
+   exemplo -- uma vez por versão. A 3 é o Urso. */
+const AMOSTRA_VERSAO = "3";
+const AMOSTRA_TEXTO = "🧪 **Teste: 🐻 Urso + dicas de heróis**\n" +
+  "Digite `/urso` aqui no painel para ver a ficha. Nos servidores, o aviso de \"o Urso começa em X min\" ganha o botão " +
+  "**Bear heroes**, que abre esta ficha na língua de quem clicou (só para ele).\n" +
+  "Embaixo: a ficha e como fica o aviso.";
 /* Os emojis terminaram de subir nesta partida? A amostra espera por isso:
    antes, a ficha sairia com os emojis da versão velha. */
 const SUBIDA_DOS_EMOJIS = { pronta: false };
@@ -12426,9 +12433,19 @@ async function retratoDoKingshot(h) {
         .resize(256, 256, { fit: "cover" }).png().toBuffer()).toString("base64");
     }
   } catch { respondeu = false; }
-  const png = await sharp(Buffer.from(svgDoRetrato(h, foto))).png().toBuffer().catch(() => null);
+  const letra = foto ? "" : await letraEmDesenho(h.name).catch(() => "");
+  const png = await sharp(Buffer.from(svgDoRetrato(h, foto, 256, letra))).png().toBuffer().catch(() => null);
   if (png && respondeu) retratosDosHerois.set(chave, png);
   return png;
+}
+
+/* A inicial de quem ainda não tem foto, como CONTORNO de letra (opentype),
+   centrada no hexágono. Nunca <text>: ver "A LETRA VIRA DESENHO". */
+async function letraEmDesenho(nome, tamanho = 112) {
+  const fonte = await fonteDoDesenho(FONTE_DA_IMAGEM);
+  const letra = String(nome || "?").trim().charAt(0).toUpperCase() || "?";
+  const caixa = fonte.getPath(letra, 0, 0, tamanho).getBoundingBox();
+  return fonte.getPath(letra, 128 - (caixa.x1 + caixa.x2) / 2, 128 - (caixa.y1 + caixa.y2) / 2, tamanho).toPathData(2);
 }
 
 async function cartaoDoHeroi(h, idioma, guildId) {
@@ -12443,6 +12460,60 @@ async function cartaoDoHeroi(h, idioma, guildId) {
     embeds: [fichaDoHeroi(h, { e: emojiKs, t, foto: png ? "attachment://heroi.png" : null })],
     files: png ? [{ attachment: png, name: "heroi.png" }] : [],
   };
+}
+
+/* ---- 🐻 o Urso ---- */
+let emblemaDoUrso = null;
+
+async function cartaoDoUrso(idioma, guildId) {
+  const motor = await motorDoGuild(guildId).catch(() => undefined);
+  const passar = (v) => (!idioma || idioma === "pt" ? v : traduzirPara(v, idioma, motor));
+  const t = { dados: (await textosDaFicha(idioma, motor)).dados };
+  for (const [k, v] of Object.entries(TEXTOS_DO_URSO)) t[k] = await passar(v);
+  const grupos = heroisDoUrso();
+  const dicas = [];
+  for (const d of dicasDoUrso(grupos)) dicas.push(await passar(d));
+  if (!emblemaDoUrso) {
+    const sharp = await carregarSharp();
+    emblemaDoUrso = sharp && await sharp(Buffer.from(svgDoUrso())).png().toBuffer().catch(() => null);
+  }
+  return {
+    embeds: [fichaDoUrso(grupos, { e: emojiKs, t, dicas, foto: emblemaDoUrso ? "attachment://urso.png" : null })],
+    files: emblemaDoUrso ? [{ attachment: emblemaDoUrso, name: "urso.png" }] : [],
+  };
+}
+
+async function comandoUrso(inter) {
+  await inter.deferReply();
+  return inter.editReply(await cartaoDoUrso(await linguaDe(inter), inter.guildId));
+}
+
+/* O botão 🐻 do aviso: a ficha só para quem clicou, na língua dele. */
+async function cliqueUrso(inter) {
+  await inter.deferReply({ flags: 64 });
+  return inter.editReply(await cartaoDoUrso(await linguaDe(inter), inter.guildId));
+}
+
+/* O aviso é do Urso? O que foi criado pela opção 🐻 da lista (30 min, volta
+   em 48h) ou que tem "urso"/"bear" no nome. */
+function ehEventoDoUrso(ev) {
+  return (Number(ev?.repetir_min) === URSO.repetir && Number(ev?.duracao_seg) === URSO.duracao) ||
+    /\b(urso|bear)\b/i.test(String(ev?.titulo || ""));
+}
+
+/* Onde o botão aparece. Em teste: só no painel. Liberar para todos é trocar
+   esta linha. */
+async function heroisNoUrso(guildId) {
+  return ehOPainel(guildId);
+}
+
+/* O rótulo fica em inglês como os outros botões do aviso ("Subscribe", "My
+   language"): o mesmo botão vai para a sala de cada língua. A ficha que ele
+   abre é que sai na língua de quem clicou. */
+function botaoDoUrso() {
+  const e = EMOJIS_DA_CYRON.get("ks_urso");
+  return { type: 1, components: [{ type: 2, custom_id: "herois:urso", style: 2, label: "Bear heroes",
+    emoji: e ? { id: e.id, name: e.name, animated: !!e.animated } : { name: "🐻" } }] };
 }
 
 async function comandoHeroi(inter) {
@@ -12472,10 +12543,10 @@ async function amostraDosHerois() {
   if (!canal) return "sem-canal";
   await porAjuste("heroi_amostra", AMOSTRA_VERSAO);
   await canal.send({ content: AMOSTRA_TEXTO, allowedMentions: { parse: [] } });
-  for (const nome of AMOSTRA_DOS_HEROIS) {
-    const h = acharHeroi(nome);
-    if (h) await canal.send({ ...(await cartaoDoHeroi(h, "pt", gid)), allowedMentions: { parse: [] } });
-  }
+  await canal.send({ ...(await cartaoDoUrso("pt", gid)), allowedMentions: { parse: [] } });
+  const exemplo = { titulo: "🐻 Urso", quando: new Date(Date.now() + 15 * 60000).toISOString(),
+    duracao_seg: URSO.duracao, repetir_min: URSO.repetir };
+  await canal.send(avisoDeInicio(exemplo, { allowedMentions: { parse: [] } }, PALAVRAS_DO_CARTAO, exemplo.titulo, 15, true));
   console.log(`herois: amostra postada em #${CANAL_DE_TESTES}`);
   return "postado";
 }
@@ -24707,6 +24778,7 @@ async function comandoDeInteracao(inter) {
   if (nome === "help") return comandoAjuda(inter);
   if (nome === "figurinha") return comandoFigurinha(inter);
   if (nome === "heroi") return comandoHeroi(inter);
+  if (nome === "urso") return comandoUrso(inter);
   if (nome === "admin") return comandoAdmin(inter);
   if (nome === "arena") return inter.reply({ flags: 64, content: ARENA_ENCERRADA });
   if (nome === "hora") return comandoHora(inter);
@@ -24869,6 +24941,7 @@ client.on("interactionCreate", async (inter) => {
     if (inter.isMessageComponent() && inter.customId.startsWith("evento:")) {
       return await cliqueEvento(inter);
     }
+    if (inter.isButton() && inter.customId === "herois:urso") return await cliqueUrso(inter);
     /* "sa:" e nao "sup:": o "sup:ler:" e' do botao 🌐 do servidor de suporte. */
     if (inter.isMessageComponent() && inter.customId.startsWith("sa:")) {
       return await cliqueAcessoSuporte(inter);
@@ -26988,10 +27061,11 @@ async function arrumarOndeMoraOAdmin() {
       await guild.commands.create(def);
       console.log(`comandos: /admin agora é só de ${guild.name}`);
     }
-    /* O /heroi em teste: só aqui, até o dono aprovar a ficha. */
-    if (![...doGuild.values()].some((c) => c.name === DEF_HEROI.name)) {
-      await guild.commands.create(DEF_HEROI);
-      console.log(`comandos: /heroi (teste) em ${guild.name}`);
+    /* O /heroi e o /urso em teste: só aqui, até o dono aprovar. */
+    for (const def of [DEF_HEROI, DEF_URSO]) {
+      if ([...doGuild.values()].some((c) => c.name === def.name)) continue;
+      await guild.commands.create(def);
+      console.log(`comandos: /${def.name} (teste) em ${guild.name}`);
     }
     /* Tira do global DEPOIS de existir no servidor. Na ordem inversa, o dono
        ficaria alguns minutos sem nenhum /admin em lugar nenhum. */

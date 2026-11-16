@@ -181,6 +181,9 @@ Object.assign(globalThis, carregar(["rastroPendente", "RASTRO_MAX", "rastrear"])
    usa (o duelo, o herói pego, a inscrição, as carinhas dos botões) sai com a
    reserva de sempre. */
 Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiPequeno", "emojiDaCyron", "carinha", "fotoDaCyron"]));
+/* O botão 🐻 dos avisos do Urso: todo aviso de evento pergunta se é do Urso
+   (e, em teste, se é o painel). Fica no escopo de todos, como os emojis. */
+Object.assign(globalThis, carregar(["URSO", "ehEventoDoUrso", "heroisNoUrso", "botaoDoUrso"]));
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -5915,7 +5918,7 @@ function conferirCartao(onde, embed, componentes = []) {
 
   const aviso = f.slice(f.indexOf("async function avisarNaHora"), f.indexOf("async function rodarAgendaDeEventos"));
   verdade("na hora sai um aviso NOVO marcando (editar não faz o celular apitar)",
-    /if \(marcar\) \{\s*await apagarAvisosDeAntes\(canal\);\s*await canal\.send\(avisoDeInicio\(ev, aviso\)\)/.test(aviso));
+    /if \(marcar\) \{\s*await apagarAvisosDeAntes\(canal\);\s*(?:const urso = [^\n]+\n\s*)?await canal\.send\(avisoDeInicio\(ev, aviso[,)]/.test(aviso));
   verdade("repetir renova o prazo da privacidade do evento e das inscrições",
     /criado_em: hoje[^]{0,200}cyron_evento_presenca\?evento_id=eq\.\$\{ev\.id\}`, \{ criado_em: hoje \}/.test(aviso));
 
@@ -16106,12 +16109,111 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("amostra: espera a subida terminar (antes, sairia com os emojis velhos)", /if \(!SUBIDA_DOS_EMOJIS\.pronta\) return "sem-emoji"/.test(amostra));
   verdade("o /heroi não está entre os comandos de todo mundo", !/name: "heroi"/.test(pedaco("COMANDOS_DE_TODOS")) &&
     !/"heroi"/.test(pedaco("COMANDOS_DE_TODOS")));
-  verdade("o /heroi nasce só no servidor do painel", /guild\.commands\.create\(DEF_HEROI\)/.test(semComentarios(pedaco("arrumarOndeMoraOAdmin"))));
+  verdade("o /heroi e o /urso nascem só no servidor do painel", /for \(const def of \[DEF_HEROI, DEF_URSO\]\)[^]{0,200}guild\.commands\.create\(def\)/.test(semComentarios(pedaco("arrumarOndeMoraOAdmin"))));
   verdade("o comando e o autocompletar estão ligados", /nome === "heroi"\) return comandoHeroi\(inter\)/.test(idx) &&
     /commandName === "heroi"\) \{\s*return inter\.respond\(sugestoesDeHeroi/.test(idx));
   verdade("os emojis ks_ sobem junto com os da CYRON", /novos \+= await trocarEmojisDoKingshot\(publicados\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
   verdade("a subida avisa quando terminou", /trocarEmojisDoKingshot\(publicados\);\s*SUBIDA_DOS_EMOJIS\.pronta = true/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
   verdade("a subida guarda se o emoji é animado", /animated: !!e\.animated/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+}
+
+/* ====== 🐻 O URSO: OS MELHORES HERÓIS E AS DICAS (16/11, teste no painel) ======
+
+   "Podemos começar com o urso e dicas de heróis": /urso mostra quem lidera,
+   quem entra no rally e o que mais rende, com dicas tiradas da base. O aviso
+   de "o Urso começa em X min" ganha o botão 🐻 (em teste, só no painel). */
+{
+  const H = await import("./herois.js");
+  const g = H.heroisDoUrso();
+  ok("para liderar: nota boa no Urso e forte no rally", g.lideres.map((h) => h.name).join(","), "Yang,Vivian,Amadeus");
+  ok("para entrar: forte no Urso e bom joiner, quem é grátis primeiro", g.entram.map((h) => h.name).join(","), "Chenko,Amane,Yeonwoo,Margot");
+  ok("também rendem: o resto com nota boa no Urso", g.tambem.map((h) => h.name).join(","), "Hilde,Alcar,Long Fei,Triton");
+  const todos = [...g.lideres, ...g.entram, ...g.tambem];
+  verdade("ninguém aparece duas vezes", new Set(todos.map((h) => h.name)).size === todos.length);
+  verdade("herói de coleta fica de fora", !todos.some((h) => h.gathering));
+  verdade("todo mundo da lista tem nota A ou melhor no Urso", todos.every((h) => ["S+", "S", "A"].includes(H.notaDaFuncao(h.bear))));
+  const falsos = [{ name: "Z", gen: 1, troop: "archer", rarity: "epic", bear: "S", joiner: "S", rally: "-", f2p: false },
+    { name: "Y", gen: 1, troop: "archer", rarity: "epic", bear: "S", joiner: "S", rally: "-", f2p: true }];
+  ok("entre iguais, o grátis vem antes", H.heroisDoUrso(falsos).entram.map((h) => h.name).join(","), "Y,Z");
+
+  const dicas = H.dicasDoUrso(g);
+  verdade("dica: os joiners grátis, com os nomes calculados", dicas.some((d) => d.includes("Chenko, Amane e Yeonwoo") && /sem gastar/.test(d)));
+  verdade("dica: liderar sem gastar é o Yang, guardando fragmentos da Gen 5", dicas.some((d) => /Yang: guarde fragmentos dele a partir da Gen 5/.test(d)));
+  verdade("dica: Amane com arqueiros (está na descrição dela)", dicas.some((d) => /Amane/.test(d) && /arqueiros/.test(d)) && /archer/.test(H.acharHeroi("Amane").desc));
+  verdade("dica: a duração e a volta do Urso batem com a agenda (30 min, 48 h)", dicas.some((d) => /30 minutos e volta a cada 48 horas/.test(d)) &&
+    URSO.duracao === 1800 && URSO.repetir + URSO.duracao / 60 === 48 * 60);
+  ok("sem joiner grátis na base, sem a dica dele", H.dicasDoUrso({ lideres: [], entram: [falsos[0]] }, []).some((d) => /entra no rally/.test(d)), false);
+  ok("o Yang só aparece na dica se estiver na lista", H.dicasDoUrso({ lideres: [], entram: [] }, []).some((d) => /Yang/.test(d)), false);
+
+  const t = { ...H.TEXTOS_DO_URSO, dados: "dados" };
+  const ficha = H.fichaDoUrso(g, { e: (n) => `<a:${n}:1>`, t, dicas });
+  verdade("a ficha do Urso abre com o emoji do urso", ficha.description.startsWith("<a:ks_urso:1> **Heróis para o Urso**"));
+  verdade("cada herói com nota, tropa, nome e geração", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1> <a:ks_bau:1>/.test(ficha.description));
+  verdade("o VIP marcado", /\*\*Amadeus\*\* <a:ks_gen_1:1> VIP/.test(ficha.description));
+  verdade("o último de cada grupo fecha o galho", /<a:ks_galho_fim:1><a:ks_nota_s:1> <a:ks_tropa_infantaria:1> \*\*Amadeus\*\*/.test(ficha.description));
+  verdade("as dicas entram", ficha.description.includes(dicas[0]));
+  verdade("nenhum emoji padrão do Discord quando os da CYRON estão lá", !/[🐻🏅🎁📜🔥🛡️🏹🐎]/u.test(ficha.description));
+  verdade("cabe no limite do Discord", ficha.description.length < 4000);
+  verdade("rodapé com a fonte (CC-BY)", /kingshotpro\.com/.test(ficha.footer.text));
+  ok("emblema no canto", ficha.thumbnail?.url, "attachment://urso.png");
+  const semEmoji = H.fichaDoUrso(g, { e: (n, r) => r, t, dicas, foto: null });
+  verdade("emojis ainda não subiram: sai com a reserva, sem marcação quebrada", !/<a?:|undefined/.test(semEmoji.description) && !("thumbnail" in semEmoji));
+
+  /* nenhum texto passa pelo motor de texto do sistema (já derrubou o bot) */
+  verdade("o emblema do Urso é só forma, sem <text>", !/<text/.test(H.svgDoUrso()));
+  verdade("o retrato nunca usa <text>", !/<text/.test(H.svgDoRetrato({ name: "Petra", rarity: "legendary" })) &&
+    !/<text/.test(H.svgDoRetrato({ name: "Petra", rarity: "legendary" }, "QUJD")));
+  verdade("a inicial chega como desenho", /<path d="M10 10L20 20Z" fill="#f0b232"\/>/.test(H.svgDoRetrato({ name: "P", rarity: "legendary" }, "", 256, "M10 10L20 20Z")));
+  verdade("desenho que não é contorno de letra não entra no SVG", !/onload|<script/.test(H.svgDoRetrato({ name: "P", rarity: "rare" }, "", 256, '"/><script>x</script>')));
+  globalThis.FONTE_DA_IMAGEM = `${aqui}/fontes/DejaVuSans-Bold.ttf`;
+  const { letraEmDesenho } = carregar(["FONTES_LIDAS", "fonteDoDesenho", "letraEmDesenho"]);
+  const d = await letraEmDesenho("petra");
+  verdade("a inicial sai da fonte do bot, como contorno", /^M[\d.]+ [\d.]+/.test(d) && d.length > 20);
+  verdade("e centrada no hexágono", (() => { const n = d.match(/-?[\d.]+/g).map(Number); const xs = n.filter((_, i) => i % 2 === 0);
+    return Math.abs((Math.min(...xs) + Math.max(...xs)) / 2 - 128) < 2; })());
+
+  /* o aviso do Urso */
+  ok("evento criado pela opção 🐻 é do Urso", ehEventoDoUrso({ repetir_min: 2850, duracao_seg: 1800, titulo: "Armadilha" }), true);
+  ok("com 'Bear' no nome também", ehEventoDoUrso({ titulo: "Bear Trap 1" }), true);
+  ok("com 'Urso' no nome também", ehEventoDoUrso({ titulo: "🐻 Urso da aliança" }), true);
+  ok("outro evento não", ehEventoDoUrso({ titulo: "Guerra de Castelos", repetir_min: 10080 }), false);
+  ok("palavra dentro de outra não conta", ehEventoDoUrso({ titulo: "Ursolina Bearings" }), false);
+  const { avisoDeInicio } = carregar(["COR_PERTO", "COR_COMECOU", "PALAVRAS_DO_CARTAO", "nomeLimpo", "avisoDeInicio"]);
+  const ev = { titulo: "🐻 Urso", quando: new Date().toISOString(), duracao_seg: 1800 };
+  const comBotao = avisoDeInicio(ev, { content: "@x", allowedMentions: {} }, undefined, ev.titulo, 15, true);
+  ok("o aviso do Urso leva o botão 🐻", comBotao.components?.[0]?.components?.[0]?.custom_id, "herois:urso");
+  ok("rótulo em inglês, como os outros botões do aviso", comBotao.components[0].components[0].label, "Bear heroes");
+  ok("emoji do urso ainda não subiu: o 🐻 de reserva", comBotao.components[0].components[0].emoji.name, "🐻");
+  verdade("aviso sem o Urso: sem botão nenhum (igual a antes)", !("components" in avisoDeInicio(ev, { content: "@x" }, undefined, ev.titulo, 15)));
+  EMOJIS_DA_CYRON.set("ks_urso", { id: "77", name: "ks_urso_abc123", animated: true });
+  ok("com o emoji no ar: o do aplicativo, animado", JSON.stringify(botaoDoUrso().components[0].emoji), JSON.stringify({ id: "77", name: "ks_urso_abc123", animated: true }));
+  EMOJIS_DA_CYRON.delete("ks_urso");
+
+  const fonteSem = semComentarios(fonte);
+  verdade("as três saídas do aviso perguntam se é do Urso", [
+    /async function desenharNasCopias[^]*?const urso = !!aviso && ehEventoDoUrso\(aviso\.ev\) && await heroisNoUrso\(guild\.id\)[^]*?avisoDeInicio\(aviso\.ev, aviso\.aviso, P, titulo, aviso\.antes \|\| 0, urso\)/,
+    /async function avisarAntes[^]*?const urso = ehEventoDoUrso\(ev\) && await heroisNoUrso\(guild\.id\)[^]*?avisoDeInicio\(ev, aviso, PALAVRAS_DO_CARTAO, ev\.titulo, minutos, urso\)/,
+    /async function avisarNaHora[^]*?const urso = ehEventoDoUrso\(ev\) && await heroisNoUrso\(guild\.id\)[^]*?avisoDeInicio\(ev, aviso, PALAVRAS_DO_CARTAO, ev\.titulo, 0, urso\)/,
+  ].every((r) => r.test(fonteSem)));
+  verdade("em teste, o botão só aparece no painel", /return ehOPainel\(guildId\)/.test(semComentarios(pedaco("heroisNoUrso"))));
+  verdade("o botão e o /urso estão ligados", /customId === "herois:urso"\) return await cliqueUrso\(inter\)/.test(fonteSem) &&
+    /nome === "urso"\) return comandoUrso\(inter\)/.test(fonteSem));
+
+  /* o clique: só para quem clicou, na língua dele */
+  const passos = [];
+  Object.assign(globalThis, {
+    linguaDe: async () => { passos.push("lingua"); return "en"; },
+    cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
+  });
+  const { cliqueUrso } = carregar(["cliqueUrso"]);
+  await cliqueUrso({ guildId: "g", deferReply: async (o) => passos.push(["defer", o?.flags]), editReply: async (r) => passos.push(["fim", r]) });
+  ok("o clique reconhece primeiro, só para quem clicou", JSON.stringify(passos[0]), JSON.stringify(["defer", 64]));
+  ok("e a ficha vem na língua de quem clicou", passos.at(-1)[1].embeds[0].description, "urso-en");
+
+  const amostra = semComentarios(pedaco("amostraDosHerois"));
+  verdade("amostra 3: a ficha do Urso e o aviso com o botão", /cartaoDoUrso\("pt", gid\)/.test(amostra) &&
+    /avisoDeInicio\(exemplo, [^)]*, 15, true\)/.test(amostra));
+  verdade("amostra na versão 3", /^var AMOSTRA_VERSAO = "3"/.test(pedaco("AMOSTRA_VERSAO")));
 }
 
 function NA_CONTA_DO_FONTE() {
