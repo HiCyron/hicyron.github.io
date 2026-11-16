@@ -11465,7 +11465,7 @@ function conferirCartao(onde, embed, componentes = []) {
   /* ---- comprar: só pelo contato oficial, no privado ---- */
   {
     const texto = (t) => [t.description, ...(t.fields || []).map((f) => f.value)].join(" ");
-    const mencao = "@cyron02";
+    const mencao = `@${S.NOME_DO_CONTATO}`;
     for (const k of ["pagamento", "regras", "boas"]) {
       for (const l of ["pt", "en"]) {
         verdade(`${k} (${l}) aponta o contato oficial`, texto(S.TEXTOS[k][l]).includes(mencao));
@@ -11474,7 +11474,7 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("planos: fora do Brasil não manda mais para o chat público",
       !/chat do seu idioma qual plano/.test(texto(S.TEXTOS.pagamento.pt)) && !/chat which plan/.test(texto(S.TEXTOS.pagamento.en)));
     verdade("o contato é um link clicável para o perfil",
-      texto(S.TEXTOS.pagamento.pt).includes(`[@cyron02](${S.LINK_DO_CONTATO})`) &&
+      texto(S.TEXTOS.pagamento.pt).includes(`[@${S.NOME_DO_CONTATO}](${S.LINK_DO_CONTATO})`) &&
       S.LINK_DO_CONTATO === `https://discord.com/users/${S.CONTATO_OFICIAL}`);
     verdade("o contato vai como texto, e não como menção crua (webhook mostrava o número)",
       !Object.values(S.TEXTOS).some((t) => /<@\d+>/.test(JSON.stringify(t))));
@@ -15702,7 +15702,8 @@ function conferirCartao(onde, embed, componentes = []) {
   const antes = Object.fromEntries(nomes.map((k) => [k, globalThis[k]]));
   try {
     const E = carregar(["NOME_CARGO_EQUIPE", "PERMISSOES_DA_EQUIPE", "CONVITE_DO_PAINEL_DE_NOVO", "garantirEquipe",
-      "convidarDonosAoPainel", "sincronizarEquipe", "receberDaEquipe"]);
+      "convidarDonosAoPainel", "anotarEquipeDada", "tirarQuemSaiuDaEquipe", "revogarConvitesDeQuemSaiu",
+      "sincronizarEquipe", "receberDaEquipe"]);
     globalThis.CANAL_DIARIO = "📊-diário";
     const criados = [], dms = [], convites = [];
     let marcas = {};
@@ -15757,7 +15758,7 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("uma semana depois, se ainda não entrou, manda de novo",
       await E.convidarDonosAoPainel(painel, new Set(["conta-nova"]), t0 + E.CONVITE_DO_PAINEL_DE_NOVO + 1), ["conta-nova"]);
     ok("privado fechado: não insiste de hora em hora", [await E.convidarDonosAoPainel(painel, new Set(["dm-fechada"]), t0),
-      marcas["painel_convite:dm-fechada"]], [[], String(t0)]);
+      marcas["painel_convite:dm-fechada"]], [[], `${t0}|`]);
     marcas = Object.defineProperty({}, "falhou", { value: true });
     ok("banco fora: não convida no escuro", await E.convidarDonosAoPainel(painel, new Set(["outra"]), t0), []);
     marcas = {};
@@ -15784,6 +15785,84 @@ function conferirCartao(onde, embed, componentes = []) {
   } finally {
     Object.assign(globalThis, antes);
   }
+  /* ---- o caminho de volta: a conta cyron02 perdida (16/11) ---- */
+  {
+    const nomes2 = ["ajustes", "porAjuste", "client", "idsDeDono", "guildDoSuporte", "guildDoPainel", "CANAL_DIARIO", "NOME_CARGO_EQUIPE"];
+    const antes2 = Object.fromEntries(nomes2.map((k) => [k, globalThis[k]]));
+    try {
+      const V = carregar(["NOME_CARGO_EQUIPE", "anotarEquipeDada", "tirarQuemSaiuDaEquipe", "revogarConvitesDeQuemSaiu"]);
+      globalThis.NOME_CARGO_EQUIPE = V.NOME_CARGO_EQUIPE;
+      let marcas = {};
+      globalThis.ajustes = async () => marcas;
+      globalThis.porAjuste = async (k, v) => { marcas = { ...marcas, [k]: v }; };
+      class Colecao extends Map { find(f) { for (const v of this.values()) if (f(v)) return v; return undefined; } }
+      const cargo = { id: "r-eq", name: V.NOME_CARGO_EQUIPE };
+      const membro = (id, comCargo = true) => ({ id, roles: { cache: new Set(comCargo ? ["r-eq"] : []),
+        remove: async function (c) { this.cache.delete(c.id); } } });
+      const perdida = membro("cyron02"), atual = membro("tiago"), ajudante = membro("ajudante");
+      const suporte = { id: "g-sup", roles: { cache: new Colecao([["r-eq", cargo]]) },
+        members: { cache: new Map([["cyron02", perdida], ["tiago", atual], ["ajudante", ajudante]]), fetch: async () => { throw new Error("Unknown Member"); } } };
+
+      await V.anotarEquipeDada("g-sup", ["cyron02", "tiago"]);
+      await V.anotarEquipeDada("g-sup", ["tiago"]);
+      ok("o bot anota a quem deu o cargo, sem repetir", JSON.parse(marcas.equipe_dei), ["g-sup:cyron02", "g-sup:tiago"]);
+      const tirados = await V.tirarQuemSaiuDaEquipe([suporte, null], new Set(["tiago"]));
+      ok("a conta que saiu da lista perde o cargo que eu dei", tirados, ["cyron02"]);
+      verdade("e não aparece mais como equipe", !perdida.roles.cache.has("r-eq"));
+      verdade("quem continua na lista fica com o cargo", atual.roles.cache.has("r-eq"));
+      verdade("cargo dado à mão pelo dono (não anotado por mim) fica", ajudante.roles.cache.has("r-eq"));
+      ok("a anotação esquece quem saiu", JSON.parse(marcas.equipe_dei), ["g-sup:tiago"]);
+
+      const anulados = [], apagados = [];
+      const painel = { id: "g-pai", invites: { delete: async (code) => anulados.push(code) },
+        channels: { cache: new Map([["d", { type: ChannelType.GuildText,
+          fetchInvites: async () => new Map([["a", { inviterId: "bot", maxUses: 1, delete: async () => apagados.push("a") }],
+            ["b", { inviterId: "outra-pessoa", maxUses: 1, delete: async () => apagados.push("b") }]]) }]]) } };
+      globalThis.client = { user: { id: "bot" } };
+      marcas = { "painel_convite:cyron02": "1794795402136|ABC123", "painel_convite:tiago": "1794795402136|XYZ" };
+      ok("convite ainda não usado da conta que saiu é anulado pelo código", [await V.revogarConvitesDeQuemSaiu(painel, new Set(["tiago"])), anulados],
+        [["cyron02"], ["ABC123"]]);
+      ok("e o de quem continua fica", marcas["painel_convite:tiago"], "1794795402136|XYZ");
+      marcas = { "painel_convite:cyron02": "1794795402136", "painel_convite:app": "1794795402136" };
+      await V.revogarConvitesDeQuemSaiu(painel, new Set(["app"]));
+      ok("convites antigos sem código: anulo os de uso único que EU criei (os dos outros ficam)", apagados, ["a"]);
+      ok("e quem continua na lista ganha um novo na ronda seguinte", marcas["painel_convite:app"], null);
+      marcas = Object.defineProperty({}, "falhou", { value: true });
+      ok("banco fora: não tiro nada", await V.tirarQuemSaiuDaEquipe([suporte], new Set()), []);
+    } finally {
+      Object.assign(globalThis, antes2);
+    }
+  }
+
+  /* a lista de donos pela metade nunca tira ninguém */
+  {
+    const nomes3 = ["fetch", "ajustes", "cacheDonos", "API", "TOKEN"];
+    const antes3 = Object.fromEntries(nomes3.map((k) => [k, globalThis[k]]));
+    try {
+      const D = carregar(["idsDeDono"]);
+      globalThis.API = "https://discord.com/api/v10"; globalThis.TOKEN = "t";
+      globalThis.ajustes = async () => ({ donos: "866033442688073748" });
+      globalThis.cacheDonos = { v: null, t: 0 };
+      globalThis.fetch = async () => ({ ok: true, json: async () => ({ owner: { id: "577245717114912830" } }) });
+      let ids = await D.idsDeDono();
+      verdade("Discord e banco responderam: lista completa", ids.completo && ids.has("577245717114912830") && ids.has("866033442688073748"));
+      globalThis.cacheDonos = { v: null, t: 0 };
+      globalThis.fetch = async () => { throw new Error("ECONNRESET"); };
+      ids = await D.idsDeDono();
+      verdade("o Discord piscou: a lista vale para entrar, mas fica marcada como incompleta", !ids.completo && ids.has("866033442688073748"));
+      verdade("e lista incompleta não fica na memória", !globalThis.cacheDonos.v);
+    } finally {
+      Object.assign(globalThis, antes3);
+    }
+  }
+  verdade("a ronda só tira com a lista completa",
+    /if \(ids\.completo\) \{\s*await tirarQuemSaiuDaEquipe/.test(semComentarios(readFileSync(`${aqui}/index.js`, "utf8"))));
+  verdade("a conta perdida não aparece em texto nenhum do bot",
+    !/cyron02|1553232972608442491/.test(semComentarios(readFileSync(`${aqui}/suporte.js`, "utf8")) + readFileSync(`${aqui}/roteiro.js`, "utf8")));
+  verdade("aviso de biblioteca ('X is deprecated') não vira cartão de erro",
+    carregar(["ERRO_DO_CLIENTE"]).ERRO_DO_CLIENTE.some((r) => r.test('(node:594) Warning: Passing "color" to RoleManager#create() is deprecated. Use "colors" instead.')));
+  verdade("mas aviso de vazamento de memória continua aparecendo",
+    !carregar(["ERRO_DO_CLIENTE"]).ERRO_DO_CLIENTE.some((r) => r.test("(node:594) MaxListenersExceededWarning: Possible EventEmitter memory leak detected")));
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
   verdade("a entrada chama a equipe", /receberDaEquipe\(member\)/.test(idx));
   verdade("a ronda da equipe roda de hora em hora", /setInterval\(\(\) => sincronizarEquipe\(\)/.test(idx));
