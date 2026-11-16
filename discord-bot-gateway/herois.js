@@ -106,12 +106,18 @@ export function ehF2P(h) {
   return h.f2p === true;
 }
 
-/* Pura. O melhor uso, tirado das notas: a função com a nota mais alta (e as
-   empatadas com ela). Herói de coleta é de coleta. Em português; o index.js
-   traduz. */
+/* Pura. O melhor uso, tirado das notas: TUDO em que o herói é forte (S ou
+   S+), liderar rally primeiro. Era só a nota mais alta, e o Amadeus -- S+
+   para entrar no Urso, S para liderar -- saía só "Entrar no rally do Urso",
+   quando todo mundo (e todas as fontes) o conhece como líder de rally. Sem
+   nada forte, a melhor nota. Herói de coleta é de coleta. Em português; o
+   index.js traduz. */
 const USO = { rally: "Liderar rally", garrison: "Guarnição (defesa da cidade)", bear: "Entrar no rally do Urso" };
+const ORDEM_DO_USO = ["rally", "bear", "garrison"];
 export function melhorUso(h) {
   if (h.coleta) return `Coleta de ${h.coleta}`;
+  const fortes = ORDEM_DO_USO.filter((k) => FORTE.has(notaDaFuncao(h[k])));
+  if (fortes.length) return fortes.map((k) => USO[k]).join(" · ");
   const funcoes = funcoesDoHeroi(h);
   const topo = funcoes[0][1];
   if (posicao(topo) > posicao("B")) return "Pouco uso em batalha";

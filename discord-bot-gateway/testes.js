@@ -16050,7 +16050,10 @@ function conferirCartao(onde, embed, componentes = []) {
   const lutador = { name: "X", gen: 1, rarity: "legendary", troop: "cavalry", garrison: "B", rally: "S+", bear: "A" };
   ok("árvore: rally, guarnição e Urso, da nota mais alta para a mais baixa", H.funcoesDoHeroi(lutador).map(([k]) => k).join(","), "rally,bear,garrison");
   ok("melhor uso: a função com a nota mais alta", H.melhorUso(H.acharHeroi("Jabel")), "Guarnição (defesa da cidade)");
-  ok("melhor uso: empate junta as duas", H.melhorUso(H.acharHeroi("Vivian")), "Entrar no rally do Urso");
+  ok("melhor uso: o Amadeus é líder de rally (e ótimo para entrar no Urso)", H.melhorUso(H.acharHeroi("Amadeus")), "Liderar rally · Entrar no rally do Urso");
+  ok("melhor uso: tudo em que é forte, liderar primeiro", H.melhorUso(H.acharHeroi("Vivian")),
+    "Liderar rally · Entrar no rally do Urso · Guarnição (defesa da cidade)");
+  ok("melhor uso: sem nada forte, a melhor nota", H.melhorUso(H.acharHeroi("Helga")), "Liderar rally");
   ok("melhor uso: herói de coleta é de coleta", H.melhorUso(H.acharHeroi("Edwin")), "Coleta de pedra");
   ok("melhor uso: nota baixa em tudo", H.melhorUso(H.acharHeroi("Howard")), "Pouco uso em batalha");
   verdade("dica: joiner do Urso vai como 1º herói", H.dicasDoHeroi(H.acharHeroi("Chenko")).some((d) => /1º herói/.test(d)));
