@@ -124,9 +124,14 @@ const COR_SUPORTE = 0x5865F2;
    OFICIAL, fica entre as duas partes. O golpe que isto abre -- alguem se
    passar pelo suporte -- e' fechado por duas regras que os textos repetem:
    so' esta conta vende, e ela nunca chama primeiro. */
-export const CONTATO_OFICIAL = "1553232972608442491";
+/* Era a conta cyron02 ate' 16/11, quando o dono perdeu o acesso a ela: o
+   contato oficial passou a ser a conta dele (tiagosonaglio). Conta perdida
+   como "unica que vende" e' convite a golpe -- quem a recuperar herdaria a
+   confianca. */
+export const CONTATO_OFICIAL = "866033442688073748";
+export const NOME_DO_CONTATO = "tiagosonaglio";
 /* Texto, e nao mencao (<@id>): a copia traduzida sai por webhook, e ali o
-   Discord mostrava o numero cru -- "<@1553232972608442491>" -- em vez do
+   Discord mostrava o numero cru -- "<@id>" -- em vez do
    nome. O nome da conta, em negrito, sobrevive ao tradutor e ao webhook. */
 /* Link para o perfil, e nao mencao nem texto solto.
 
@@ -135,7 +140,7 @@ export const CONTATO_OFICIAL = "1553232972608442491";
    link mascarado fica azul, abre o perfil (com o botao de mensagem) em
    qualquer mensagem, inclusive nas copias, e o tradutor nao mexe em URL. */
 export const LINK_DO_CONTATO = `https://discord.com/users/${CONTATO_OFICIAL}`;
-const CONTATO = `[@cyron02](${LINK_DO_CONTATO})`;
+const CONTATO = `[@${NOME_DO_CONTATO}](${LINK_DO_CONTATO})`;
 
 export const TEXTOS = {
   boas: {

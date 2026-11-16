@@ -18601,6 +18601,10 @@ function explicarErro(onde, porque) {
    especifico: ensina a ignorar o canal. Estes continuam na lista do /admin,
    que e' onde se procura quando se quer procurar. */
 const ERRO_DO_CLIENTE = [
+  /* Aviso de biblioteca de que um parametro vai mudar ("color" virou
+     "colors"): e' recado para quem programa, nao defeito -- nada deixou de
+     funcionar. Ficou no 🐛-erros como "erro que nao sei explicar" (16/11). */
+  /\(node:\d+\) (\[\w+\] )?(Deprecation)?Warning:.*deprecated/i,
   /nao consegui dar o cargo/i,
   /nao consegui tirar o cargo/i,
   /Missing Permissions/i,
@@ -18990,6 +18994,10 @@ let cacheDonos = { v: null, t: 0 };
 async function idsDeDono() {
   if (cacheDonos.v && Date.now() - cacheDonos.t < 10 * 60 * 1000) return cacheDonos.v;
   const ids = new Set();
+  /* `completo`: o Discord E o banco responderam. Lista pela metade serve
+     para deixar entrar (quem esta' nela e' dono), mas nunca para tirar: a
+     equipe nao pode perder o cargo porque o Discord piscou. */
+  let completo = true;
   try {
     const r = await fetch(`${API}/applications/@me`, { headers: { Authorization: `Bot ${TOKEN}` } });
     if (r.ok) {
@@ -18997,15 +19005,20 @@ async function idsDeDono() {
       if (app?.owner?.id) ids.add(String(app.owner.id));
       for (const m of app?.team?.members || []) if (m?.user?.id) ids.add(String(m.user.id));
     } else {
+      completo = false;
       console.error(`admin: nao consegui saber de quem e o aplicativo: HTTP ${r.status}`);
     }
   } catch (e) {
+    completo = false;
     console.error("admin: nao consegui saber de quem e o aplicativo:", e?.message || e);
   }
-  for (const extra of String((await ajustes()).donos || "").split(/[,\s]+/)) {
+  const marcas = await ajustes();
+  if (marcas.falhou) completo = false;
+  for (const extra of String(marcas.donos || "").split(/[,\s]+/)) {
     if (/^\d{5,}$/.test(extra)) ids.add(extra);
   }
-  if (ids.size) cacheDonos = { v: ids, t: Date.now() };
+  ids.completo = completo;
+  if (ids.size && completo) cacheDonos = { v: ids, t: Date.now() };
   return ids;
 }
 
@@ -19023,9 +19036,13 @@ async function idsDeDono() {
      no privado um convite de uso unico (uma vez por semana, no maximo).
 
    Trocar de conta passa a ser: pôr o id novo na lista de donos e entrar no
-   suporte com ela. O resto acontece sozinho. Nunca TIRO o cargo de ninguem:
-   o dono pode ter dado o cargo a mao para alguem que ajuda, e a lista de
-   donos nao e' a lista da equipe inteira. */
+   suporte com ela. O resto acontece sozinho.
+
+   E o caminho de volta (16/11, a conta cyron02 perdida): conta que SAI da
+   lista perde o cargo que EU dei e o convite do painel que EU mandei. Conta
+   perdida com cargo de equipe e' o golpe pronto -- quem a recuperar fala
+   como a equipe. So' tiro o que eu dei (anotado em `equipe_dei`): cargo dado
+   a mao pelo dono, para alguem que ajuda, fica. */
 const NOME_CARGO_EQUIPE = "🛠️ Equipe CYRON";
 const PERMISSOES_DA_EQUIPE = ["ViewChannel", "SendMessages", "ReadMessageHistory", "EmbedLinks", "AttachFiles",
   "AddReactions", "UseExternalEmojis", "ManageMessages", "ManageThreads", "CreatePublicThreads", "SendMessagesInThreads"];
@@ -19043,7 +19060,7 @@ async function garantirEquipe(guild, ids) {
        conta de dono dentro nao ganha cargo vazio. */
     if (!cargo) {
       cargo = await guild.roles.create({
-        name: NOME_CARGO_EQUIPE, color: 0x5865F2, hoist: true, mentionable: false,
+        name: NOME_CARGO_EQUIPE, colors: { primaryColor: 0x5865F2 }, hoist: true, mentionable: false,
         permissions: PERMISSOES_DA_EQUIPE.map((p) => PermissionFlagsBits[p]),
         reason: "equipe da CYRON (contas de dono)",
       }).catch((e) => {
@@ -19071,7 +19088,9 @@ async function convidarDonosAoPainel(painel, ids, agora = Date.now()) {
     const dentro = painel.members.cache.has(String(id)) || await painel.members.fetch(String(id)).then(() => true, () => false);
     if (dentro) continue;
     const marcas = await ajustes();
-    if (marcas.falhou || agora - (Number(marcas[`painel_convite:${id}`]) || 0) < CONVITE_DO_PAINEL_DE_NOVO) continue;
+    /* "quando|codigo": a data e' a parte de antes da barra. */
+    const ultimo = Number(String(marcas[`painel_convite:${id}`] || "").split("|")[0]) || 0;
+    if (marcas.falhou || agora - ultimo < CONVITE_DO_PAINEL_DE_NOVO) continue;
     const canal = painel.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === CANAL_DIARIO)
       || painel.channels.cache.find((c) => c.type === ChannelType.GuildText);
     const convite = await canal?.createInvite?.({ maxUses: 1, maxAge: 7 * 86400, unique: true,
@@ -19085,11 +19104,87 @@ async function convidarDonosAoPainel(painel, ids, agora = Date.now()) {
     }).then(() => true, () => false);
     rastrear("equipe", foi ? "convidou-ao-painel" : "privado-fechado", { guild: painel.id, usuario: id });
     /* Marcado mesmo com o privado fechado: insistir de hora em hora num
-       privado fechado so' gasta convite. Daqui a uma semana tenta de novo. */
-    await porAjuste(`painel_convite:${id}`, String(agora)).catch(() => {});
+       privado fechado so' gasta convite. Daqui a uma semana tenta de novo.
+       O codigo vai junto: e' por ele que o convite e' anulado se a conta
+       sair da lista antes de usar. */
+    await porAjuste(`painel_convite:${id}`, `${agora}|${convite.code || ""}`).catch(() => {});
     if (foi) convidados.push(String(id));
   }
   return convidados;
+}
+
+/* Quem recebeu o cargo de mim, por servidor: "guildId:userId". */
+async function anotarEquipeDada(guildId, ids) {
+  if (!ids?.length) return;
+  const marcas = await ajustes();
+  let lista = [];
+  try { lista = JSON.parse(marcas.equipe_dei || "[]"); } catch { lista = []; }
+  const novos = ids.map((u) => `${guildId}:${u}`).filter((x) => !lista.includes(x));
+  if (novos.length) await porAjuste("equipe_dei", JSON.stringify([...lista, ...novos]));
+}
+
+/* Conta que saiu da lista de donos: tiro o cargo que eu dei. */
+async function tirarQuemSaiuDaEquipe(guilds, ids) {
+  const marcas = await ajustes();
+  if (marcas.falhou) return [];
+  let lista = [];
+  try { lista = JSON.parse(marcas.equipe_dei || "[]"); } catch { return []; }
+  const porId = new Map(guilds.filter(Boolean).map((g) => [g.id, g]));
+  const tirados = [], fica = [];
+  for (const par of lista) {
+    const [gid, uid] = String(par).split(":");
+    const guild = porId.get(gid);
+    if (ids.has(uid) || !guild) { fica.push(par); continue; }
+    const cargo = guild.roles.cache.find((r) => r.name === NOME_CARGO_EQUIPE);
+    const membro = guild.members.cache.get(uid) || await guild.members.fetch(uid).catch(() => null);
+    if (cargo && membro?.roles.cache.has(cargo.id)) {
+      const foi = await membro.roles.remove(cargo, "saiu da lista de donos da CYRON").then(() => true, (e) => {
+        rastrear("equipe", "nao-tirou-o-cargo", { guild: gid, usuario: uid, detalhe: e?.message || String(e) });
+        return false;
+      });
+      if (!foi) { fica.push(par); continue; }
+    }
+    tirados.push(uid);
+    rastrear("equipe", "tirou-o-cargo", { guild: gid, usuario: uid });
+  }
+  if (fica.length !== lista.length) await porAjuste("equipe_dei", JSON.stringify(fica));
+  return tirados;
+}
+
+/* E anulo o convite do painel que mandei para ela, se ainda nao foi usado.
+   Convite anotado sem codigo (os primeiros, de 16/11): anulo todos os
+   convites de uso unico que eu criei no painel, e as contas que continuam
+   na lista ganham um novo na ronda seguinte. */
+async function revogarConvitesDeQuemSaiu(painel, ids) {
+  if (!painel) return [];
+  const marcas = await ajustes();
+  if (marcas.falhou) return [];
+  const anulados = [];
+  let semCodigo = false;
+  for (const [k, v] of Object.entries(marcas)) {
+    if (!k.startsWith("painel_convite:") || !v) continue;
+    const uid = k.slice("painel_convite:".length);
+    const codigo = String(v).split("|")[1] || "";
+    if (!codigo) semCodigo = true;
+    if (ids.has(uid)) continue;
+    if (codigo) await painel.invites.delete(codigo, "saiu da lista de donos da CYRON").catch(() => {});
+    await porAjuste(k, null).catch(() => {});
+    anulados.push(uid);
+    rastrear("equipe", "anulou-o-convite-do-painel", { guild: painel.id, usuario: uid, detalhe: codigo || "sem código" });
+  }
+  if (semCodigo && anulados.length) {
+    for (const canal of painel.channels.cache.values()) {
+      if (canal.type !== ChannelType.GuildText || typeof canal.fetchInvites !== "function") continue;
+      const convites = await canal.fetchInvites().catch(() => null);
+      for (const c of convites?.values?.() || []) {
+        if (c.inviterId === client.user?.id && c.maxUses === 1) await c.delete("convite antigo sem código anotado").catch(() => {});
+      }
+    }
+    for (const [k, v] of Object.entries(marcas)) {
+      if (k.startsWith("painel_convite:") && v && !String(v).includes("|")) await porAjuste(k, null).catch(() => {});
+    }
+  }
+  return anulados;
 }
 
 /* A ronda: suporte e painel, com a lista de donos de agora. */
@@ -19099,8 +19194,13 @@ async function sincronizarEquipe(agora = Date.now()) {
   const suporte = await guildDoSuporte().catch(() => null);
   const gid = await guildDoPainel();
   const painel = gid ? client.guilds.cache.get(gid) : null;
-  await garantirEquipe(suporte, ids);
-  if (painel) await garantirEquipe(painel, ids);
+  /* Primeiro o que sai, depois o que entra -- e so' tiro com a lista inteira. */
+  if (ids.completo) {
+    await tirarQuemSaiuDaEquipe([suporte, painel], ids);
+    await revogarConvitesDeQuemSaiu(painel, ids);
+  }
+  if (suporte) await anotarEquipeDada(suporte.id, (await garantirEquipe(suporte, ids)).deram);
+  if (painel) await anotarEquipeDada(painel.id, (await garantirEquipe(painel, ids)).deram);
   if (painel && suporte && painel.id !== suporte.id) {
     const noSuporte = new Set([...ids].filter((id) => suporte.members.cache.has(String(id))));
     await convidarDonosAoPainel(painel, noSuporte, agora);
@@ -19116,7 +19216,7 @@ async function receberDaEquipe(member) {
   const suporte = await guildDoSuporte().catch(() => null);
   const gid = await guildDoPainel();
   if (member.guild.id !== suporte?.id && member.guild.id !== gid) return false;
-  await garantirEquipe(member.guild, new Set([String(member.id)]));
+  await anotarEquipeDada(member.guild.id, (await garantirEquipe(member.guild, new Set([String(member.id)]))).deram);
   const painel = gid ? client.guilds.cache.get(gid) : null;
   if (painel && member.guild.id === suporte?.id && painel.id !== suporte.id) {
     await convidarDonosAoPainel(painel, new Set([String(member.id)]));
