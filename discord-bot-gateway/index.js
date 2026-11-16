@@ -12268,9 +12268,17 @@ function emojiKs(nome, reserva = "") {
   return e ? `<${e.animated ? "a" : ""}:${e.name}:${e.id}>` : reserva;
 }
 
-/* Pura. Os arquivos da pasta viram [nome, imagem]. GIF vai como data: com o
-   tipo certo: o discord.js chama todo arquivo de "image/jpg", e GIF com
-   rótulo de JPG é o tipo de coisa que um dia para de funcionar. */
+/* Pura. Os arquivos da pasta viram { base, nome, imagem }.
+
+   O nome publicado leva a marca do desenho: ks_gen_1_3fa2c9. Emoji que já
+   existe com o mesmo nome nunca sobe de novo -- foi assim que a primeira
+   leva (que o dono achou simples) ficaria para sempre, mesmo com o desenho
+   novo no repositório. Com a marca, redesenhou = nome novo = sobe o novo e
+   apaga o velho.
+
+   GIF vai como data: com o tipo certo: o discord.js chama todo arquivo de
+   "image/jpg", e GIF com rótulo de JPG é o tipo de coisa que um dia para de
+   funcionar. */
 function emojisDoKingshot(pasta = PASTA_DO_KINGSHOT, ler = readFileSync, listar = readdirSync) {
   let nomes = [];
   try { nomes = listar(pasta); } catch { return []; }
@@ -12278,9 +12286,42 @@ function emojisDoKingshot(pasta = PASTA_DO_KINGSHOT, ler = readFileSync, listar 
     .filter((n) => /^ks_[a-z0-9_]+\.(png|gif)$/.test(n))
     .sort()
     .map((n) => {
-      const gif = n.endsWith(".gif");
-      return [n.replace(/\.(png|gif)$/, ""), () => `data:image/${gif ? "gif" : "png"};base64,${ler(`${pasta}${n}`).toString("base64")}`];
+      const bytes = ler(`${pasta}${n}`);
+      const base = n.replace(/\.(png|gif)$/, "");
+      const tipo = n.endsWith(".gif") ? "gif" : "png";
+      return { base, nome: `${base}_${createHash("sha1").update(bytes).digest("hex").slice(0, 6)}`,
+        imagem: () => `data:image/${tipo};base64,${Buffer.from(bytes).toString("base64")}` };
     });
+}
+
+/* Pura. Um emoji publicado é versão velha daquele desenho? O nome sem marca
+   (a primeira leva) ou com uma marca que não é a de agora. "ks_galho_fim_..."
+   não é versão de "ks_galho": depois de "ks_galho_" vem "fim_...", não a marca. */
+function ehVersaoVelha(nomePublicado, local) {
+  if (nomePublicado === local.nome) return false;
+  if (nomePublicado === local.base) return true;
+  const resto = nomePublicado.startsWith(`${local.base}_`) ? nomePublicado.slice(local.base.length + 1) : "";
+  return /^[0-9a-f]{6}$/.test(resto);
+}
+
+/* Sobe o desenho de agora e só DEPOIS apaga as versões velhas: na ordem
+   inversa, uma ficha pedida no meio da troca sairia sem emoji nenhum. */
+async function trocarEmojisDoKingshot(publicados, locais = emojisDoKingshot()) {
+  const lista = [...publicados.values()];
+  let novos = 0;
+  for (const l of locais) {
+    let e = lista.find((x) => x.name === l.nome);
+    if (!e) {
+      e = await client.application.emojis.create({ attachment: l.imagem(), name: l.nome });
+      novos++;
+    }
+    EMOJIS_DA_CYRON.set(l.base, { id: e.id, name: e.name, animated: !!e.animated });
+    for (const velho of lista.filter((x) => x.id !== e.id && ehVersaoVelha(x.name, l))) {
+      await client.application.emojis.delete(velho.id)
+        .catch((err) => console.log(`emojis: não consegui apagar ${velho.name}:`, err?.message || err));
+    }
+  }
+  return novos;
 }
 
 /* A CYRON GRANDE, no canto de um cartao (thumbnail, ~80 px): onde ha'
@@ -12314,14 +12355,15 @@ async function garantirEmojisDaCyron() {
     for (const e of publicados.values()) EMOJIS_DA_CYRON.set(e.name, { id: e.id, name: e.name, animated: !!e.animated });
     let novos = 0;
     const subir = [...FIGURINHAS.map((f) => [f.id, anexoDaFigurinha(f).attachment]),
-      ...ROSTOS_DA_CYRON.map((n) => [`rosto_${n}`, `${PASTA_DOS_ROSTOS}${n}.png`]),
-      ...emojisDoKingshot()];
+      ...ROSTOS_DA_CYRON.map((n) => [`rosto_${n}`, `${PASTA_DOS_ROSTOS}${n}.png`])];
     for (const [nome, arquivo] of subir) {
       if (EMOJIS_DA_CYRON.has(nome)) continue;
-      const e = await client.application.emojis.create({ attachment: typeof arquivo === "function" ? arquivo() : arquivo, name: nome });
+      const e = await client.application.emojis.create({ attachment: arquivo, name: nome });
       EMOJIS_DA_CYRON.set(nome, { id: e.id, name: e.name, animated: !!e.animated });
       novos++;
     }
+    novos += await trocarEmojisDoKingshot(publicados);
+    SUBIDA_DOS_EMOJIS.pronta = true;
     if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
   } catch (e) {
     console.error("emojis: não consegui publicar os emojis da CYRON:", e?.message || e);
@@ -12340,6 +12382,15 @@ const DEF_HEROI = {
 };
 const CANAL_DE_TESTES = "🧪-testes";
 const AMOSTRA_DOS_HEROIS = ["Jabel", "Chenko", "Marlin"];
+/* Versão da amostra: desenho novo, versão nova, e o painel recebe as fichas
+   de novo -- uma vez por versão. */
+const AMOSTRA_VERSAO = "2";
+const AMOSTRA_TEXTO = "🧪 **Teste: ficha de herói do Kingshot** (versão 2)\n" +
+  "Agora todos os emojis da ficha se mexem e têm aro de metal: geração, notas, funções, baú, pergaminho e os galhos da árvore.\n" +
+  "Só aqui no painel. Digite `/heroi` e escolha o herói na lista. Três exemplos:";
+/* Os emojis terminaram de subir nesta partida? A amostra espera por isso:
+   antes, a ficha sairia com os emojis da versão velha. */
+const SUBIDA_DOS_EMOJIS = { pronta: false };
 /* Termo do jogo: o jogador lê "Rally" e "Joiner" no próprio Kingshot, e
    traduzido ele não reconheceria. */
 const TERMOS_DO_JOGO = new Set(["Gen", "Rally", "Joiner"]);
@@ -12412,20 +12463,15 @@ async function comandoHeroi(inter) {
    postar -- se algo cair no meio, falta um exemplo; o contrário seria o
    canal recebendo as mesmas fichas a cada reinício. */
 async function amostraDosHerois() {
-  if ((await ajustes()).heroi_amostra) return "feito";
-  if (!EMOJIS_DA_CYRON.has("ks_brilho")) return "sem-emoji";
+  if ((await ajustes()).heroi_amostra === AMOSTRA_VERSAO) return "feito";
+  if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
   const gid = await guildDoPainel();
   const guild = gid && client.guilds.cache.get(gid);
   if (!guild) return "sem-painel";
   const canal = await canalDoPainel(guild, CANAL_DE_TESTES);
   if (!canal) return "sem-canal";
-  await porAjuste("heroi_amostra", new Date().toISOString());
-  await canal.send({
-    content: "🧪 **Teste: ficha de herói do Kingshot**\n" +
-      "Só aqui no painel, ninguém de fora vê. Digite `/heroi` e escolha o herói na lista.\n" +
-      "Três exemplos:",
-    allowedMentions: { parse: [] },
-  });
+  await porAjuste("heroi_amostra", AMOSTRA_VERSAO);
+  await canal.send({ content: AMOSTRA_TEXTO, allowedMentions: { parse: [] } });
   for (const nome of AMOSTRA_DOS_HEROIS) {
     const h = acharHeroi(nome);
     if (h) await canal.send({ ...(await cartaoDoHeroi(h, "pt", gid)), allowedMentions: { parse: [] } });
