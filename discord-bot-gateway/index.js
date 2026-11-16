@@ -29,7 +29,7 @@ import { FIGURINHAS_DO_DISCORD } from "./figurinhas-do-discord.js";
 import { ligarAlianca, COMANDOS_DA_ALIANCA, comandoDaAlianca, boasVindasDaAlianca, reHospedar, MAX_MIDIA,
   seletorNasBoasVindas, rosasDaAlianca } from "./alianca.js";
 import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSuporte, PREFIXO_LER,
-  nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO } from "./suporte.js";
+  nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync } from "node:fs";
@@ -479,6 +479,8 @@ client.on("guildMemberAdd", async (member) => {
        servidor) e' recebido aqui. */
     receberQuemJaTemIdioma(member).catch((e) =>
       console.error("boas-vindas: o aviso nas salas falhou na entrada em", member.guild?.name, e?.message || e));
+    /* Conta de dono entrando no suporte ou no painel: o cargo da equipe na hora. */
+    receberDaEquipe(member).catch((e) => console.log("equipe: falhei na entrada:", e?.message || e));
     darBoasVindas(member).catch((e) =>
       console.error("boas-vindas: falhou:", e?.message || e));
 
@@ -19007,6 +19009,121 @@ async function idsDeDono() {
   return ids;
 }
 
+/* ---------------- 🛠️ a equipe: as contas de dono nos servidores da casa ----------------
+
+   "Nao consigo entrar na conta antiga" (16/11). A lista de donos (ajuste
+   `donos`, mais quem o Discord diz que e' dono do aplicativo) ja' decide quem
+   opera a CYRON -- painel, /admin, o app. Faltava ela valer nos dois
+   servidores da casa:
+
+   - no SUPORTE, toda conta de dono ganha o cargo 🛠️ Equipe CYRON (quem
+     chega ve quem e' da equipe, e a equipe modera: apagar mensagem, cuidar de
+     topico);
+   - no PAINEL, que e' privado, a conta de dono que ainda nao esta' la' recebe
+     no privado um convite de uso unico (uma vez por semana, no maximo).
+
+   Trocar de conta passa a ser: pôr o id novo na lista de donos e entrar no
+   suporte com ela. O resto acontece sozinho. Nunca TIRO o cargo de ninguem:
+   o dono pode ter dado o cargo a mao para alguem que ajuda, e a lista de
+   donos nao e' a lista da equipe inteira. */
+const NOME_CARGO_EQUIPE = "🛠️ Equipe CYRON";
+const PERMISSOES_DA_EQUIPE = ["ViewChannel", "SendMessages", "ReadMessageHistory", "EmbedLinks", "AttachFiles",
+  "AddReactions", "UseExternalEmojis", "ManageMessages", "ManageThreads", "CreatePublicThreads", "SendMessagesInThreads"];
+const CONVITE_DO_PAINEL_DE_NOVO = 7 * 864e5;
+
+async function garantirEquipe(guild, ids) {
+  if (!guild || !ids?.size) return { cargo: null, deram: [] };
+  await guild.roles.fetch?.().catch(() => {});
+  let cargo = guild.roles.cache.find((r) => r.name === NOME_CARGO_EQUIPE) || null;
+  const deram = [];
+  for (const id of ids) {
+    const membro = guild.members.cache.get(String(id)) || await guild.members.fetch(String(id)).catch(() => null);
+    if (!membro || membro.user?.bot) continue;
+    /* O cargo so' nasce quando ha' a quem dar: servidor da casa sem nenhuma
+       conta de dono dentro nao ganha cargo vazio. */
+    if (!cargo) {
+      cargo = await guild.roles.create({
+        name: NOME_CARGO_EQUIPE, color: 0x5865F2, hoist: true, mentionable: false,
+        permissions: PERMISSOES_DA_EQUIPE.map((p) => PermissionFlagsBits[p]),
+        reason: "equipe da CYRON (contas de dono)",
+      }).catch((e) => {
+        rastrear("equipe", "nao-criou-o-cargo", { guild: guild.id, detalhe: e?.message || String(e) });
+        return null;
+      });
+      if (!cargo) return { cargo: null, deram };
+    }
+    if (membro.roles.cache.has(cargo.id)) continue;
+    const foi = await membro.roles.add(cargo, "conta de dono da CYRON").then(() => true, (e) => {
+      rastrear("equipe", "nao-deu-o-cargo", { guild: guild.id, usuario: id, detalhe: e?.message || String(e) });
+      return false;
+    });
+    if (foi) { deram.push(String(id)); rastrear("equipe", "deu-o-cargo", { guild: guild.id, usuario: id }); }
+  }
+  return { cargo, deram };
+}
+
+/* Convite de uso unico para o painel, no privado. So' para quem esta' no
+   suporte: e' o servidor em comum que deixa o bot mandar mensagem privada. */
+async function convidarDonosAoPainel(painel, ids, agora = Date.now()) {
+  if (!painel || !ids?.size) return [];
+  const convidados = [];
+  for (const id of ids) {
+    const dentro = painel.members.cache.has(String(id)) || await painel.members.fetch(String(id)).then(() => true, () => false);
+    if (dentro) continue;
+    const marcas = await ajustes();
+    if (marcas.falhou || agora - (Number(marcas[`painel_convite:${id}`]) || 0) < CONVITE_DO_PAINEL_DE_NOVO) continue;
+    const canal = painel.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === CANAL_DIARIO)
+      || painel.channels.cache.find((c) => c.type === ChannelType.GuildText);
+    const convite = await canal?.createInvite?.({ maxUses: 1, maxAge: 7 * 86400, unique: true,
+      reason: "conta de dono da CYRON fora do painel" }).catch(() => null);
+    if (!convite) { rastrear("equipe", "nao-criou-convite-do-painel", { guild: painel.id, usuario: id }); continue; }
+    const pessoa = await client.users.fetch(String(id)).catch(() => null);
+    const foi = await pessoa?.send({
+      content: "🛠️ Esta conta está na lista de donos da CYRON e ainda não está no painel de administração.\n" +
+        `Entre por aqui (vale uma vez, por 7 dias): ${convite.url}`,
+      allowedMentions: { parse: [] },
+    }).then(() => true, () => false);
+    rastrear("equipe", foi ? "convidou-ao-painel" : "privado-fechado", { guild: painel.id, usuario: id });
+    /* Marcado mesmo com o privado fechado: insistir de hora em hora num
+       privado fechado so' gasta convite. Daqui a uma semana tenta de novo. */
+    await porAjuste(`painel_convite:${id}`, String(agora)).catch(() => {});
+    if (foi) convidados.push(String(id));
+  }
+  return convidados;
+}
+
+/* A ronda: suporte e painel, com a lista de donos de agora. */
+async function sincronizarEquipe(agora = Date.now()) {
+  const ids = await idsDeDono();
+  if (!ids?.size) return;
+  const suporte = await guildDoSuporte().catch(() => null);
+  const gid = await guildDoPainel();
+  const painel = gid ? client.guilds.cache.get(gid) : null;
+  await garantirEquipe(suporte, ids);
+  if (painel) await garantirEquipe(painel, ids);
+  if (painel && suporte && painel.id !== suporte.id) {
+    const noSuporte = new Set([...ids].filter((id) => suporte.members.cache.has(String(id))));
+    await convidarDonosAoPainel(painel, noSuporte, agora);
+  }
+}
+
+/* Na entrada, sem esperar a ronda: a conta nova do dono entra no suporte e ja'
+   sai com o cargo -- e com o convite do painel no privado. */
+async function receberDaEquipe(member) {
+  if (!member || member.user?.bot) return false;
+  const ids = await idsDeDono();
+  if (!ids?.has(String(member.id))) return false;
+  const suporte = await guildDoSuporte().catch(() => null);
+  const gid = await guildDoPainel();
+  if (member.guild.id !== suporte?.id && member.guild.id !== gid) return false;
+  await garantirEquipe(member.guild, new Set([String(member.id)]));
+  const painel = gid ? client.guilds.cache.get(gid) : null;
+  if (painel && member.guild.id === suporte?.id && painel.id !== suporte.id) {
+    await convidarDonosAoPainel(painel, new Set([String(member.id)]));
+  }
+  return true;
+}
+
 async function ehDono(userId) {
   const ids = await idsDeDono();
   const pode = ids.has(String(userId));
@@ -27069,23 +27186,30 @@ function encurtarNovidade(t, max = 180) {
   return corte.slice(0, corte.lastIndexOf(" ") > max * 0.6 ? corte.lastIndexOf(" ") : corte.length).replace(/[\s,;:.-]+$/, "") + "…";
 }
 
-/* Pura. A mensagem de uma mudanca vira titulo + ate' ITENS_POR_NOVIDADE itens. */
-function resumoDaMudanca(mensagem) {
+/* O bloco que vai para quem USA a CYRON (o 📣・news do suporte), escrito em
+   ingles na mensagem da mudanca. Mudanca sem ele nao e' publicada: o resto
+   da mensagem fala de dentro do bot, e nada interno sai para fora. */
+const BLOCO_PUBLICO = /^\s*public:\s*$/i;
+
+/* Pura. A mensagem de uma mudanca vira titulo + ate' ITENS_POR_NOVIDADE itens.
+   `bloco` escolhe de qual bloco ler; `soBloco` proibe cair nos itens soltos. */
+function resumoDaMudanca(mensagem, { bloco = /^\s*novidades:\s*$/i, soBloco = false } = {}) {
   const linhas = String(mensagem || "").replace(/\r/g, "").split("\n");
   /* "(#50)" e' o numero do pedido no GitHub: diz nada a quem le no Discord. */
   const titulo = (linhas[0] || "").replace(/\s*\(#\d+\)\s*$/, "").trim();
   const corpo = linhas.slice(1).filter((l) => !/^\s*(co-authored-by|claude-session|signed-off-by):/i.test(l));
-  const k = corpo.findIndex((l) => /^\s*novidades:\s*$/i.test(l));
-  const bloco = k > -1;
-  const fonte = bloco ? corpo.slice(k + 1) : corpo;
+  const k = corpo.findIndex((l) => bloco.test(l));
+  if (k === -1 && soBloco) return { titulo, itens: [], mais: 0 };
+  const comBloco = k > -1;
+  const fonte = comBloco ? corpo.slice(k + 1) : corpo;
   const itens = [];
   let continua = false;
   for (const l of fonte) {
-    if (!l.trim()) { continua = false; if (bloco && itens.length) break; continue; }
+    if (!l.trim()) { continua = false; if (comBloco && itens.length) break; continue; }
     const item = /^\s*[-•*]\s+(.+)$/.exec(l);
     if (item) { itens.push(item[1].trim()); continua = true; }
     else if (continua && /^\s{2,}\S/.test(l)) itens[itens.length - 1] += " " + l.trim();
-    else if (bloco) { itens.push(l.trim()); continua = true; }
+    else if (comBloco) { itens.push(l.trim()); continua = true; }
     else continua = false;
   }
   return {
@@ -27115,6 +27239,39 @@ function cartaoDeAtualizacao(pacote, rodape, agora = Date.now()) {
     footer: { text: `${rodape} · versão ${String(pacote.versao).slice(0, 7)}` },
     timestamp: new Date(agora).toISOString(),
   };
+}
+
+/* Pura. A nota publica: so' os itens, sem os titulos (que sao de dentro). */
+function notaPublica(itens, versao, agora = Date.now()) {
+  return {
+    color: 0x5865F2,
+    title: "🆕 CYRON update",
+    description: itens.slice(0, 12).map((t) => `• ${t}`).join("\n").slice(0, 3800),
+    footer: { text: `version ${String(versao).slice(0, 7)}` },
+    timestamp: new Date(agora).toISOString(),
+  };
+}
+
+/* O que mudou para quem usa, no 📣・news do suporte. Conta propria
+   (versao_publica): o cartao do dono e a nota publica chegam por caminhos
+   diferentes, e um nao pode marcar o outro como entregue. Versao sem bloco
+   publico e' marcada sem postar nada. */
+async function publicarNovidadesNoSuporte(agora = Date.now()) {
+  const guardado = await ajustes();
+  if (guardado.falhou) return false;
+  const pacote = novidadesDesde(lerNovidades(lerArquivoDeNovidades()), String(guardado.versao_publica || ""));
+  if (!pacote.novas.length) return false;
+  const itens = pacote.novas.flatMap((c) => resumoDaMudanca(c.mensagem, { bloco: BLOCO_PUBLICO, soBloco: true }).itens);
+  let entregue = true;
+  if (itens.length) {
+    const suporte = await guildDoSuporte().catch(() => null);
+    entregue = !!suporte && await publicarNota(suporte, notaPublica(itens, pacote.versao, agora)).catch((e) => {
+      console.log("novidades: nao consegui postar no suporte:", e?.message || e);
+      return false;
+    });
+  }
+  if (entregue) await porAjuste("versao_publica", pacote.versao).catch(() => {});
+  return entregue && itens.length > 0;
 }
 
 async function contarQueVoltei() {
@@ -27209,6 +27366,9 @@ client.once("clientReady", () => {
   lembrarHistoricoDosErros()
     .then((n) => console.log(`erros: ${n} ficha(s) viva(s) lembrada(s) da versao anterior`))
     .catch((e) => console.log("erros: nao consegui lembrar o historico:", e?.message || e));
+
+  /* O que mudou para quem usa, no 📣・news do suporte. */
+  publicarNovidadesNoSuporte().catch((e) => console.log("novidades: falhei:", e?.message || e));
 
   /* Contar primeiro, gravar depois: gravar antes apagaria a prova. */
   contarQueVoltei()
@@ -27390,6 +27550,9 @@ client.once("clientReady", () => {
   }, 60 * 1000);
   /* As contas do funil e da caixa-preta, no mesmo compasso -- num relogio
      proprio para nao alongar a ronda de cima. */
+  /* A equipe: dois minutos depois de subir, e de hora em hora. */
+  setTimeout(() => sincronizarEquipe().catch((e) => console.log("equipe: ronda falhou:", e?.message || e)), 2 * 60 * 1000);
+  setInterval(() => sincronizarEquipe().catch((e) => console.log("equipe: ronda falhou:", e?.message || e)), 60 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
