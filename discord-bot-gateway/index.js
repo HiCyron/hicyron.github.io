@@ -12545,7 +12545,7 @@ function botaoDoUrso() {
    não posta (sem ler a marca, postaria de novo a cada reinício). */
 /* A marca tem versão: ficha nova (16/11, base conferida com a geração 7),
    versão nova -- e a mensagem que já está lá é ATUALIZADA, não repetida. */
-const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:2" }];
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:3" }];
 
 /* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
    e o cartão começa com o emoji do urso. */

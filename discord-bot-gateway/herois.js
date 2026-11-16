@@ -216,12 +216,33 @@ export function svgDoRetrato(h, fotoBase64 = "", lado = 256, letra = "") {
    gastar com o Yang (as fontes brigam sobre ele ser grátis).
    O que ENTROU (16/11, lista de novembro): a geração 7 -- Ava e Wee & Woo
    estão entre os melhores para entrar no rally do Urso -- e a lista de quem
-   nunca mandar como joiner. */
-export const LIDERES_DO_URSO = ["Amadeus", "Vivian", "Yang", "Ava"];
+   nunca mandar como joiner.
+
+   QUEM LIDERA, geração por geração ("tem heróis de outras gerações que
+   podem liderar?", dono, 16/11). O guia do Urso só nomeia quatro (Amadeus,
+   Vivian, Yang, Ava) e deixava um buraco nas gerações 2, 3 e 4. Agora sai
+   da nota de rally da mesma lista: em cada geração, o(s) de melhor nota (A
+   ou melhor) -- Marlin, Petra e Rosa entram, e os quatro do guia continuam. */
+export function lideresPorGeracao(herois = HEROIS) {
+  const porGeracao = new Map();
+  for (const h of herois) {
+    if (h.gen == null || h.coleta) continue;
+    if (!porGeracao.has(h.gen)) porGeracao.set(h.gen, []);
+    porGeracao.get(h.gen).push(h);
+  }
+  const lideres = [];
+  for (const gen of [...porGeracao.keys()].sort((a, b) => a - b)) {
+    const hs = porGeracao.get(gen);
+    const melhor = Math.min(...hs.map((h) => posicao(h.rally)));
+    if (melhor > posicao("A")) continue;
+    lideres.push(...hs.filter((h) => posicao(h.rally) === melhor).sort((a, b) => a.name.localeCompare(b.name)));
+  }
+  return lideres;
+}
 export const TEXTOS_DO_URSO = {
   titulo: "Heróis para o Urso",
   subtitulo: "Os melhores para a Armadilha do Urso (Bear Trap), pela nota da comunidade.",
-  liderar: "Para liderar o rally (pela geração do servidor)",
+  liderar: "Para liderar o rally (o melhor de cada geração)",
   entrar: "Para entrar no rally",
   legenda: "dá para ter sem gastar",
   dicas: "Dicas",
@@ -232,7 +253,7 @@ const BOA = new Set(["S+", "S", "A"]);
    Vivian, Ava) aparece nos dois: serve para os dois papéis. Entre os que
    entram: a nota, depois quem é grátis, depois a geração (épico antes). */
 export function heroisDoUrso(herois = HEROIS) {
-  const lideres = LIDERES_DO_URSO.map((n) => herois.find((h) => h.name === n)).filter(Boolean);
+  const lideres = lideresPorGeracao(herois);
   const geracao = (h) => (h.gen != null ? h.gen : 0);
   const entram = herois
     .filter((h) => !h.coleta && BOA.has(notaDaFuncao(h.bear)))

@@ -16191,7 +16191,11 @@ function conferirCartao(onde, embed, componentes = []) {
 {
   const H = await import("./herois.js");
   const g = H.heroisDoUrso();
-  ok("para liderar: os do guia, pela geração (Amadeus na 1, Vivian na 5, Yang na 6, Ava na 7)", g.lideres.map((h) => h.name).join(","), "Amadeus,Vivian,Yang,Ava");
+  ok("para liderar: o melhor de cada geração pela nota de rally (os quatro do guia continuam)", g.lideres.map((h) => h.name).join(","),
+    "Amadeus,Marlin,Petra,Rosa,Thrud,Vivian,Yang,Ava");
+  verdade("uma linha para cada geração de 1 a 7", [1, 2, 3, 4, 5, 6, 7].every((n) => g.lideres.some((h) => h.gen === n)));
+  verdade("ninguém com nota de rally abaixo de A lidera", g.lideres.every((h) => ["S+", "S", "A"].includes(H.notaDaFuncao(h.rally))));
+  ok("geração sem ninguém bom em rally: fica sem linha", H.lideresPorGeracao([{ name: "Z", gen: 9, rarity: "legendary", rally: "B" }]).length, 0);
   ok("para entrar: nota no Urso, quem é grátis primeiro, depois a geração", g.entram.map((h) => h.name).join(","),
     "Amane,Chenko,Yeonwoo,Amadeus,Margot,Vivian,Ava,Wee & Woo,Hilde");
   verdade("a lista 'também rendem' caiu na conferência (um guia: nunca mande o Long Fei)", !("tambem" in g) &&
@@ -16229,7 +16233,8 @@ function conferirCartao(onde, embed, componentes = []) {
   const t = { ...H.TEXTOS_DO_URSO, dados: "dados" };
   const ficha = H.fichaDoUrso(g, { e: (n) => `<a:${n}:1>`, t, dicas });
   verdade("a ficha do Urso abre com o emoji do urso", ficha.description.startsWith("<a:ks_urso:1> **Heróis para o Urso**"));
-  verdade("quem lidera mostra a nota de RALLY (o Yang não pode parecer ruim ali)", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1>\n/.test(ficha.description));
+  verdade("quem lidera mostra a nota de RALLY (o Yang não pode parecer ruim ali)", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1>\n/.test(ficha.description) &&
+    /<a:ks_galho:1><a:ks_nota_a:1> <a:ks_tropa_arqueiro:1> \*\*Rosa\*\* <a:ks_gen_4:1>\n/.test(ficha.description));
   verdade("rodapé do Urso com as duas fontes", /kingshotmastery\.com/.test(ficha.footer.text) && /kingshotpro\.com/.test(ficha.footer.text));
   verdade("o baú marca quem é grátis de verdade (épico: sem geração)", /\*\*Chenko\*\* <a:ks_bau:1>/.test(ficha.description));
   verdade("o VIP marcado", /\*\*Amadeus\*\* <a:ks_gen_1:1> VIP/.test(ficha.description));
@@ -16349,10 +16354,10 @@ function conferirCartao(onde, embed, componentes = []) {
           edit: async (m) => { editadas.push(["pt", m.embeds[0].description, JSON.stringify(m.attachments)]); } }]]));
       ok("posta", await ursoNosCanais(), "postado");
       ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 3)),
-        JSON.stringify([["marca", "urso_no_canal:top:2"], ["f", "urso-en"], ["en", "urso-en"]]));
+        JSON.stringify([["marca", "urso_no_canal:top:3"], ["f", "urso-en"], ["en", "urso-en"]]));
       ok("a ficha velha (minha) é atualizada no lugar, com a foto trocada", JSON.stringify(editadas), JSON.stringify([["pt", "urso-pt", "[]"]]));
       verdade("e nada de ficha repetida nessa sala", !enviados.some(([id]) => id === "pt"));
-      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:2"]));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:3"]));
       ok("mensagem de outro, com o mesmo cartão, não é minha", fichaDoUrsoNaSala(new Map([["a", { author: { id: "x" },
         embeds: [{ description: "<a:ks_urso_abc123:1> **Bear**" }] }]]), "eu"), null);
       ok("cartão meu que não é a ficha do Urso fica", fichaDoUrsoNaSala(new Map([["a", { author: { id: "eu" },
