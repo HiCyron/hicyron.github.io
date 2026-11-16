@@ -16231,7 +16231,11 @@ function conferirCartao(onde, embed, componentes = []) {
   }
 
   const t = { ...H.TEXTOS_DO_URSO, dados: "dados" };
-  const ficha = H.fichaDoUrso(g, { e: (n) => `<a:${n}:1>`, t, dicas });
+  const cartoes = H.fichaDoUrso(g, { e: (n) => `<a:${n}:1>`, t, dicas });
+  /* a ficha vira dois cartões; os testes de conteúdo olham os dois juntos */
+  const ficha = { description: cartoes.map((c) => c.description).join("\n"), footer: cartoes.at(-1).footer, thumbnail: cartoes[0].thumbnail };
+  ok("dois cartões na mesma mensagem: heróis em cima, dicas embaixo", cartoes.length, 2);
+  verdade("as dicas ficam no segundo cartão", /Dicas/.test(cartoes[1].description) && !/Dicas/.test(cartoes[0].description));
   verdade("a ficha do Urso abre com o emoji do urso", ficha.description.startsWith("<a:ks_urso:1> **Heróis para o Urso**"));
   verdade("quem lidera mostra a nota de RALLY (o Yang não pode parecer ruim ali)", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1>\n/.test(ficha.description) &&
     /<a:ks_galho:1><a:ks_nota_a:1> <a:ks_tropa_arqueiro:1> \*\*Rosa\*\* <a:ks_gen_4:1>\n/.test(ficha.description));
@@ -16242,11 +16246,31 @@ function conferirCartao(onde, embed, componentes = []) {
     /<a:ks_galho_fim:1><a:ks_nota_a:1> <a:ks_tropa_cavalaria:1> \*\*Hilde\*\*/.test(ficha.description));
   verdade("as dicas entram", ficha.description.includes(dicas[0]));
   verdade("nenhum emoji padrão do Discord quando os da CYRON estão lá", !/[🐻🏅🎁📜🔥🛡️🏹🐎]/u.test(ficha.description));
-  verdade("cabe no limite do Discord", ficha.description.length < 4000);
+  /* O teste antigo usava emoji de mentira (<a:nome:1>) e passava; no Discord
+     o código do emoji tem ~42 letras e a ficha em inglês saiu cortada. Aqui:
+     o código do tamanho real e um texto 40% mais comprido que o português
+     (o inglês, o alemão e o russo esticam). */
+  {
+    const real = (n) => `<a:${n}_3fa2c9:1439876543210987654>`;
+    const longo = (txt) => `${txt} ${txt.slice(0, Math.ceil(txt.length * 0.4))}`;
+    const tLongo = Object.fromEntries(Object.entries(t).map(([k, v]) => [k, typeof v === "string" ? longo(v) : v]));
+    const reais = H.fichaDoUrso(g, { e: real, t: tLongo, dicas: dicas.map(longo) });
+    verdade("cada cartão cabe nas 4096 letras do Discord, com o código real dos emojis", reais.every((c) => c.description.length <= H.LIMITE_DO_CARTAO));
+    verdade("a mensagem inteira cabe nas 6000", reais.reduce((n, c) => n + c.description.length + (c.footer?.text.length || 0), 0) <= H.LIMITE_DA_MENSAGEM);
+    verdade("nenhuma dica sai cortada no meio", reais[1].description.split("\n").slice(1).every((l) => dicas.map(longo).some((d) => l.endsWith(d))));
+    verdade("a lista de heróis sai inteira", /\*\*Hilde\*\*/.test(reais[0].description));
+  }
+  ok("linha que não cabe sai inteira", H.linhasQueCabem(["aaaa", "bbbb", "cccc"], 9), "aaaa\nbbbb");
+  ok("e não sobra linha em branco no fim", H.linhasQueCabem(["aaaa", "", "cccc"], 6), "aaaa");
+  verdade("as fichas de herói também cabem com o código real", H.HEROIS.every((h) => H.fichaDoHeroi(h, {
+    e: (n) => `<a:${n}_3fa2c9:1439876543210987654>`, t: { ...H.TEXTOS_DA_FICHA, melhor: H.melhorUso(h), dicas_do_heroi: H.dicasDoHeroi(h) } })
+    .description.length <= H.LIMITE_DO_CARTAO));
   verdade("rodapé com a fonte (CC-BY)", /kingshotpro\.com/.test(ficha.footer.text));
   ok("emblema no canto", ficha.thumbnail?.url, "attachment://urso.png");
-  const semEmoji = H.fichaDoUrso(g, { e: (n, r) => r, t, dicas, foto: null });
-  verdade("emojis ainda não subiram: sai com a reserva, sem marcação quebrada", !/<a?:|undefined/.test(semEmoji.description) && !("thumbnail" in semEmoji));
+  const semEmojiCartoes = H.fichaDoUrso(g, { e: (n, r) => r, t, dicas, foto: null });
+  const semEmoji = { description: semEmojiCartoes.map((c) => c.description).join("\n") };
+  verdade("emojis ainda não subiram: sai com a reserva, sem marcação quebrada", !/<a?:|undefined/.test(semEmoji.description) &&
+    !semEmojiCartoes.some((c) => "thumbnail" in c));
 
   /* nenhum texto passa pelo motor de texto do sistema (já derrubou o bot) */
   verdade("o emblema do Urso é só forma, sem <text>", !/<text/.test(H.svgDoUrso()));
@@ -16354,10 +16378,10 @@ function conferirCartao(onde, embed, componentes = []) {
           edit: async (m) => { editadas.push(["pt", m.embeds[0].description, JSON.stringify(m.attachments)]); } }]]));
       ok("posta", await ursoNosCanais(), "postado");
       ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 3)),
-        JSON.stringify([["marca", "urso_no_canal:top:4"], ["f", "urso-en"], ["en", "urso-en"]]));
+        JSON.stringify([["marca", "urso_no_canal:top:5"], ["f", "urso-en"], ["en", "urso-en"]]));
       ok("a ficha velha (minha) é atualizada no lugar, com a foto trocada", JSON.stringify(editadas), JSON.stringify([["pt", "urso-pt", "[]"]]));
       verdade("e nada de ficha repetida nessa sala", !enviados.some(([id]) => id === "pt"));
-      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:4"]));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:5"]));
       ok("mensagem de outro, com o mesmo cartão, não é minha", fichaDoUrsoNaSala(new Map([["a", { author: { id: "x" },
         embeds: [{ description: "<a:ks_urso_abc123:1> **Bear**" }] }]]), "eu"), null);
       ok("cartão meu que não é a ficha do Urso fica", fichaDoUrsoNaSala(new Map([["a", { author: { id: "eu" },
