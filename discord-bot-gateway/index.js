@@ -12493,7 +12493,7 @@ async function cartaoDoUrso(idioma, guildId) {
   }
   const pergaminho = EMOJIS_DA_CYRON.get("ks_pergaminho");
   return {
-    embeds: [fichaDoUrso(grupos, { e: emojiKs, t, dicas, foto: emblemaDoUrso ? "attachment://urso.png" : null })],
+    embeds: fichaDoUrso(grupos, { e: emojiKs, t, dicas, foto: emblemaDoUrso ? "attachment://urso.png" : null }),
     files: emblemaDoUrso ? [{ attachment: emblemaDoUrso, name: "urso.png" }] : [],
     /* O botão do texto para o chat do jogo: quem tocar recebe, só para ele e
        na língua dele, a lista pronta para colar no chat da aliança. */
@@ -12563,7 +12563,7 @@ function botaoDoUrso() {
    não posta (sem ler a marca, postaria de novo a cada reinício). */
 /* A marca tem versão: ficha nova (16/11, base conferida com a geração 7),
    versão nova -- e a mensagem que já está lá é ATUALIZADA, não repetida. */
-const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:4" }];
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:5" }];
 
 /* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
    e o cartão começa com o emoji do urso. */

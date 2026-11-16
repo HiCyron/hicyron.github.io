@@ -136,6 +136,29 @@ export function dicasDoHeroi(h) {
 }
 const FORTE = new Set(["S+", "S"]);
 
+/* Os limites do Discord para cartões: 4096 letras no texto de um cartão e
+   6000 somando todos os cartões da mensagem. Emoji do aplicativo conta pelo
+   CÓDIGO (<a:ks_galho_fim_3fa2c9:1234567890123456789>, ~42 letras), não pelo
+   desenho -- a ficha do Urso tem uns 70, e em inglês passou do limite e saiu
+   cortada no meio de uma frase (dono, 16/11, no TOP). */
+export const LIMITE_DO_CARTAO = 4096;
+export const LIMITE_DA_MENSAGEM = 6000;
+
+/* Pura. Junta as linhas enquanto couberem no limite; o que não cabe sai
+   INTEIRO (uma linha a menos, nunca uma frase pela metade). */
+export function linhasQueCabem(linhas, limite = LIMITE_DO_CARTAO) {
+  const fora = [];
+  let tamanho = 0;
+  for (const l of linhas) {
+    const custo = l.length + (fora.length ? 1 : 0);
+    if (tamanho + custo > limite) break;
+    fora.push(l);
+    tamanho += custo;
+  }
+  while (fora.length && !fora.at(-1).trim()) fora.pop();
+  return fora.join("\n");
+}
+
 /* Pura. A ficha. `e(nome, reserva)` devolve o emoji do aplicativo (ou a
    reserva, enquanto ele não subiu); `t` são os textos já na língua certa,
    mais `melhor` e `dicas` (já traduzidos). Tudo na descrição, e não no
@@ -158,7 +181,7 @@ export function fichaDoHeroi(h, { e, t, foto = "attachment://heroi.png" }) {
   ];
   return {
     color: COR_DA_RARIDADE[h.rarity] ?? 0x5865F2,
-    description: linhas.join("\n").slice(0, 4000),
+    description: linhasQueCabem(linhas),
     ...(foto ? { thumbnail: { url: foto } } : {}),
     footer: { text: `CYRON · ${t.notas}: ${FONTE_DAS_NOTAS} · ${t.dados}: ${FONTE_DOS_HEROIS}` },
   };
@@ -303,7 +326,11 @@ export function dicasDoUrso({ lideres, entram }, herois = HEROIS) {
 /* Pura. A ficha do Urso, no mesmo estilo da ficha de herói. Quem lidera
    mostra a nota de RALLY (é o que ele faz ali; a de entrar no Urso faria o
    Yang parecer ruim); quem entra mostra a nota do Urso. O baú marca quem dá
-   para ter sem gastar. */
+   para ter sem gastar.
+
+   DOIS cartões na mesma mensagem: os heróis em cima, as dicas embaixo. Num
+   cartão só, os ~70 emojis mais as dicas passavam das 4096 letras. As dicas
+   usam o que sobra das 6000 da mensagem; dica que não cabe sai inteira. */
 export function fichaDoUrso({ lideres, entram }, { e, t, dicas = [], foto = "attachment://urso.png" }) {
   const linha = (campo) => (h, i, todos) => {
     const fim = i === todos.length - 1;
@@ -321,14 +348,14 @@ export function fichaDoUrso({ lideres, entram }, { e, t, dicas = [], foto = "att
     ...bloco(t.entrar, "ks_joiner", entram, "bear"),
     "",
     `> ${e("ks_bau", "🎁")} *= ${t.legenda}*`,
-    ...(dicas.length ? ["", `${e("ks_pergaminho", "📜")} **${t.dicas}**`, ...dicas.map((d) => `${e("ks_brilho", "•")} ${d}`)] : []),
   ];
-  return {
-    color: 0xB8641E,
-    description: linhas.join("\n").slice(0, 4000),
-    ...(foto ? { thumbnail: { url: foto } } : {}),
-    footer: { text: `CYRON · ${t.notas || "notas"}: ${FONTE_DAS_NOTAS} · ${t.dados || "dados"}: ${FONTE_DOS_HEROIS}` },
-  };
+  const herois = { color: 0xB8641E, description: linhasQueCabem(linhas), ...(foto ? { thumbnail: { url: foto } } : {}) };
+  const rodape = { text: `CYRON · ${t.notas || "notas"}: ${FONTE_DAS_NOTAS} · ${t.dados || "dados"}: ${FONTE_DOS_HEROIS}` };
+  if (!dicas.length) return [{ ...herois, footer: rodape }];
+  const sobra = LIMITE_DA_MENSAGEM - herois.description.length - rodape.text.length - 20;
+  const textoDasDicas = linhasQueCabem([`${e("ks_pergaminho", "📜")} **${t.dicas}**`,
+    ...dicas.map((d) => `${e("ks_brilho", "•")} ${d}`)], Math.min(LIMITE_DO_CARTAO, sobra));
+  return [herois, { color: 0xB8641E, description: textoDasDicas, footer: rodape }];
 }
 
 /* Pura. O emblema do canto: a cabeça do urso num hexágono de ouro. Só
