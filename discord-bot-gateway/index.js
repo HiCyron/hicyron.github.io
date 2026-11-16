@@ -27341,6 +27341,16 @@ function cartaoDeAtualizacao(pacote, rodape, agora = Date.now()) {
   };
 }
 
+/* A trava do 📣 news: item que fala de dentro do bot nao sai, mesmo que
+   esteja no bloco publico por descuido meu. O dono perguntou (16/11) se um
+   ajuste dele apareceria la' -- nao aparece (so' sai o bloco "Public:" de
+   uma atualizacao do codigo), e esta lista garante que nem o meu erro de
+   escrita leve painel, dono ou bastidor para quem usa. Pura. */
+const PALAVRAS_DE_DENTRO = /\b(owner|admin|dashboard|panel|painel|dono|supabase|database|banco de dados|token|deploy|commit|github|fly\.io|webhook|log|internal|interno|staff only)\b/i;
+function itemPublico(t) {
+  return !PALAVRAS_DE_DENTRO.test(String(t || ""));
+}
+
 /* Pura. A nota publica: so' os itens, sem os titulos (que sao de dentro). */
 function notaPublica(itens, versao, agora = Date.now()) {
   return {
@@ -27361,7 +27371,9 @@ async function publicarNovidadesNoSuporte(agora = Date.now()) {
   if (guardado.falhou) return false;
   const pacote = novidadesDesde(lerNovidades(lerArquivoDeNovidades()), String(guardado.versao_publica || ""));
   if (!pacote.novas.length) return false;
-  const itens = pacote.novas.flatMap((c) => resumoDaMudanca(c.mensagem, { bloco: BLOCO_PUBLICO, soBloco: true }).itens);
+  const todos = pacote.novas.flatMap((c) => resumoDaMudanca(c.mensagem, { bloco: BLOCO_PUBLICO, soBloco: true }).itens);
+  const itens = todos.filter(itemPublico);
+  for (const t of todos.filter((x) => !itemPublico(x))) rastrear("novidades", "item-interno-segurado", { detalhe: t });
   let entregue = true;
   if (itens.length) {
     const suporte = await guildDoSuporte().catch(() => null);

@@ -15882,6 +15882,15 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("com o bloco, só ele (nem o do dono, nem o técnico)", N.resumoDaMudanca(publica, { bloco: N.BLOCO_PUBLICO, soBloco: true }).itens,
     ["Updates now land in 📣 news, in your language.", "Newcomers are welcomed in every language channel."]);
   ok("o cartão do dono continua lendo o bloco dele", N.resumoDaMudanca(publica).itens, ["Para o dono."]);
+  const T = carregar(["PALAVRAS_DE_DENTRO", "itemPublico"]);
+  for (const interno of ["The owner panel now shows a funnel.", "Faster database reads.", "Admin dashboard got a weekly summary.",
+    "New deploy step writes notes.", "O painel do dono mudou.", "Webhook retries for internal logs."]) {
+    verdade(`a trava segura o que é de dentro: "${interno}"`, !T.itemPublico(interno));
+  }
+  for (const publico of ["The official CYRON contact is now @tiagosonaglio.", "Every CYRON update now lands here, in your language's channel.",
+    "Images are translated faster.", "Fixed an error when a message was edited."]) {
+    verdade(`e deixa passar o que é para quem usa: "${publico}"`, T.itemPublico(publico));
+  }
   const nota = N.notaPublica(["a", "b"], "c".repeat(40), Date.parse("2026-11-16T12:00:00Z"));
   ok("a nota pública: título em inglês, itens e versão", [nota.title, nota.description, nota.footer.text],
     ["🆕 CYRON update", "• a\n• b", "version ccccccc"]);
@@ -15893,6 +15902,7 @@ function conferirCartao(onde, embed, componentes = []) {
   const antes = Object.fromEntries(nomes.map((k) => [k, globalThis[k]]));
   try {
     Object.assign(globalThis, N);
+    Object.assign(globalThis, carregar(["PALAVRAS_DE_DENTRO", "itemPublico"]));
     const P = carregar(["publicarNovidadesNoSuporte"]);
     let marcas = { versao_publica: "a".repeat(40) }, posta = true;
     const postadas = [];
@@ -15910,8 +15920,18 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("versão só interna: não posta nada", !await P.publicarNovidadesNoSuporte() && postadas.length === 1);
     ok("mas marca, para não ficar pendente para sempre", marcas.versao_publica, "d".repeat(40));
     globalThis.lerArquivoDeNovidades = () => lista(["e", publica], ["d", interna]);
+    globalThis.lerArquivoDeNovidades = () => lista(["f", "X (#70)\n\nPublic:\n- The owner panel now shows a funnel.\n- Images are translated faster."], ["e", publica]);
+    marcas = { versao_publica: "e".repeat(40) };
+    await P.publicarNovidadesNoSuporte();
+    ok("item de dentro no bloco público por descuido: segurado, e o resto sai", postadas.at(-1), "• Images are translated faster.");
+    globalThis.lerArquivoDeNovidades = () => lista(["g", "Y (#71)\n\nPublic:\n- Admin dashboard got a weekly summary."], ["f", publica]);
+    const antesDeTudoDeDentro = postadas.length;
+    await P.publicarNovidadesNoSuporte();
+    ok("bloco só de coisa de dentro: não posta nada", postadas.length, antesDeTudoDeDentro);
+    globalThis.lerArquivoDeNovidades = () => lista(["h", publica], ["g", interna]);
+    marcas = { versao_publica: "g".repeat(40) };
     posta = false;
-    verdade("o suporte recusou: não marca (sai na próxima volta)", !await P.publicarNovidadesNoSuporte() && marcas.versao_publica === "d".repeat(40));
+    verdade("o suporte recusou: não marca (sai na próxima volta)", !await P.publicarNovidadesNoSuporte() && marcas.versao_publica === "g".repeat(40));
     marcas = Object.defineProperty({}, "falhou", { value: true });
     verdade("banco fora: não posta no escuro", !await P.publicarNovidadesNoSuporte());
   } finally {
