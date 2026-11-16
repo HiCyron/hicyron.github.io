@@ -16010,47 +16010,76 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o bot publica as novidades ao subir", /publicarNovidadesNoSuporte\(\)\.catch/.test(idx.slice(idx.indexOf('client.once("clientReady"'))));
 }
 
-/* ====== 🃏 A FICHA DE HERÓI DO KINGSHOT (16/11, teste no painel) ======
+/* ====== 🃏 A FICHA DE HERÓI DO KINGSHOT (16/11) ======
 
    "Fazer o bot se encaixar no dia a dia de quem joga": /heroi Nome mostra a
-   ficha com os emojis da CYRON (animados) e a foto no hexágono. Por enquanto
-   só no servidor do painel. */
+   ficha com os emojis da CYRON (animados) e a foto no hexágono. Começou no
+   painel; liberado para todos depois de conferir a base inteira ("confere
+   tudo e já libera"). */
 {
   const H = await import("./herois.js");
-  ok("os 31 heróis da base", H.HEROIS.length, 31);
-  verdade("todo herói tem nome, geração, raridade e tropa que a ficha conhece",
-    H.HEROIS.every((h) => h.name && Number.isInteger(h.gen) && H.COR_DA_RARIDADE[h.rarity] && H.TEXTOS_DA_FICHA.tropa[h.troop]));
+  const D = JSON.parse(readFileSync(`${aqui}/dados/kingshot-herois.json`, "utf8"));
+  ok("34 heróis: os 31 da base aberta e a geração 7", H.HEROIS.length, 34);
+  verdade("a geração 7 entrou (Ava, Charles, Wee & Woo)", ["Ava", "Charles", "Wee & Woo"].every((n) => H.acharHeroi(n)?.gen === 7));
+  verdade("a geração 8 fica de fora até sair de verdade (as fontes brigam)", !["Diego", "Liz", "Luna"].some((n) => H.acharHeroi(n)) &&
+    /Geração 8/.test(D._meta.fora));
+  verdade("todo herói tem nome, raridade e tropa que a ficha conhece",
+    H.HEROIS.every((h) => h.name && H.COR_DA_RARIDADE[h.rarity] && H.TEXTOS_DA_FICHA.tropa[h.troop]));
+  verdade("só lendário tem geração (épico e raro não têm)", H.HEROIS.every((h) => (h.rarity === "legendary") === Number.isInteger(h.gen)));
+  verdade("toda nota é uma nota de verdade", H.HEROIS.every((h) => ["rally", "garrison", "bear"].every((k) =>
+    ["S+", "S", "A", "B", "C", "D", "-"].includes(h[k]))));
+  ok("'grátis' só onde duas fontes confirmam", H.HEROIS.filter(H.ehF2P).map((h) => h.name).sort().join(","),
+    "Amane,Chenko,Jabel,Marlin,Yeonwoo,Zoe");
+  ok("Yang: grátis em disputa, sem a marca", H.ehF2P(H.acharHeroi("Yang")), false);
+  verdade("nenhum texto livre (era onde moravam as afirmações duvidosas)", H.HEROIS.every((h) => !("desc" in h) && !("bestUse" in h)));
+  verdade("a base diz de onde vieram as notas e os fatos", /kingshotmastery/.test(D._meta.fontes.notas) && /kingshotpro/.test(D._meta.fontes.fatos));
   ok("acha sem acento, espaço nem maiúscula", H.acharHeroi("long fei")?.name, "Long Fei");
+  ok("acha com o & do nome", H.acharHeroi("wee woo")?.name, "Wee & Woo");
   ok("acha pelo nome exato", H.acharHeroi("Jabel")?.name, "Jabel");
   ok("nome que não existe: nada", H.acharHeroi("Gandalf"), null);
   ok("vazio: nada (não pega o primeiro da lista)", H.acharHeroi(""), null);
   const sug = H.sugestoesDeHeroi("ja");
   ok("autocompletar: quem começa com o digitado vem primeiro", sug[0].value, "Jabel");
-  verdade("autocompletar: nome · geração", /^Jabel · Gen \d$/.test(sug[0].name));
+  ok("autocompletar: lendário com a geração", sug[0].name, "Jabel · Gen 1");
+  ok("autocompletar: épico com 'Epic' (não tem geração)", H.sugestoesDeHeroi("chenko")[0].name, "Chenko · Epic");
   ok("autocompletar sem nada digitado: no máximo 25 (teto do Discord)", H.sugestoesDeHeroi("").length, 25);
-  verdade("autocompletar sem nada digitado: por geração", H.sugestoesDeHeroi("").every((s, i, a) => !i ||
-    H.acharHeroi(a[i - 1].value).gen <= H.acharHeroi(s.value).gen));
+  verdade("autocompletar sem nada digitado: lendários por geração antes", H.sugestoesDeHeroi("").slice(0, 22).every((s, i, a) => !i ||
+    (H.acharHeroi(a[i - 1].value).gen ?? 99) <= (H.acharHeroi(s.value).gen ?? 99)));
   ok("nota estranha vira traço", H.notaDaFuncao("—"), "-");
   ok("nota em minúscula vale", H.notaDaFuncao("s+"), "S+");
-  const lutador = { name: "X", gen: 1, rarity: "legendary", troop: "cavalry", garrison: "B", rally: "S+", bear: "A", joiner: "-" };
-  ok("árvore da nota mais alta para a mais baixa", H.funcoesDoHeroi(lutador).map(([k]) => k).join(","), "rally,bear,garrison,joiner");
-  ok("herói de coleta (geração 0): a árvore é só a coleta", H.funcoesDoHeroi(H.acharHeroi("Edwin")).map(([k]) => k).join(","), "gathering");
+  const lutador = { name: "X", gen: 1, rarity: "legendary", troop: "cavalry", garrison: "B", rally: "S+", bear: "A" };
+  ok("árvore: rally, guarnição e Urso, da nota mais alta para a mais baixa", H.funcoesDoHeroi(lutador).map(([k]) => k).join(","), "rally,bear,garrison");
+  ok("melhor uso: a função com a nota mais alta", H.melhorUso(H.acharHeroi("Jabel")), "Guarnição (defesa da cidade)");
+  ok("melhor uso: empate junta as duas", H.melhorUso(H.acharHeroi("Vivian")), "Entrar no rally do Urso");
+  ok("melhor uso: herói de coleta é de coleta", H.melhorUso(H.acharHeroi("Edwin")), "Coleta de pedra");
+  ok("melhor uso: nota baixa em tudo", H.melhorUso(H.acharHeroi("Howard")), "Pouco uso em batalha");
+  verdade("dica: joiner do Urso vai como 1º herói", H.dicasDoHeroi(H.acharHeroi("Chenko")).some((d) => /1º herói/.test(d)));
+  verdade("dica: quem nunca mandar no Urso", H.dicasDoHeroi(H.acharHeroi("Long Fei")).some((d) => /Não mande como joiner/.test(d)));
+  verdade("dica: herói de coleta, sem repetir o 'não mande'", (() => { const d = H.dicasDoHeroi(H.acharHeroi("Edwin"));
+    return d.length === 1 && /coleta de pedra/.test(d[0]); })());
+  verdade("dica sem gênero (Ava, Amane): nada de 'dele'", !H.HEROIS.flatMap(H.dicasDoHeroi).some((d) => /\bdele\b|\bdela\b/.test(d)));
 
-  const t = { ...H.TEXTOS_DA_FICHA, melhor: "Rally lead", descricao: "Sobre o X." };
+  const t = { ...H.TEXTOS_DA_FICHA, melhor: "Liderar rally", dicas_do_heroi: ["Uma dica."] };
   const comEmoji = H.fichaDoHeroi(lutador, { e: (n) => `<:${n}:1>`, t });
   verdade("a ficha usa os emojis da CYRON", /<:ks_brilho:1> \*\*X\*\*/.test(comEmoji.description) && /<:ks_tropa_cavalaria:1>/.test(comEmoji.description));
   verdade("nenhum emoji padrão do Discord na ficha (o dono achou feio)",
     !/[🏰⚔️🐻🤝🔥🛡️🏹🐎]/u.test(comEmoji.description));
   verdade("a nota vem antes do nome da função (fica em coluna)", /<:ks_nota_splus:1> Rally/.test(comEmoji.description));
-  verdade("o último galho fecha a árvore", /<:ks_galho_fim:1><:ks_joiner:1>/.test(comEmoji.description));
+  verdade("o último galho fecha a árvore", /<:ks_galho_fim:1><:ks_guarnicao:1>/.test(comEmoji.description));
+  verdade("as dicas entram na ficha", /<:ks_pergaminho:1> \*\*Dicas\*\*\n<:ks_brilho:1> Uma dica\./.test(comEmoji.description));
+  verdade("lendário mostra a geração", /<:ks_gen_1:1> Gen 1/.test(comEmoji.description));
+  verdade("épico não mostra geração", !/Gen/.test(H.fichaDoHeroi(H.acharHeroi("Chenko"), { e: (n) => `<:${n}:1>`, t }).description));
+  verdade("sem 'grátis' confirmado nem VIP: nada de grátis ou pago na ficha", !/sem gastar|pago|VIP/.test(comEmoji.description));
+  verdade("grátis confirmado: diz", /sem gastar/.test(H.fichaDoHeroi(H.acharHeroi("Chenko"), { e: (n) => `<:${n}:1>`, t }).description));
   ok("cor da raridade", comEmoji.color, 0xF0B232);
   ok("foto no canto", comEmoji.thumbnail?.url, "attachment://heroi.png");
-  verdade("rodapé com a fonte (a licença CC-BY pede)", /kingshotpro\.com/.test(comEmoji.footer.text));
+  verdade("rodapé com as duas fontes (notas e dados; a licença CC-BY pede)", /kingshotmastery\.com/.test(comEmoji.footer.text) &&
+    /kingshotpro\.com/.test(comEmoji.footer.text));
   const semEmoji = H.fichaDoHeroi(lutador, { e: (n, r) => r, t, foto: null });
   verdade("emojis ainda não subiram: a ficha sai com a reserva, sem marcação quebrada", !/<:|undefined/.test(semEmoji.description));
   verdade("sem foto: sem canto (url vazia o Discord recusa)", !("thumbnail" in semEmoji));
-  verdade("todas as 31 fichas cabem no limite do Discord", H.HEROIS.every((h) =>
-    H.fichaDoHeroi(h, { e: (n) => `<a:${n}:123456789012345678>`, t: { ...t, melhor: h.bestUse, descricao: h.desc } }).description.length < 4000));
+  verdade("todas as fichas cabem no limite do Discord", H.HEROIS.every((h) =>
+    H.fichaDoHeroi(h, { e: (n) => `<a:${n}:123456789012345678>`, t: { ...t, melhor: H.melhorUso(h), dicas_do_heroi: H.dicasDoHeroi(h) } }).description.length < 4000));
   const svg = H.svgDoRetrato({ name: "<b>", rarity: "epic" });
   verdade("retrato sem foto: a inicial, sem deixar marcação entrar no SVG", !/<b>/.test(svg) && /#a855f7/.test(svg));
   verdade("retrato com foto: a foto vai recortada no hexágono", /clip-path="url\(#miolo\)"/.test(H.svgDoRetrato({ name: "A", rarity: "rare" }, "QUJD")));
@@ -16138,9 +16167,12 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("amostra: já feita nesta versão, não posta de novo", /\.heroi_amostra === AMOSTRA_VERSAO\) return "feito"/.test(amostra));
   verdade("amostra: marca com a versão (desenho novo posta uma vez de novo)", /porAjuste\("heroi_amostra", AMOSTRA_VERSAO\)/.test(amostra));
   verdade("amostra: espera a subida terminar (antes, sairia com os emojis velhos)", /if \(!SUBIDA_DOS_EMOJIS\.pronta\) return "sem-emoji"/.test(amostra));
-  verdade("o /heroi não está entre os comandos de todo mundo", !/name: "heroi"/.test(pedaco("COMANDOS_DE_TODOS")) &&
-    !/"heroi"/.test(pedaco("COMANDOS_DE_TODOS")));
-  verdade("o /heroi e o /urso nascem só no servidor do painel", /for \(const def of \[DEF_HEROI, DEF_URSO\]\)[^]{0,200}guild\.commands\.create\(def\)/.test(semComentarios(pedaco("arrumarOndeMoraOAdmin"))));
+  verdade("liberados: o /heroi e o /urso são comandos de todos (não vão para os servidores do jogo)",
+    /"heroi", "urso"/.test(pedaco("COMANDOS_DE_TODOS")));
+  verdade("e moram na lista global, só no servidor", /name: "heroi"/.test(pedaco("GLOBAIS_DO_CYRON")) && /name: "urso"/.test(pedaco("GLOBAIS_DO_CYRON")));
+  verdade("os do teste saem do painel, e só os que eu criei (descrição com '(teste)')",
+    /TESTES_QUE_SAIRAM\.has\(c\.name\) \|\| !\/\\\(teste\\\)\$\/\.test\(c\.description[^]{0,80}c\.delete\(\)/.test(semComentarios(pedaco("arrumarOndeMoraOAdmin"))));
+  verdade("e o painel não cria mais os do teste", !/DEF_HEROI|DEF_URSO/.test(semComentarios(fonte)));
   verdade("o comando e o autocompletar estão ligados", /nome === "heroi"\) return comandoHeroi\(inter\)/.test(idx) &&
     /commandName === "heroi"\) \{\s*return inter\.respond\(sugestoesDeHeroi/.test(idx));
   verdade("os emojis ks_ sobem junto com os da CYRON", /novos \+= await trocarEmojisDoKingshot\(publicados\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
@@ -16156,21 +16188,25 @@ function conferirCartao(onde, embed, componentes = []) {
 {
   const H = await import("./herois.js");
   const g = H.heroisDoUrso();
-  ok("para liderar: nota boa no Urso e forte no rally", g.lideres.map((h) => h.name).join(","), "Yang,Vivian,Amadeus");
-  ok("para entrar: forte no Urso e bom joiner, quem é grátis primeiro", g.entram.map((h) => h.name).join(","), "Chenko,Amane,Yeonwoo,Margot");
+  ok("para liderar: os do guia, pela geração (Amadeus na 1, Vivian na 5, Yang na 6, Ava na 7)", g.lideres.map((h) => h.name).join(","), "Amadeus,Vivian,Yang,Ava");
+  ok("para entrar: nota no Urso, quem é grátis primeiro, depois a geração", g.entram.map((h) => h.name).join(","),
+    "Amane,Chenko,Yeonwoo,Amadeus,Margot,Vivian,Ava,Wee & Woo,Hilde");
   verdade("a lista 'também rendem' caiu na conferência (um guia: nunca mande o Long Fei)", !("tambem" in g) &&
     ![...g.lideres, ...g.entram].some((h) => h.name === "Long Fei"));
   const todos = [...g.lideres, ...g.entram];
-  verdade("ninguém aparece duas vezes", new Set(todos.map((h) => h.name)).size === todos.length);
-  verdade("herói de coleta fica de fora", !todos.some((h) => h.gathering));
-  verdade("todo mundo da lista tem nota A ou melhor no Urso", todos.every((h) => ["S+", "S", "A"].includes(H.notaDaFuncao(h.bear))));
+  verdade("quem aparece nos dois serve para os dois (lidera e é S+ para entrar)", g.lideres.filter((h) => g.entram.includes(h))
+    .every((h) => H.notaDaFuncao(h.bear) === "S+"));
+  verdade("herói de coleta fica de fora", !todos.some((h) => h.coleta));
+  verdade("todo mundo que entra tem nota A ou melhor no Urso", g.entram.every((h) => ["S+", "S", "A"].includes(H.notaDaFuncao(h.bear))));
+  verdade("ninguém da lista 'nunca mande' está entre os que entram", !g.entram.some((h) => H.NUNCA_NO_URSO.includes(h.name)));
   const falsos = [{ name: "Z", gen: 1, troop: "archer", rarity: "epic", bear: "S", joiner: "S", rally: "-", f2p: false },
     { name: "Y", gen: 1, troop: "archer", rarity: "epic", bear: "S", joiner: "S", rally: "-", f2p: true }];
   ok("entre iguais, o grátis vem antes", H.heroisDoUrso(falsos).entram.map((h) => h.name).join(","), "Y,Z");
 
   const dicas = H.dicasDoUrso(g);
   verdade("dica: no rally dos outros só conta a 1ª habilidade do 1º herói, com os joiners grátis calculados",
-    dicas.some((d) => /só conta a 1ª habilidade do 1º herói: coloque Chenko, Amane ou Yeonwoo na frente/.test(d)));
+    dicas.some((d) => /só conta a 1ª habilidade do 1º herói: coloque Amane, Chenko ou Yeonwoo na frente/.test(d)));
+  verdade("dica: quem nunca mandar como joiner", dicas.some((d) => /Nunca mande como joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin e Charles/.test(d)));
   verdade("dica: misturar letalidade com ataque", dicas.some((d) => /letalidade \(Chenko, Yeonwoo\) com ataque \(Amane, Margot\)/.test(d)));
   verdade("dica: o líder leva as 3 habilidades", dicas.some((d) => /as 3 habilidades valem para o rally inteiro/.test(d)));
   verdade("dica: tropa com a maior parte arqueiros", dicas.some((d) => /maior parte arqueiros/.test(d)));
@@ -16190,10 +16226,12 @@ function conferirCartao(onde, embed, componentes = []) {
   const t = { ...H.TEXTOS_DO_URSO, dados: "dados" };
   const ficha = H.fichaDoUrso(g, { e: (n) => `<a:${n}:1>`, t, dicas });
   verdade("a ficha do Urso abre com o emoji do urso", ficha.description.startsWith("<a:ks_urso:1> **Heróis para o Urso**"));
-  verdade("cada herói com nota, tropa, nome e geração", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1>\n/.test(ficha.description));
-  verdade("o baú marca quem é grátis de verdade", /\*\*Chenko\*\* <a:ks_gen_1:1> <a:ks_bau:1>/.test(ficha.description));
+  verdade("quem lidera mostra a nota de RALLY (o Yang não pode parecer ruim ali)", /<a:ks_galho:1><a:ks_nota_s:1> <a:ks_tropa_arqueiro:1> \*\*Yang\*\* <a:ks_gen_6:1>\n/.test(ficha.description));
+  verdade("rodapé do Urso com as duas fontes", /kingshotmastery\.com/.test(ficha.footer.text) && /kingshotpro\.com/.test(ficha.footer.text));
+  verdade("o baú marca quem é grátis de verdade (épico: sem geração)", /\*\*Chenko\*\* <a:ks_bau:1>/.test(ficha.description));
   verdade("o VIP marcado", /\*\*Amadeus\*\* <a:ks_gen_1:1> VIP/.test(ficha.description));
-  verdade("o último de cada grupo fecha o galho", /<a:ks_galho_fim:1><a:ks_nota_s:1> <a:ks_tropa_infantaria:1> \*\*Amadeus\*\*/.test(ficha.description));
+  verdade("o último de cada grupo fecha o galho", /<a:ks_galho_fim:1><a:ks_nota_s:1> <a:ks_tropa_cavalaria:1> \*\*Ava\*\*/.test(ficha.description) &&
+    /<a:ks_galho_fim:1><a:ks_nota_a:1> <a:ks_tropa_cavalaria:1> \*\*Hilde\*\*/.test(ficha.description));
   verdade("as dicas entram", ficha.description.includes(dicas[0]));
   verdade("nenhum emoji padrão do Discord quando os da CYRON estão lá", !/[🐻🏅🎁📜🔥🛡️🏹🐎]/u.test(ficha.description));
   verdade("cabe no limite do Discord", ficha.description.length < 4000);
@@ -16238,7 +16276,7 @@ function conferirCartao(onde, embed, componentes = []) {
     /async function avisarAntes[^]*?const urso = ehEventoDoUrso\(ev\) && await heroisNoUrso\(guild\.id\)[^]*?avisoDeInicio\(ev, aviso, PALAVRAS_DO_CARTAO, ev\.titulo, minutos, urso\)/,
     /async function avisarNaHora[^]*?const urso = ehEventoDoUrso\(ev\) && await heroisNoUrso\(guild\.id\)[^]*?avisoDeInicio\(ev, aviso, PALAVRAS_DO_CARTAO, ev\.titulo, 0, urso\)/,
   ].every((r) => r.test(fonteSem)));
-  verdade("em teste, o botão só aparece no painel", /return ehOPainel\(guildId\)/.test(semComentarios(pedaco("heroisNoUrso"))));
+  verdade("liberado: o botão do Urso aparece em todo servidor", /return true/.test(semComentarios(pedaco("heroisNoUrso"))));
   verdade("o botão e o /urso estão ligados", /customId === "herois:urso"\) return await cliqueUrso\(inter\)/.test(fonteSem) &&
     /nome === "urso"\) return comandoUrso\(inter\)/.test(fonteSem));
 
@@ -16283,7 +16321,9 @@ function conferirCartao(onde, embed, componentes = []) {
 
     const enviados = [];
     let marcas = {};
-    const canal = (id) => ({ name: nomes[id], send: async (m) => { enviados.push([id, m.embeds[0].description]); } });
+    const velhas = new Map();   // sala -> mensagens que já estão lá
+    const canal = (id) => ({ name: nomes[id], send: async (m) => { enviados.push([id, m.embeds[0].description]); },
+      messages: { fetch: async () => velhas.get(id) || new Map() } });
     const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot",
       channels: { cache: { get: (id) => (nomes[id] ? canal(id) : null) } } };
     const antes = { client: globalThis.client };
@@ -16291,17 +16331,29 @@ function conferirCartao(onde, embed, componentes = []) {
       SUBIDA_DOS_EMOJIS: { pronta: true },
       ajustes: async () => marcas,
       porAjuste: async (k, v) => { enviados.push(["marca", k]); marcas = { ...marcas, [k]: v }; },
-      client: { guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      client: { user: { id: "eu" }, guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
       servidorDoGuild: async () => ({ id: "s-top" }),
       replicasDoIdioma: async () => replicas, fontesReplica: async () => fontes,
       cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
     });
     try {
-      const { ursoNosCanais } = carregar(["URSO_NO_CANAL", "ursoNosCanais"]);
+      const { ursoNosCanais, fichaDoUrsoNaSala } = carregar(["URSO_NO_CANAL", "fichaDoUrsoNaSala", "ursoNosCanais"]);
+      /* na sala em português, a ficha da versão anterior já está lá: é atualizada, não repetida */
+      const editadas = [];
+      velhas.set("pt", new Map([
+        ["a", { author: { id: "outro" }, embeds: [{ description: "<a:ks_urso_abc123:1> **Heróis para o Urso**" }] }],
+        ["b", { author: { id: "eu" }, embeds: [{ description: "<a:ks_urso_abc123:1> **Heróis para o Urso**" }],
+          edit: async (m) => { editadas.push(["pt", m.embeds[0].description, JSON.stringify(m.attachments)]); } }]]));
       ok("posta", await ursoNosCanais(), "postado");
-      ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 4)),
-        JSON.stringify([["marca", "urso_no_canal:top"], ["f", "urso-en"], ["en", "urso-en"], ["pt", "urso-pt"]]));
-      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top"]));
+      ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 3)),
+        JSON.stringify([["marca", "urso_no_canal:top:2"], ["f", "urso-en"], ["en", "urso-en"]]));
+      ok("a ficha velha (minha) é atualizada no lugar, com a foto trocada", JSON.stringify(editadas), JSON.stringify([["pt", "urso-pt", "[]"]]));
+      verdade("e nada de ficha repetida nessa sala", !enviados.some(([id]) => id === "pt"));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:2"]));
+      ok("mensagem de outro, com o mesmo cartão, não é minha", fichaDoUrsoNaSala(new Map([["a", { author: { id: "x" },
+        embeds: [{ description: "<a:ks_urso_abc123:1> **Bear**" }] }]]), "eu"), null);
+      ok("cartão meu que não é a ficha do Urso fica", fichaDoUrsoNaSala(new Map([["a", { author: { id: "eu" },
+        embeds: [{ description: "📅 evento" }] }]]), "eu"), null);
       enviados.length = 0;
       ok("já postado: não posta de novo", await ursoNosCanais(), "nada");
       ok("e não mexe em nada", enviados.length, 0);

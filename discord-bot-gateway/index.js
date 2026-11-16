@@ -32,7 +32,7 @@ import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSupor
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
-  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS } from "./herois.js";
+  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi } from "./herois.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync } from "node:fs";
 
@@ -12378,15 +12378,13 @@ async function garantirEmojisDaCyron() {
 
 /* ---------------- 🃏 /heroi: a ficha de um herói do Kingshot ----------------
 
-   Em teste: o comando mora só no servidor do painel, e o dono vê a ficha
-   de verdade -- emojis animados, foto no hexágono -- antes de alguém de
-   fora ver. A ficha em si (o que vai em cada linha) é do herois.js. */
-const DEF_HEROI = {
-  name: "heroi",
-  description: "Ficha de um herói do Kingshot (teste)",
-  options: [{ type: 3, name: "nome", description: "Nome do herói", required: true, autocomplete: true }],
-};
-const DEF_URSO = { name: "urso", description: "Heróis e dicas para o Urso do Kingshot (teste)" };
+   Começou em teste só no painel; liberado para todos em 16/11, depois da
+   conferência da base inteira ("confere tudo e já libera"). Os comandos
+   moram em GLOBAIS_DO_CYRON. A ficha em si é do herois.js.
+
+   Os do teste, no servidor do painel, saem (tirarHeroisDoPainel): com o
+   global no ar, o painel teria cada um duas vezes na lista. */
+const TESTES_QUE_SAIRAM = new Set(["heroi", "urso"]);
 const CANAL_DE_TESTES = "🧪-testes";
 /* Versão da amostra: novidade nova, versão nova, e o painel recebe o
    exemplo -- uma vez por versão. A 3 é o Urso. */
@@ -12404,7 +12402,7 @@ const TERMOS_DO_JOGO = new Set(["Gen", "Rally", "Joiner"]);
 
 async function textosDaFicha(idioma, motor) {
   if (!idioma || idioma === "pt") return TEXTOS_DA_FICHA;
-  const passar = (v) => (TERMOS_DO_JOGO.has(v) ? v : traduzirPara(v, idioma, motor));
+  const passar = (v) => (TERMOS_DO_JOGO.has(v) ? v : textoDoJogo(v, idioma, motor));
   const t = {};
   for (const [k, v] of Object.entries(TEXTOS_DA_FICHA)) {
     if (typeof v === "string") { t[k] = await passar(v); continue; }
@@ -12450,10 +12448,12 @@ async function letraEmDesenho(nome, tamanho = 112) {
 
 async function cartaoDoHeroi(h, idioma, guildId) {
   const motor = await motorDoGuild(guildId).catch(() => undefined);
+  const dicas = [];
+  for (const d of dicasDoHeroi(h)) dicas.push(await textoDoJogo(d, idioma, motor));
   const t = {
     ...(await textosDaFicha(idioma, motor)),
-    melhor: await traduzirPara(h.bestUse || "", idioma, motor),
-    descricao: await traduzirPara(h.desc || "", idioma, motor),
+    melhor: await textoDoJogo(melhorUso(h), idioma, motor),
+    dicas_do_heroi: dicas,
   };
   const png = await retratoDoKingshot(h).catch(() => null);
   return {
@@ -12481,7 +12481,8 @@ async function textoDoJogo(texto, idioma, motor) {
 async function cartaoDoUrso(idioma, guildId) {
   const motor = await motorDoGuild(guildId).catch(() => undefined);
   const passar = (v) => textoDoJogo(v, idioma, motor);
-  const t = { dados: (await textosDaFicha(idioma, motor)).dados };
+  const daFicha = await textosDaFicha(idioma, motor);
+  const t = { dados: daFicha.dados, notas: daFicha.notas };
   for (const [k, v] of Object.entries(TEXTOS_DO_URSO)) t[k] = await passar(v);
   const grupos = heroisDoUrso();
   const dicas = [];
@@ -12514,10 +12515,10 @@ function ehEventoDoUrso(ev) {
     /\b(urso|bear)\b/i.test(String(ev?.titulo || ""));
 }
 
-/* Onde o botão aparece. Em teste: só no painel. Liberar para todos é trocar
-   esta linha. */
-async function heroisNoUrso(guildId) {
-  return ehOPainel(guildId);
+/* Onde o botão aparece. Foi só o painel durante o teste; liberado para todos
+   em 16/11. Para voltar a limitar, é esta linha. */
+async function heroisNoUrso() {
+  return true;
 }
 
 /* O rótulo fica em inglês como os outros botões do aviso ("Subscribe", "My
@@ -12542,7 +12543,16 @@ function botaoDoUrso() {
 
    Uma vez só por servidor: a marca vai ANTES de postar, e com o banco fora
    não posta (sem ler a marca, postaria de novo a cada reinício). */
-const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top" }];
+/* A marca tem versão: ficha nova (16/11, base conferida com a geração 7),
+   versão nova -- e a mensagem que já está lá é ATUALIZADA, não repetida. */
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:2" }];
+
+/* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
+   e o cartão começa com o emoji do urso. */
+function fichaDoUrsoNaSala(mensagens, eu) {
+  return [...(mensagens?.values?.() || [])].find((m) => m.author?.id === eu &&
+    /^(<a?:ks_urso\w*:\d+>|🐻) \*\*/.test(String(m.embeds?.[0]?.description || ""))) || null;
+}
 
 /* Pura. As salas da conversa do Urso: a fonte (em inglês: ali lê quem ainda
    não escolheu língua) e as réplicas, cada uma na sua. Acha a conversa por
@@ -12578,7 +12588,11 @@ async function ursoNosCanais() {
     for (const sala of salas) {
       const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
       if (typeof canal?.send !== "function") continue;
-      const foi = await canal.send({ ...(await cartaoDoUrso(sala.idioma, guild.id)), allowedMentions: { parse: [] } })
+      const carta = await cartaoDoUrso(sala.idioma, guild.id);
+      const velha = fichaDoUrsoNaSala(await canal.messages?.fetch?.({ limit: 50 }).catch(() => null), client.user?.id);
+      const foi = await (velha
+        ? velha.edit({ ...carta, attachments: [] })
+        : canal.send({ ...carta, allowedMentions: { parse: [] } }))
         .then(() => true)
         .catch((e) => { console.error(`urso: não postei em #${canal.name}:`, e?.message || e); return false; });
       if (foi) aqui++;
@@ -23365,7 +23379,7 @@ const COMANDOS_DA_AJUDA = {
   traducao: ["mylanguage", "Translate"],
   diversao: ["duelo", "colecao", "diario", "presentear", "equipar", "codex", "perfil", "top", "abraco", "beijo", "tapa", "cafune",
     "figurinha"],
-  ferramentas: ["hora", "evento", "Criar evento", "sorteio"],
+  ferramentas: ["hora", "evento", "Criar evento", "sorteio", "heroi", "urso"],
   admin: ["cyron", "niveis", "xp", "boas-vindas", "cargos", "moderacao", "suporte"],
 };
 const LINGUAS_DAS_DESCRICOES = ["pt", "en", "es", "fr", "de", "it", "nl", "ru", "uk", "pl", "tr", "id", "vi", "th", "hi", "ja", "ko", "zh"];
@@ -24240,12 +24254,14 @@ function roteiroDaIA({ convite = "", conta = "", suporte = "", beta = "" } = {})
     .trim();
   const planos = { gratis: "grátis", pago: "Pro e Aliança", ambos: "grátis, e mais no pago" };
   const comandos = GLOBAIS_DO_CYRON.filter((c) => c.name !== "admin").map((c) => {
-    const adm = c.defaultMemberPermissions ? " (só quem administra)" : "";
+    /* (ADM) e (EN /x) em vez da frase inteira: o roteiro vai em TODA
+       pergunta e o plano grátis tem teto; a legenda, uma vez só, explica. */
+    const adm = c.defaultMemberPermissions ? " (ADM)" : "";
     if (c.type === 3) {
       return `- Apps → ${c.name} (toque e segure numa mensagem; no PC, botão direito)${adm}: ${GOLPES_DO_MENU_DE_CONTEXTO[c.name] || ""}`;
     }
     const en = c.nameLocalizations?.["en-US"];
-    return `- /${c.name}${en && en !== c.name ? ` (em inglês /${en})` : ""}${adm}: ${pt(c.description)}`;
+    return `- /${c.name}${en && en !== c.name ? ` (EN /${en})` : ""}${adm}: ${pt(c.description)}`;
   });
   const custo = (e) => (ESPACOS[e].energia ? `${ESPACOS[e].energia} de energia` : "sem custo");
   const duelo = [
@@ -24274,7 +24290,7 @@ function roteiroDaIA({ convite = "", conta = "", suporte = "", beta = "" } = {})
     "",
     `LÍNGUAS QUE EU TRADUZO (${LINGUAS_MENU.length}): ${LINGUAS_MENU.map((l) => l[3] || l[1]).join(", ")}.`,
     "",
-    "COMANDOS",
+    "COMANDOS ((ADM) = só quem administra o servidor; (EN /x) = o nome no Discord em inglês)",
     "- /mylanguage: escolher a sua língua (vale em todos os servidores)",
     "- Apps → Translate (toque e segure numa mensagem; no PC, botão direito): traduz aquela mensagem só para você" +
       (conta ? `. Instalada na conta da pessoa (${conta}, não precisa ser ADM), vale em qualquer servidor, até onde eu não estou, e em conversa privada ou grupo` : ""),
@@ -25648,7 +25664,7 @@ client.on("messageReactionAdd", async (reacao, quem) => {
    A lista diz "nao mexa nisto", e nao "todo mundo usa". Sem ele aqui,
    separarComandos leria /admin como comando do jogo e o empurraria pros
    servidores com alianca -- exatamente o contrario do que ele e'. */
-const COMANDOS_DE_TODOS = new Set(["mylanguage", "Translate", "cyron", "help", "admin", "arena", "evento", "Criar evento", "hora", "boas-vindas", "perfil", "top", "niveis", "xp",
+const COMANDOS_DE_TODOS = new Set(["mylanguage", "Translate", "cyron", "help", "admin", "arena", "evento", "Criar evento", "hora", "boas-vindas", "perfil", "top", "niveis", "xp", "heroi", "urso",
   "sorteio", "abraco", "beijo", "tapa", "cafune", "duelo", "equipar", "codex", "suporte", "colecao", "diario", "presentear",
   "cargos", "moderacao", "figurinha"]);
 
@@ -26985,6 +27001,23 @@ const GLOBAIS_DO_CYRON = soNoServidor(comLinguas([
     options: [OPCAO_DE_MEMBRO],
   },
   {
+    /* A ficha de um herói do Kingshot (herois.js). Só no servidor. */
+    name: "heroi",
+    nameLocalizations: { "en-US": "hero", "en-GB": "hero", "es-ES": "heroe" },
+    description: "Ficha de herói do Kingshot / Kingshot hero card",
+    dmPermission: false,
+    options: [{ type: 3, name: "nome", required: true, autocomplete: true, max_length: 40,
+      nameLocalizations: { "en-US": "name", "en-GB": "name", "es-ES": "nombre" },
+      description: "Comece a digitar e escolha na lista / Start typing and pick" }],
+  },
+  {
+    /* Os melhores heróis e as dicas conferidas para o Urso do Kingshot. */
+    name: "urso",
+    nameLocalizations: { "en-US": "bear", "en-GB": "bear", "es-ES": "oso" },
+    description: "Heróis e dicas para o Urso do Kingshot / Heroes and tips for Bear Trap",
+    dmPermission: false,
+  },
+  {
     /* Sem dmPermission: este vale no privado e na conta (ver NA_CONTA). */
     name: "figurinha",
     nameLocalizations: { "en-US": "sticker", "en-GB": "sticker", "es-ES": "sticker" },
@@ -27135,11 +27168,13 @@ async function arrumarOndeMoraOAdmin() {
       await guild.commands.create(def);
       console.log(`comandos: /admin agora é só de ${guild.name}`);
     }
-    /* O /heroi e o /urso em teste: só aqui, até o dono aprovar. */
-    for (const def of [DEF_HEROI, DEF_URSO]) {
-      if ([...doGuild.values()].some((c) => c.name === def.name)) continue;
-      await guild.commands.create(def);
-      console.log(`comandos: /${def.name} (teste) em ${guild.name}`);
+    /* O /heroi e o /urso do teste saem daqui: agora são de todos. Só os
+       que EU criei no teste (a descrição termina em "(teste)"): comando do
+       dono com o mesmo nome não é meu. */
+    for (const c of doGuild.values()) {
+      if (!TESTES_QUE_SAIRAM.has(c.name) || !/\(teste\)$/.test(c.description || "")) continue;
+      await c.delete().catch(() => {});
+      console.log(`comandos: /${c.name} do teste saiu de ${guild.name} (agora é de todos)`);
     }
     /* Tira do global DEPOIS de existir no servidor. Na ordem inversa, o dono
        ficaria alguns minutos sem nenhum /admin em lugar nenhum. */

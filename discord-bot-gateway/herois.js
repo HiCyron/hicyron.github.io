@@ -3,41 +3,53 @@
    A ideia do dono (16/11): a CYRON fazer parte do dia a dia de quem joga
    esses jogos de estratégia -- e consultar um herói é coisa de todo dia.
 
-   Os DADOS vêm da base aberta da KingshotPro (dados/kingshot-herois.json),
-   licença CC-BY-4.0: pode usar, desde que a ficha diga de onde veio -- e o
-   rodapé diz. As NOTAS (S, A, B...) são consenso da comunidade, não do jogo;
-   nome, geração, raridade e tropa são conferidos em quatro sites.
+   Os DADOS são uma base CONFERIDA da CYRON (dados/kingshot-herois.json), feita
+   a pedido do dono ("para não espalhar fake news"):
+   - nome, geração, raridade e tropa: a base aberta da KingshotPro (CC-BY-4.0)
+     conferida com outro site; a geração 7 conferida em dois;
+   - as notas (Rally, Guarnição, Urso): a lista de novembro/2026 do
+     kingshotmastery.com -- opinião da comunidade, e a ficha diz isso;
+   - "dá para ter sem gastar" só quando duas fontes concordam;
+   - a geração 8 fica de fora até sair de verdade;
+   - nada de texto livre ("Sobre"): era ali que moravam as afirmações que
+     não se confirmavam. O que a ficha diz sai das notas (melhorUso e
+     dicasDoHeroi), e o rodapé diz de onde vieram.
 
    O VISUAL é nosso: os emojis ks_* (img/kingshot) foram desenhados para a
-   CYRON -- medalhões, chamas de raridade, losangos de tropa, os galhos da
-   árvore -- e sobem como emojis do aplicativo, animados onde faz sentido.
-   Emoji padrão do Discord ficou de fora: o dono achou feio, e com razão --
-   quebra o clima de jogo. */
+   CYRON e sobem como emojis do aplicativo, todos animados. Emoji padrão do
+   Discord ficou de fora: o dono achou feio -- quebra o clima de jogo. */
 import { readFileSync } from "node:fs";
 
 const DADOS = JSON.parse(readFileSync(new URL("./dados/kingshot-herois.json", import.meta.url), "utf8"));
 export const HEROIS = DADOS.heroes || [];
 export const FONTE_DOS_HEROIS = "kingshotpro.com";
+export const FONTE_DAS_NOTAS = "kingshotmastery.com";
 
 export const COR_DA_RARIDADE = { legendary: 0xF0B232, epic: 0xA855F7, rare: 0x3B9CF5 };
 const COR_EM_TEXTO = { legendary: "#f0b232", epic: "#a855f7", rare: "#3b9cf5" };
 const EMOJI_DA_RARIDADE = { legendary: "ks_fogo_lendario", epic: "ks_fogo_epico", rare: "ks_fogo_raro" };
 const EMOJI_DA_TROPA = { infantry: "ks_tropa_infantaria", cavalry: "ks_tropa_cavalaria", archer: "ks_tropa_arqueiro" };
-const EMOJI_DA_FUNCAO = { garrison: "ks_guarnicao", rally: "ks_rally", bear: "ks_urso", joiner: "ks_joiner", gathering: "ks_bau" };
+const EMOJI_DA_FUNCAO = { garrison: "ks_guarnicao", rally: "ks_rally", bear: "ks_urso" };
 const EMOJI_DA_NOTA = { "S+": "ks_nota_splus", S: "ks_nota_s", A: "ks_nota_a", B: "ks_nota_b", C: "ks_nota_c", D: "ks_nota_d", "-": "ks_nota_nada" };
 const ORDEM_DAS_NOTAS = ["S+", "S", "A", "B", "C", "D", "-"];
+const RARIDADE_EM_INGLES = { epic: "Epic", rare: "Rare" };
+
+/* Quem NÃO mandar como joiner no Urso: a 1ª habilidade deles não é de ataque
+   (kingshotmastery.com, guia do Bear Hunt; a lista de notas concorda: "Not
+   Useful"). Só os que estão na base. */
+export const NUNCA_NO_URSO = ["Jabel", "Helga", "Long Fei", "Gordon", "Diana", "Edwin", "Charles"];
 
 /* Os textos fixos da ficha, em português: o index.js traduz para a língua de
-   quem pediu (a mesma conta de sempre, com cache). */
+   quem pediu, com os termos do jogo protegidos. */
 export const TEXTOS_DA_FICHA = {
   tropa: { infantry: "Infantaria", cavalry: "Cavalaria", archer: "Arqueiro" },
   raridade: { legendary: "Lendário", epic: "Épico", rare: "Raro" },
-  funcao: { garrison: "Guarnição", rally: "Rally", bear: "Urso", joiner: "Joiner", gathering: "Coleta" },
+  funcao: { garrison: "Guarnição", rally: "Rally", bear: "Urso (joiner)" },
   gen: "Gen",
   f2p: "Dá para ter sem gastar",
   vip: "Herói VIP: vem nos pacotes de VIP (pago)",
-  pago: "Mais fácil para quem investe no jogo",
-  sobre: "Sobre",
+  dicas: "Dicas",
+  notas: "notas",
   dados: "dados",
   naoAchei: "Não conheço esse herói. Comece a digitar o nome e escolha na lista.",
 };
@@ -52,17 +64,25 @@ export function acharHeroi(nome) {
   return n ? HEROIS.find((h) => normalizar(h.name) === n) || null : null;
 }
 
+/* Pura. Como o herói aparece na lista: "Gen 5" para lendário, "Epic"/"Rare"
+   para os outros (épico e raro não têm geração; os termos do jogo ficam em
+   inglês, como o jogador lê no jogo). */
+export function rotuloDoHeroi(h) {
+  return h.gen != null ? `Gen ${h.gen}` : RARIDADE_EM_INGLES[h.rarity] || "";
+}
+
 /* Pura. A lista do autocompletar: quem começa com o que foi digitado vem
-   primeiro, depois quem contém; dentro disso, por geração. No máximo 25 (o
-   teto do Discord). */
+   primeiro, depois quem contém; dentro disso, lendários por geração e depois
+   os épicos e raros. No máximo 25 (o teto do Discord). */
 export function sugestoesDeHeroi(texto) {
   const n = normalizar(texto);
+  const ordem = (h) => (h.gen != null ? h.gen : h.rarity === "epic" ? 50 : 60);
   return HEROIS
     .filter((h) => !n || normalizar(h.name).includes(n))
     .sort((a, b) => (normalizar(a.name).startsWith(n) ? 0 : 1) - (normalizar(b.name).startsWith(n) ? 0 : 1) ||
-      a.gen - b.gen || a.name.localeCompare(b.name))
+      ordem(a) - ordem(b) || a.name.localeCompare(b.name))
     .slice(0, 25)
-    .map((h) => ({ name: `${h.name} · Gen ${h.gen}`, value: h.name }));
+    .map((h) => ({ name: `${h.name} · ${rotuloDoHeroi(h)}`, value: h.name }));
 }
 
 /* Pura. "S", "A"... ou "-" para o que a base marca como "—"/vazio. */
@@ -70,53 +90,71 @@ export function notaDaFuncao(v) {
   const t = String(v ?? "").trim().toUpperCase();
   return ORDEM_DAS_NOTAS.includes(t) ? t : "-";
 }
+const posicao = (v) => ORDEM_DAS_NOTAS.indexOf(notaDaFuncao(v));
 
-/* Pura. As funções da árvore, da nota mais alta para a mais baixa. Herói de
-   coleta (geração 0) não luta: a árvore dele é só a coleta. */
+/* Pura. As funções da árvore, da nota mais alta para a mais baixa. */
 export function funcoesDoHeroi(h) {
-  if (h.gathering) return [["gathering", notaDaFuncao(h.gathering)]];
-  return ["garrison", "rally", "bear", "joiner"]
+  return ["rally", "garrison", "bear"]
     .map((k) => [k, notaDaFuncao(h[k])])
     .sort((a, b) => ORDEM_DAS_NOTAS.indexOf(a[1]) - ORDEM_DAS_NOTAS.indexOf(b[1]));
 }
 
-/* "Dá para ter sem gastar" que as fontes não confirmam fica sem a marca.
-
-   O dono pediu para não espalhar notícia falsa. A base marca o Yang como
-   grátis, mas os guias brigam: um diz que ele só sai no Hall of Heroes e na
-   loja do Swordland (caminho de quem gasta), outros citam Hero Rally e
-   ofertas diárias. Em dúvida, a ficha não afirma nem um lado nem o outro. */
-const F2P_CONTESTADO = new Set(["Yang"]);
+/* "Dá para ter sem gastar": só o que duas fontes confirmam (a base marca
+   f2p=true só nesses). O Yang fica em disputa: a lista de novembro diz que
+   sim, outro guia diz que ele só sai em loja paga. */
 export function ehF2P(h) {
-  return !!h.f2p && !F2P_CONTESTADO.has(h.name);
+  return h.f2p === true;
 }
+
+/* Pura. O melhor uso, tirado das notas: a função com a nota mais alta (e as
+   empatadas com ela). Herói de coleta é de coleta. Em português; o index.js
+   traduz. */
+const USO = { rally: "Liderar rally", garrison: "Guarnição (defesa da cidade)", bear: "Entrar no rally do Urso" };
+export function melhorUso(h) {
+  if (h.coleta) return `Coleta de ${h.coleta}`;
+  const funcoes = funcoesDoHeroi(h);
+  const topo = funcoes[0][1];
+  if (posicao(topo) > posicao("B")) return "Pouco uso em batalha";
+  return funcoes.filter(([, n]) => n === topo).map(([k]) => USO[k]).join(" · ");
+}
+
+/* Pura. As dicas do herói, só com o que a base sustenta. */
+export function dicasDoHeroi(h) {
+  const dicas = [];
+  if (h.coleta) dicas.push(`Herói de coleta: aumenta a coleta de ${h.coleta}. Não leve para a batalha.`);
+  if (FORTE.has(notaDaFuncao(h.bear))) dicas.push("Para entrar no rally do Urso, use como 1º herói: só a 1ª habilidade do 1º herói conta.");
+  else if (NUNCA_NO_URSO.includes(h.name) && !h.coleta) dicas.push("Não mande como joiner no Urso: a 1ª habilidade não é de ataque.");
+  if (FORTE.has(notaDaFuncao(h.rally)) && !h.coleta) dicas.push("Bom para liderar rally: quem lidera leva as 3 habilidades para o rally inteiro.");
+  if (FORTE.has(notaDaFuncao(h.garrison)) && !h.coleta) dicas.push("Forte na guarnição: segura a cidade quando atacam.");
+  return dicas;
+}
+const FORTE = new Set(["S+", "S"]);
 
 /* Pura. A ficha. `e(nome, reserva)` devolve o emoji do aplicativo (ou a
    reserva, enquanto ele não subiu); `t` são os textos já na língua certa,
-   mais `melhor` e `sobre` (o melhor uso e a descrição, já traduzidos). Tudo
-   na descrição, e não no título: emoji próprio não aparece em título de
-   cartão. A nota vem ANTES do nome da função: emoji tem largura fixa, então
-   as notas ficam alinhadas em coluna. */
+   mais `melhor` e `dicas` (já traduzidos). Tudo na descrição, e não no
+   título: emoji próprio não aparece em título de cartão. A nota vem ANTES do
+   nome da função: emoji tem largura fixa, então as notas ficam em coluna. */
 export function fichaDoHeroi(h, { e, t, foto = "attachment://heroi.png" }) {
   const funcoes = funcoesDoHeroi(h);
+  const geracao = h.gen != null ? `  │  ${e(`ks_gen_${h.gen}`, "")} ${t.gen} ${h.gen}` : "";
+  const dicas = t.dicas_do_heroi || [];
   const linhas = [
     `${e("ks_brilho", "✨")} **${h.name}**`,
-    `${e(EMOJI_DA_TROPA[h.troop], "")} ${t.tropa[h.troop] || h.troop}  │  ${e(`ks_gen_${h.gen}`, "")} ${t.gen} ${h.gen}`,
+    `${e(EMOJI_DA_TROPA[h.troop], "")} ${t.tropa[h.troop] || h.troop}${geracao}`,
     `${e(EMOJI_DA_RARIDADE[h.rarity], "")} **${t.raridade[h.rarity] || h.rarity}**`,
     `${e("ks_medalha", "🏅")} **${t.melhor}**`,
     ...funcoes.map(([k, nota], i) =>
       `${e(i === funcoes.length - 1 ? "ks_galho_fim" : "ks_galho", i === funcoes.length - 1 ? "└" : "├")}` +
       `${e(EMOJI_DA_FUNCAO[k], "")} ${e(EMOJI_DA_NOTA[nota], nota === "-" ? "—" : nota)} ${t.funcao[k] || k}`),
-    ...(F2P_CONTESTADO.has(h.name) ? [] : [`> ${e("ks_bau", "🎁")} *${h.f2p ? t.f2p : h.vip ? t.vip : t.pago}*`]),
-    "",
-    `${e("ks_pergaminho", "📜")} **${t.sobre}**`,
-    t.descricao,
+    ...(ehF2P(h) ? [`> ${e("ks_bau", "🎁")} *${t.f2p}*`] : h.vip ? [`> ${e("ks_bau", "🎁")} *${t.vip}*`] : []),
+    ...(dicas.length ? ["", `${e("ks_pergaminho", "📜")} **${t.dicas}**`, ...dicas.map((d) => `${e("ks_brilho", "•")} ${d}`)] : []),
   ];
   return {
     color: COR_DA_RARIDADE[h.rarity] ?? 0x5865F2,
     description: linhas.join("\n").slice(0, 4000),
     ...(foto ? { thumbnail: { url: foto } } : {}),
-    footer: { text: `CYRON · ${t.dados}: ${FONTE_DOS_HEROIS}` },
+    footer: { text: `CYRON · ${t.notas}: ${FONTE_DAS_NOTAS} · ${t.dados}: ${FONTE_DOS_HEROIS}` },
   };
 }
 
@@ -151,9 +189,11 @@ export function svgDoRetrato(h, fotoBase64 = "", lado = 256, letra = "") {
 
 /* ---------------- 🐻 o Urso (Armadilha do Urso / Bear Trap) ----------------
 
-   "Podemos começar com o urso e dicas de heróis" (dono, 16/11). Quem lidera
-   o rally e quem entra nele saem das notas da base; os nomes das dicas são
-   calculados dos dados.
+   "Podemos começar com o urso e dicas de heróis" (dono, 16/11). Quem entra
+   no rally sai da nota do Urso na base; quem lidera vem do guia do Bear Hunt
+   do kingshotmastery.com, por geração: Amadeus é o melhor na Gen 1, a Vivian
+   substitui os líderes antigos (Gen 5), o Yang fica com o lugar de arqueiro
+   (Gen 6) e a Ava lidera depois de evoluída (Gen 7).
 
    "Verifica se as dicas estão certas para não espalhar fake news" (dono,
    16/11). Conferido em guias independentes (kingshotmastery.com, o guia de
@@ -167,30 +207,31 @@ export function svgDoRetrato(h, fotoBase64 = "", lado = 256, letra = "") {
      multiplica em vez de somar: kingshotmastery.
    O que CAIU na conferência: a lista "também rendem no Urso" (um guia diz
    para nunca mandar o Long Fei no rally do Urso) e a dica de liderar sem
-   gastar com o Yang (as fontes brigam sobre ele ser grátis). */
+   gastar com o Yang (as fontes brigam sobre ele ser grátis).
+   O que ENTROU (16/11, lista de novembro): a geração 7 -- Ava e Wee & Woo
+   estão entre os melhores para entrar no rally do Urso -- e a lista de quem
+   nunca mandar como joiner. */
+export const LIDERES_DO_URSO = ["Amadeus", "Vivian", "Yang", "Ava"];
 export const TEXTOS_DO_URSO = {
   titulo: "Heróis para o Urso",
   subtitulo: "Os melhores para a Armadilha do Urso (Bear Trap), pela nota da comunidade.",
-  liderar: "Para liderar o rally",
+  liderar: "Para liderar o rally (pela geração do servidor)",
   entrar: "Para entrar no rally",
   legenda: "dá para ter sem gastar",
   dicas: "Dicas",
 };
 const BOA = new Set(["S+", "S", "A"]);
-const FORTE = new Set(["S+", "S"]);
-const posicao = (v) => ORDEM_DAS_NOTAS.indexOf(notaDaFuncao(v));
 
-/* Pura. Os dois grupos, sem repetir ninguém. Herói de coleta não luta. */
+/* Pura. Os dois grupos. Quem lidera e também é ótimo para entrar (Amadeus,
+   Vivian, Ava) aparece nos dois: serve para os dois papéis. Entre os que
+   entram: a nota, depois quem é grátis, depois a geração (épico antes). */
 export function heroisDoUrso(herois = HEROIS) {
-  const luta = herois.filter((h) => !h.gathering);
-  const lideres = luta
-    .filter((h) => BOA.has(notaDaFuncao(h.bear)) && FORTE.has(notaDaFuncao(h.rally)))
-    .sort((a, b) => posicao(a.bear) - posicao(b.bear) || posicao(a.rally) - posicao(b.rally) || b.gen - a.gen);
-  const ja = new Set(lideres.map((h) => h.name));
-  const entram = luta
-    .filter((h) => !ja.has(h.name) && FORTE.has(notaDaFuncao(h.bear)) && BOA.has(notaDaFuncao(h.joiner)))
-    .sort((a, b) => posicao(a.joiner) - posicao(b.joiner) || posicao(a.bear) - posicao(b.bear) ||
-      Number(ehF2P(b)) - Number(ehF2P(a)) || a.gen - b.gen);
+  const lideres = LIDERES_DO_URSO.map((n) => herois.find((h) => h.name === n)).filter(Boolean);
+  const geracao = (h) => (h.gen != null ? h.gen : 0);
+  const entram = herois
+    .filter((h) => !h.coleta && BOA.has(notaDaFuncao(h.bear)))
+    .sort((a, b) => posicao(a.bear) - posicao(b.bear) || Number(ehF2P(b)) - Number(ehF2P(a)) || geracao(a) - geracao(b) ||
+      a.name.localeCompare(b.name));
   return { lideres, entram };
 }
 
@@ -216,27 +257,31 @@ export function dicasDoUrso({ lideres, entram }, herois = HEROIS) {
   }
   if (lideres.length) dicas.push("Quem lidera o rally usa os 3 heróis de ataque mais fortes: as 3 habilidades valem para o rally inteiro.");
   dicas.push("Tropa: a maior parte arqueiros (os guias falam em 80% ou mais).");
-  if (herois.some((h) => h.gathering)) dicas.push("Herói de coleta (Gen 0) não luta: deixe de fora do Urso.");
+  const nunca = NUNCA_NO_URSO.map((n) => herois.find((h) => h.name === n)).filter(Boolean);
+  if (nunca.length) dicas.push(`Nunca mande como joiner: ${emLista(nunca)}. A 1ª habilidade deles não é de ataque.`);
   dicas.push("O Urso dura 30 minutos e volta a cada 2 dias. Crie o evento com /evento e a CYRON avisa antes.");
   return dicas;
 }
 
-/* Pura. A ficha do Urso, no mesmo estilo da ficha de herói. A nota de cada
-   linha é a do Urso; o baú marca quem dá para ter sem gastar. */
+/* Pura. A ficha do Urso, no mesmo estilo da ficha de herói. Quem lidera
+   mostra a nota de RALLY (é o que ele faz ali; a de entrar no Urso faria o
+   Yang parecer ruim); quem entra mostra a nota do Urso. O baú marca quem dá
+   para ter sem gastar. */
 export function fichaDoUrso({ lideres, entram }, { e, t, dicas = [], foto = "attachment://urso.png" }) {
-  const linha = (h, i, todos) => {
+  const linha = (campo) => (h, i, todos) => {
     const fim = i === todos.length - 1;
-    const nota = notaDaFuncao(h.bear);
+    const nota = notaDaFuncao(h[campo]);
     return `${e(fim ? "ks_galho_fim" : "ks_galho", fim ? "└" : "├")}${e(EMOJI_DA_NOTA[nota], nota)} ` +
-      `${e(EMOJI_DA_TROPA[h.troop], "")} **${h.name}** ${e(`ks_gen_${h.gen}`, `Gen ${h.gen}`)}` +
+      `${e(EMOJI_DA_TROPA[h.troop], "")} **${h.name}**` +
+      (h.gen != null ? ` ${e(`ks_gen_${h.gen}`, `Gen ${h.gen}`)}` : "") +
       (ehF2P(h) ? ` ${e("ks_bau", "🎁")}` : h.vip ? " VIP" : "");
   };
-  const bloco = (titulo, emoji, hs) => (hs.length ? ["", `${e(emoji, "")} **${titulo}**`, ...hs.map(linha)] : []);
+  const bloco = (titulo, emoji, hs, campo) => (hs.length ? ["", `${e(emoji, "")} **${titulo}**`, ...hs.map(linha(campo))] : []);
   const linhas = [
     `${e("ks_urso", "🐻")} **${t.titulo}**`,
     t.subtitulo,
-    ...bloco(t.liderar, "ks_rally", lideres),
-    ...bloco(t.entrar, "ks_joiner", entram),
+    ...bloco(t.liderar, "ks_rally", lideres, "rally"),
+    ...bloco(t.entrar, "ks_joiner", entram, "bear"),
     "",
     `> ${e("ks_bau", "🎁")} *= ${t.legenda}*`,
     ...(dicas.length ? ["", `${e("ks_pergaminho", "📜")} **${t.dicas}**`, ...dicas.map((d) => `${e("ks_brilho", "•")} ${d}`)] : []),
@@ -245,7 +290,7 @@ export function fichaDoUrso({ lideres, entram }, { e, t, dicas = [], foto = "att
     color: 0xB8641E,
     description: linhas.join("\n").slice(0, 4000),
     ...(foto ? { thumbnail: { url: foto } } : {}),
-    footer: { text: `CYRON · ${t.dados || "dados"}: ${FONTE_DOS_HEROIS}` },
+    footer: { text: `CYRON · ${t.notas || "notas"}: ${FONTE_DAS_NOTAS} · ${t.dados || "dados"}: ${FONTE_DOS_HEROIS}` },
   };
 }
 
