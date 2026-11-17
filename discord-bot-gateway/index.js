@@ -12751,6 +12751,82 @@ async function livroNosCanais(agora = Date.now()) {
   return feito ? "postado" : "nada";
 }
 
+/* ---- a faxina da sala do livro (dono, 17/11: "lembra de limpar as outras
+   mensagens antigas para deixar o canal limpo") ----
+
+   Uma vez por sala: sai tudo o que estava antes do livro (as dicas do Saul e
+   o resto), menos a página do livro e o que estiver fixado. O que tem menos
+   de 14 dias sai em lote; o mais velho, uma a uma (o Discord não apaga em
+   lote mensagem velha). A marca vai ANTES, com o que foi feito no fim. */
+const FAXINA_DO_LIVRO = "livro_faxina:top:1";
+const LOTE_VELHO = 14 * 24 * 60 * 60 * 1000 - 60 * 60 * 1000;
+
+/* Pura. Do lote, o que sai: tudo menos o que fica e o que está fixado,
+   separado em novas (lote) e velhas (uma a uma). */
+function separarFaxina(mensagens, ficam, agora = Date.now()) {
+  const fora = [...(mensagens?.values?.() || [])].filter((m) => m?.id && !ficam.has(String(m.id)) && !m.pinned);
+  return {
+    novas: fora.filter((m) => agora - Number(m.createdTimestamp || 0) < LOTE_VELHO),
+    velhas: fora.filter((m) => agora - Number(m.createdTimestamp || 0) >= LOTE_VELHO),
+  };
+}
+
+async function faxinarSala(canal, ficam, teto = 3000) {
+  let antes = null, vistas = 0, apagadas = 0, falhas = 0;
+  while (vistas < teto) {
+    const lote = await canal.messages.fetch({ limit: 100, ...(antes ? { before: antes } : {}) }).catch(() => null);
+    if (!lote?.size) break;
+    vistas += lote.size;
+    const ids = [...lote.keys()];
+    antes = ids.reduce((a, b) => (BigInt(a) < BigInt(b) ? a : b));
+    const { novas, velhas } = separarFaxina(lote, ficam);
+    /* O registro da moderação não anota o que eu mesmo apaguei. */
+    for (const m of [...novas, ...velhas]) apagadasPorMim.add(String(m.id));
+    if (novas.length > 1) {
+      const foram = await canal.bulkDelete(novas.map((m) => m.id), true).catch(() => null);
+      apagadas += foram?.size || 0;
+      falhas += novas.length - (foram?.size || 0);
+    } else if (novas.length) {
+      await novas[0].delete().then(() => apagadas++).catch(() => falhas++);
+    }
+    for (const m of velhas) await m.delete().then(() => apagadas++).catch(() => falhas++);
+    while (apagadasPorMim.size > 2000) apagadasPorMim.delete(apagadasPorMim.values().next().value);
+    if (lote.size < 100) break;
+  }
+  return { apagadas, falhas };
+}
+
+async function faxinaDoLivro() {
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  if (a[FAXINA_DO_LIVRO]) return "feito";
+  const alvo = LIVRO_NO_CANAL[0];
+  const marca = String(a[alvo.marca] || "");
+  const paginas = new Map(idsDaMarcaDoLivro(marca));
+  /* Sem o livro no ar, nada sai: a sala não pode ficar vazia. */
+  if (!paginas.size) return "sem-livro";
+  const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+  const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+  if (!servidor) return "sem-servidor";
+  const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+    await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), alvo.canal);
+  await porAjuste(FAXINA_DO_LIVRO, `${new Date().toISOString()}|começou`);
+  let apagadas = 0, falhas = 0, salasFeitas = 0;
+  for (const sala of salas) {
+    const pagina = paginas.get(String(sala.canal));
+    if (!pagina) continue;
+    const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
+    if (!canal?.messages) continue;
+    const r = await faxinarSala(canal, new Set([String(pagina)]));
+    apagadas += r.apagadas;
+    falhas += r.falhas;
+    salasFeitas++;
+  }
+  await porAjuste(FAXINA_DO_LIVRO, `${new Date().toISOString()}|${salasFeitas}/${salas.length} salas|${apagadas} apagadas|${falhas} falhas`);
+  console.log(`livro: faxina em ${salasFeitas} salas, ${apagadas} mensagens apagadas, ${falhas} falharam`);
+  return "feito";
+}
+
 async function comandoHeroi(inter) {
   const h = acharHeroi(inter.options.getString("nome"));
   /* Reconheço antes de ler o idioma: são três segundos, e o idioma vem do
@@ -28201,6 +28277,11 @@ client.once("clientReady", () => {
     .catch((e) => console.log("livro: postar nos canais falhou:", e?.message || e));
   setTimeout(() => livro(2), 5 * 60 * 1000);
   setInterval(() => livro(0), 60 * 60 * 1000);
+  /* A faxina da sala do livro, uma vez, depois que o livro já está no ar. */
+  const faxina = (resta) => faxinaDoLivro()
+    .then((r) => { if (r !== "feito" && resta) setTimeout(() => faxina(resta - 1), 10 * 60 * 1000); })
+    .catch((e) => console.log("livro: a faxina falhou:", e?.message || e));
+  setTimeout(() => faxina(3), 8 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
