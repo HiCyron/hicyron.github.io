@@ -16419,6 +16419,138 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("o envio para os canais está agendado ao subir", /setTimeout\(\(\) => urso\(2\), 4 \* 60 \* 1000\)/.test(semComentarios(fonte)));
   }
 
+  /* 📖 o livro dos heróis no game-central (no lugar da dica do Saul) */
+  {
+    ok("o livro tem todos os heróis, uma página cada", H.LIVRO.length, H.HEROIS.length);
+    ok("na ordem do jogo: Gen 1 primeiro, depois os épicos, os raros por último",
+      [H.LIVRO[0].gen, H.LIVRO[21].gen, H.LIVRO[22].rarity, H.LIVRO.at(-1).rarity].join(","), "1,7,epic,rare");
+    verdade("as gerações nunca andam para trás", H.LIVRO.filter((h) => h.gen != null).every((h, i, l) => !i || l[i - 1].gen <= h.gen));
+    ok("o dia vira às 10h UTC (a hora da dica antiga): 9h59 ainda é ontem",
+      H.diaDoLivro(Date.parse("2026-11-17T09:59:00Z")), "2026-11-16");
+    ok("10h já é hoje", H.diaDoLivro(Date.parse("2026-11-17T10:00:00Z")), "2026-11-17");
+    const hoje = H.paginaDoDia("2026-11-17");
+    ok("cada dia, o próximo herói", H.paginaDoDia("2026-11-18"), (hoje + 1) % H.LIVRO.length);
+    verdade("e o livro inteiro passa antes de repetir", new Set(Array.from({ length: H.LIVRO.length },
+      (_, d) => H.paginaDoDia(new Date(Date.parse("2026-11-17") + d * 86400000).toISOString().slice(0, 10)))).size === H.LIVRO.length);
+    ok("dia que não é data: a primeira página, sem NaN", H.paginaDoDia("lixo"), 0);
+    ok("a seta da última página volta para a primeira", H.paginaVizinha(H.LIVRO.length - 1, 1), 0);
+    ok("e a da primeira vai para a última", H.paginaVizinha(0, -1), H.LIVRO.length - 1);
+    ok("clique na seta: a página da seta", H.paginaDoClique("livro:prox:5"), 5);
+    ok("clique na lista: a página escolhida", H.paginaDoClique("livro:ir:outros", ["30"]), 30);
+    ok("página fora do livro: nada", H.paginaDoClique("livro:ir:outros", ["999"]), null);
+    ok("valor estranho: nada", H.paginaDoClique("livro:ant:-1"), null);
+    ok("o número da página (desligado) não abre nada", H.paginaDoClique("livro:pag"), null);
+
+    const t = { tropa: H.TEXTOS_DA_FICHA.tropa, raridade: H.TEXTOS_DA_FICHA.raridade };
+    const ee = (n) => ({ id: "123456789012345678", name: n, animated: true });
+    const linhas = H.botoesDoLivro(3, { ee, t });
+    const ids = linhas.flatMap((l) => l.components.map((c) => c.custom_id));
+    ok("três linhas: as setas e as duas listas", linhas.length, 3);
+    ok("seta para trás, a página, seta para a frente", JSON.stringify(linhas[0].components.map((c) => c.custom_id)),
+      JSON.stringify(["livro:ant:2", "livro:pag", "livro:prox:4"]));
+    ok("no meio, a página em que está", linhas[0].components[1].label, `📖 4 / ${H.LIVRO.length}`);
+    verdade("o número não é botão de apertar", linhas[0].components[1].disabled === true);
+    ok("nenhum id repetido na mensagem (o Discord recusa)", new Set(ids).size, ids.length);
+    const listas = linhas.slice(1).map((l) => l.components[0]);
+    verdade("cada lista cabe no teto de 25", listas.every((l) => l.options.length <= 25));
+    ok("as duas listas juntas têm o livro inteiro", listas.reduce((n, l) => n + l.options.length, 0), H.LIVRO.length);
+    verdade("cada opção leva à página do herói", listas.every((l) => l.options.every((o) => H.LIVRO[Number(o.value)].name === o.label)));
+    ok("o herói da página vem marcado na lista", listas[0].options.find((o) => o.default)?.label, H.LIVRO[3].name);
+    verdade("o emoji da tropa na opção", /^ks_tropa_/.test(listas[0].options[0].emoji?.name || ""));
+    verdade("emoji ainda subindo: opção sem emoji, nada quebrado", H.botoesDoLivro(0, { t }).slice(1)
+      .every((l) => l.components[0].options.every((o) => !("emoji" in o))));
+    ok("a lista dos lendários diz as gerações", listas[0].placeholder, "🔎 Lendário · Gen 1–7");
+    verdade("textos dentro dos limites do Discord", listas.every((l) => l.placeholder.length <= 150 &&
+      l.options.every((o) => o.label.length <= 100 && o.description.length <= 100)));
+
+    /* a sala: a página de ontem sai, a do dia entra no fim; tudo na língua de cada sala */
+    Object.assign(globalThis, { LIVRO: H.LIVRO, diaDoLivro: H.diaDoLivro, paginaDoDia: H.paginaDoDia });
+    const nomes = { 11: "🎮game-central", 22: "🎮game-central-en", 33: "🎮game-central-pt" };
+    const replicas = [{ canal_id: "22", idioma: "en", tipo: "game" }, { canal_id: "33", idioma: "pt", tipo: "game" }];
+    const fontes = new Map([["11", "game"]]);
+    const feitos = [];
+    let marcas = {};
+    let seq = 100;
+    const nasSalas = new Map([["33", new Map([
+      ["7", { id: "7", author: { id: "eu" }, components: [{ components: [{ customId: "livro:ant:1" }] }] }],
+      ["8", { id: "8", author: { id: "outro" }, components: [{ components: [{ customId: "livro:ant:1" }] }] }],
+      ["9", { id: "9", author: { id: "eu" }, components: [{ components: [{ customId: "urso:jogo" }] }] }]])]]);
+    const canal = (id) => ({ name: nomes[id],
+      send: async (m) => { feitos.push(["post", id, m.content]); return { id: String(seq++) }; },
+      messages: { fetch: async () => nasSalas.get(id) || new Map(), delete: async (m) => { feitos.push(["apaga", id, m]); } } });
+    const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot",
+      channels: { cache: { get: (id) => (nomes[id] ? canal(id) : null) } } };
+    const antes = { client: globalThis.client };
+    Object.assign(globalThis, {
+      SUBIDA_DOS_EMOJIS: { pronta: true },
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { feitos.push(["marca", k, v]); marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-top" }),
+      replicasDoIdioma: async () => replicas, fontesReplica: async () => fontes,
+      paginaDoLivro: async (i, idioma, g, o) => ({ content: `${H.LIVRO[i].name}-${idioma}-${o?.doDia ? "dia" : "livro"}` }),
+    });
+    try {
+      const { livroNosCanais, paginasDoLivroNaSala, idsDaMarcaDoLivro } =
+        carregar(["LIVRO_NO_CANAL", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais"]);
+      const agora = Date.parse("2026-11-17T12:00:00Z");
+      const heroi = H.LIVRO[H.paginaDoDia("2026-11-17")].name;
+      ok("posta", await livroNosCanais(agora), "postado");
+      ok("a marca antes de postar", JSON.stringify(feitos[0]), JSON.stringify(["marca", "livro_no_canal:top", "2026-11-17|0/3|"]));
+      ok("o herói do dia em cada sala, na língua dela", JSON.stringify(feitos.filter((f) => f[0] === "post").map((f) => f[2])),
+        JSON.stringify([`${heroi}-en-dia`, `${heroi}-en-dia`, `${heroi}-pt-dia`]));
+      ok("a página velha minha sai, só depois da nova no ar; a de outro e o cartão do Urso ficam",
+        JSON.stringify(feitos.filter((f) => f[0] === "apaga")), JSON.stringify([["apaga", "33", "7"]]));
+      verdade("apagou depois de postar na mesma sala", feitos.findIndex((f) => f[0] === "apaga") > feitos.findIndex((f) => f[0] === "post" && f[1] === "33"));
+      ok("a marca final guarda onde ficou cada página", marcas["livro_no_canal:top"], "2026-11-17|3/3|11:100,22:101,33:102");
+      feitos.length = 0;
+      ok("mesmo dia: não posta de novo", await livroNosCanais(agora + 3600000), "nada");
+      ok("e não mexe em nada", feitos.length, 0);
+      /* no dia seguinte, a de ontem sai pelo id guardado, mesmo que a conversa já tenha passado de 50 mensagens */
+      nasSalas.clear();
+      ok("dia seguinte: posta", await livroNosCanais(agora + 86400000), "postado");
+      ok("o herói seguinte", feitos.find((f) => f[0] === "post")[2], `${H.LIVRO[H.paginaDoDia("2026-11-18")].name}-en-dia`);
+      ok("e as de ontem saem pelos ids da marca", JSON.stringify(feitos.filter((f) => f[0] === "apaga").map((f) => f[2])),
+        JSON.stringify(["100", "101", "102"]));
+      ok("a marca do começo não perde os ids de ontem (se cair no meio, ainda sei apagar)",
+        feitos[0][2], "2026-11-18|0/3|11:100,22:101,33:102");
+      ok("ids da marca: só pares de números", JSON.stringify(idsDaMarcaDoLivro("d|1/2|1:2,x:3,4:")), JSON.stringify([["1", "2"]]));
+      ok("marca vazia: nenhum id", idsDaMarcaDoLivro(undefined).length, 0);
+      ok("o formato do Discord (customId) e o cru (custom_id) contam",
+        paginasDoLivroNaSala(new Map([["a", { author: { id: "eu" }, components: [{ components: [{ custom_id: "livro:pag" }] }] }]]), "eu").length, 1);
+      marcas = Object.defineProperty({}, "falhou", { value: true });
+      ok("banco fora: não posta no escuro", await livroNosCanais(agora), "sem-banco");
+      globalThis.SUBIDA_DOS_EMOJIS = { pronta: false };
+      ok("emojis ainda subindo: espera", await livroNosCanais(agora), "sem-emoji");
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    verdade("só o TOP, só a sala dos heróis (game-central)",
+      /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, canal: \/game-central\//.test(pedaco("LIVRO_NO_CANAL")));
+    verdade("ao subir e de hora em hora", /setTimeout\(\(\) => livro\(2\), 5 \* 60 \* 1000\)[^]*?setInterval\(\(\) => livro\(0\), 60 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+    verdade("as setas e as listas chegam ao livro", /customId\.startsWith\("livro:"\)\) return await cliqueLivro\(inter\)/.test(semComentarios(fonte)));
+
+    /* o toque: na sala abre só para quem tocou; no livro aberto, vira a página no lugar */
+    const passos = [];
+    Object.assign(globalThis, { paginaDoClique: H.paginaDoClique,
+      linguaDe: async () => "pt",
+      paginaDoLivro: async (i, idioma) => ({ content: `${H.LIVRO[i].name}-${idioma}`, files: [] }) });
+    const { cliqueLivro } = carregar(["cliqueLivro"]);
+    const toque = (customId, efemera, values) => ({ customId, values, guildId: "g",
+      message: { flags: { has: (f) => efemera && f === 64 } },
+      deferReply: async (o) => { passos.push(["reply", o?.flags]); },
+      deferUpdate: async () => { passos.push(["update"]); },
+      editReply: async (m) => { passos.push(["edita", m.content, JSON.stringify(m.attachments)]); } });
+    await cliqueLivro(toque("livro:prox:4", false));
+    ok("na página da sala: abre o livro só para quem tocou, na língua dele",
+      JSON.stringify(passos.splice(0)), JSON.stringify([["reply", 64], ["edita", `${H.LIVRO[4].name}-pt`, undefined]]));
+    await cliqueLivro(toque("livro:ir:outros", true, ["30"]));
+    ok("no livro aberto: vira a página no lugar, trocando o GIF",
+      JSON.stringify(passos.splice(0)), JSON.stringify([["update"], ["edita", `${H.LIVRO[30].name}-pt`, "[]"]]));
+    await cliqueLivro(toque("livro:pag", false));
+    ok("o número da página: só fecha o toque", JSON.stringify(passos.splice(0)), JSON.stringify([["update"]]));
+  }
+
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
   {
     verdade("dica: sem nenhum desses, só a tropa (guia do Urso; e é o que a aliança faz)",
