@@ -16087,6 +16087,25 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("retrato sem foto: a inicial, sem deixar marcação entrar no SVG", !/<b>/.test(svg) && /#a855f7/.test(svg));
   verdade("retrato com foto: a foto vai recortada no hexágono", /clip-path="url\(#miolo\)"/.test(H.svgDoRetrato({ name: "A", rarity: "rare" }, "QUJD")));
 
+  /* o herói animado, de corpo inteiro (os GIFs que o dono gravou no jogo) */
+  {
+    Object.assign(globalThis, { existsSync, normalizarHeroi: H.normalizar, PASTA_DOS_HEROIS_ANIMADOS: `${aqui}/img/kingshot/herois/` });
+    const { gifDoHeroi } = carregar(["gifDoHeroi"]);
+    const pasta = readdirSync(`${aqui}/img/kingshot/herois`).filter((n) => n.endsWith(".gif"));
+    ok("os 22 heróis que o dono gravou viraram GIF", pasta.length, 22);
+    verdade("todo GIF é de um herói da base (nome como o normalizar deixa)", pasta.every((n) => H.HEROIS.some((h) => `${H.normalizar(h.name)}.gif` === n)));
+    verdade("cada GIF é leve (até 1,5 MB) e é GIF de verdade", pasta.every((n) => {
+      const b = readFileSync(`${aqui}/img/kingshot/herois/${n}`);
+      return b.length <= 1.5 * 1024 * 1024 && b.subarray(0, 6).toString() === "GIF89a";
+    }));
+    verdade("quem tem GIF: o GIF", /jabel\.gif$/.test(gifDoHeroi(H.acharHeroi("Jabel")) || ""));
+    ok("quem não tem: nada (fica o retrato)", gifDoHeroi(H.acharHeroi("Vivian")), null);
+    ok("sem herói: nada", gifDoHeroi(null), null);
+    const cartao = semComentarios(pedaco("cartaoDoHeroi"));
+    verdade("a ficha usa o GIF no canto quando existe", /const gif = gifDoHeroi\(h\)[^]*?foto: "attachment:\/\/heroi\.gif"[^]*?name: "heroi\.gif"/.test(cartao));
+    verdade("e o retrato no hexágono quando não existe", /retratoDoKingshot\(h\)[^]*?"attachment:\/\/heroi\.png"/.test(cartao));
+  }
+
   /* os emojis: subir com o tipo certo, e marcar os animados com "a:" */
   Object.assign(globalThis, { readFileSync, readdirSync, createHash, PASTA_DO_KINGSHOT: `${aqui}/img/kingshot/`,
     SUBIDA_DOS_EMOJIS: { pronta: false } });
