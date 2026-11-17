@@ -16691,6 +16691,58 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("agendada ao subir", /setTimeout\(\(\) => fundirAlertasNaAgenda\(\)/.test(semComentarios(fonte)));
   }
 
+  /* as salas vazias do 🔔 alertas saem, na ordem segura */
+  {
+    const { fusaoCompleta } = carregar(["fusaoCompleta"]);
+    ok("fusão 1 de 1: completa", fusaoCompleta("2026-11-17T04:00Z|1/1 webhooks|50->60"), true);
+    ok("fusão pela metade: não", fusaoCompleta("x|1/2 webhooks|50->60"), false);
+    ok("fusão de nada (0/0, a :1): não", fusaoCompleta("x|0/0 webhooks|50->60"), false);
+    ok("fusão que só começou: não", fusaoCompleta("x|começou|1"), false);
+    ok("sem fusão: não", fusaoCompleta(undefined), false);
+
+    const passos = [];
+    let marcas = { "fusao_alertas_agenda:top:2": "x|1/1 webhooks|50->60" };
+    let webhookNaSala = false;
+    const sala = (id) => ({ id, delete: async () => { passos.push(["apaga-sala", id]); },
+      fetchWebhooks: async () => new Map(webhookNaSala ? [["1", { id: "1" }]] : [["7", { id: "7" }]]) });
+    const salas = { 50: sala("50"), 51: sala("51"), 52: sala("52") };
+    const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot", channels: { cache: { get: (id) => salas[id] || null } } };
+    const antes = { client: globalThis.client };
+    Object.assign(globalThis, {
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-top" }),
+      fontesReplica: async () => new Map([["50", "alertas"], ["60", "agenda"]]),
+      webhooksDoPortal: async () => new Set(["1"]),
+      cacheFontes: new Map(), cacheReplicas: new Map(),
+      sb: async () => [{ id: "r1", canal_id: "51" }, { id: "r2", canal_id: "52" }],
+      sbDel: async (q) => { passos.push(["linha", q.split("?")[0]]); },
+    });
+    try {
+      const { apagarSalasQueSaem } = carregar(["SALAS_QUE_SAEM", "fusaoCompleta", "apagarSalasQueSaem"]);
+      webhookNaSala = true;
+      ok("webhook do portal ainda na sala: não apaga nada", await apagarSalasQueSaem(), "nada");
+      ok("nem a linha", passos.length, 0);
+      webhookNaSala = false;
+      ok("apaga", await apagarSalasQueSaem(), "apagado");
+      ok("a linha da fonte sai primeiro, depois as cópias, a origem por último", JSON.stringify(passos), JSON.stringify([
+        ["linha", "discord_fonte_replica"], ["apaga-sala", "51"], ["linha", "discord_canal_idioma"],
+        ["apaga-sala", "52"], ["linha", "discord_canal_idioma"], ["apaga-sala", "50"]]));
+      verdade("a marca diz quantas", /\|3\/3 salas$/.test(marcas["alertas_apagado:top:1"]));
+      passos.length = 0;
+      ok("uma vez só", await apagarSalasQueSaem(), "nada");
+      ok("e não mexe de novo", passos.length, 0);
+      marcas = { "fusao_alertas_agenda:top:2": "x|0/0 webhooks|50->60" };
+      ok("fusão sem nada mudado: não apaga", await apagarSalasQueSaem(), "nada");
+      ok("nada foi tocado", passos.length, 0);
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    verdade("só o TOP, só o alertas", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, tipo: "alertas"/.test(pedaco("SALAS_QUE_SAEM")));
+    verdade("agendada depois da fusão", /setTimeout\(\(\) => apagarSalasQueSaem\(\)[^]*?6 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
   {
     verdade("dica: sem nenhum desses, só a tropa (guia do Urso; e é o que a aliança faz)",
