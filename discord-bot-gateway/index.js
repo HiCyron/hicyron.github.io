@@ -9093,6 +9093,71 @@ async function fundirAlertasNaAgenda() {
   return feito ? "movido" : "nada";
 }
 
+/* ---- as salas do 🔔 alertas saem (dono, 17/11: "sim, apaga") ----
+
+   Depois da fusão, o alertas ficou vazio nas 10 salas. Ordem segura:
+   1. só com a fusão completa (todos os webhooks mudaram, pelo menos um);
+   2. confere de novo que nenhum webhook do portal ficou na sala -- apagar a
+      sala com ele dentro apagaria o webhook, e o lembrete da Arena morreria;
+   3. a linha da fonte sai ANTES das salas: sem ela, a máquina das réplicas
+      não recria as cópias;
+   4. as 9 cópias, e por último a sala de origem. */
+const SALAS_QUE_SAEM = [{ guild: /^\[TOP\]\s*Best Alliance/i, tipo: "alertas",
+  fusao: "fusao_alertas_agenda:top:2", marca: "alertas_apagado:top:1" }];
+
+/* Pura. A fusão mudou todos os webhooks (e pelo menos um)? */
+function fusaoCompleta(marca) {
+  const m = String(marca || "").match(/\|(\d+)\/(\d+) webhooks\|/);
+  return !!m && Number(m[1]) >= 1 && m[1] === m[2];
+}
+
+async function apagarSalasQueSaem() {
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  let feito = 0;
+  for (const alvo of SALAS_QUE_SAEM) {
+    if (a[alvo.marca]) continue;
+    if (!fusaoCompleta(a[alvo.fusao])) {
+      console.log(`salas: o ${alvo.tipo} só sai depois da fusão completa`);
+      continue;
+    }
+    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const origemId = [...(await fontesReplica(servidor.id))].find(([, t]) => t === alvo.tipo)?.[0];
+    const origem = origemId && (guild.channels.cache.get(origemId) || await client.channels.fetch(origemId).catch(() => null));
+    if (!origem) continue;
+    const lista = await origem.fetchWebhooks().catch(() => null);
+    const doPortal = await webhooksDoPortal().catch(() => null);
+    const replicas = await sb(`discord_canal_idioma?servidor_id=eq.${servidor.id}&tipo=eq.${encodeURIComponent(alvo.tipo)}&select=id,canal_id`)
+      .catch(() => null);
+    if (!lista || !doPortal || !Array.isArray(replicas)) {
+      console.log(`salas: não consegui conferir o ${alvo.tipo} em ${guild.name}; tento depois`);
+      continue;
+    }
+    if ([...lista.values()].some((w) => doPortal.has(String(w.id)))) {
+      console.log(`salas: um webhook do portal ainda está no ${alvo.tipo}; não apago`);
+      continue;
+    }
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|começou`);
+    await sbDel(`discord_fonte_replica?canal_id=eq.${encodeURIComponent(origemId)}`);
+    cacheFontes.delete(servidor.id);
+    let foram = 0;
+    for (const r of replicas) {
+      const canal = guild.channels.cache.get(String(r.canal_id));
+      if (canal && !await canal.delete(`CYRON: o ${alvo.tipo} entrou na agenda`).then(() => true).catch(() => false)) continue;
+      await sbDel(`discord_canal_idioma?id=eq.${encodeURIComponent(r.id)}`).catch(() => {});
+      foram++;
+    }
+    cacheReplicas.delete(servidor.id);
+    if (await origem.delete(`CYRON: o ${alvo.tipo} entrou na agenda`).then(() => true).catch(() => false)) foram++;
+    feito += foram;
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|${foram}/${replicas.length + 1} salas`);
+    console.log(`salas: ${foram} de ${replicas.length + 1} salas do ${alvo.tipo} apagadas em ${guild.name}`);
+  }
+  return feito ? "apagado" : "nada";
+}
+
 /* `cargaDe(ev)` monta o cartao daquela sala; `aoPostar(ev, msg)` e' chamado
    quando um cartao nasce (a sala original guarda o msg_id). */
 async function pintarSala(canal, eventos, cargaDe, aoPostar = null, agora = Date.now()) {
@@ -28380,6 +28445,8 @@ client.once("clientReady", () => {
   setTimeout(() => faxina(3), 8 * 60 * 1000);
   /* O 🔔 alertas entra na agenda: uma vez, três minutos depois de subir. */
   setTimeout(() => fundirAlertasNaAgenda().catch((e) => console.log("agenda: a fusão falhou:", e?.message || e)), 3 * 60 * 1000);
+  /* E as salas vazias do alertas saem, só depois da fusão completa. */
+  setTimeout(() => apagarSalasQueSaem().catch((e) => console.log("salas: apagar o alertas falhou:", e?.message || e)), 6 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
