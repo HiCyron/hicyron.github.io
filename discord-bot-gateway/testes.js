@@ -16629,6 +16629,9 @@ function conferirCartao(onde, embed, componentes = []) {
       faxinadas.length = 0;
       ok("uma vez só", await faxina(), "feito");
       ok("e não mexe de novo", faxinadas.length, 0);
+      marcas = { ...marcas, "livro_faxina:top:1": "2026-11-17T00:50:00Z|começou" };
+      ok("caiu no meio (reinício): volta a faxinar o que sobrou", await faxina(), "feito");
+      ok("as duas salas de novo", faxinadas.length, 2);
       marcas = Object.defineProperty({}, "falhou", { value: true });
       ok("banco fora: não apaga no escuro", await faxina(), "sem-banco");
     } finally {

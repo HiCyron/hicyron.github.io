@@ -12863,7 +12863,9 @@ async function faxinarSala(canal, ficam, teto = 3000) {
 async function faxinaDoLivro() {
   const a = await ajustes();
   if (a.falhou) return "sem-banco";
-  if (a[FAXINA_DO_LIVRO]) return "feito";
+  /* Reinício no meio (uma atualização, por exemplo) não deixa a faxina pela
+     metade: a marca "começou" sem resultado volta a faxinar o que sobrou. */
+  if (a[FAXINA_DO_LIVRO] && !String(a[FAXINA_DO_LIVRO]).endsWith("|começou")) return "feito";
   const alvo = LIVRO_NO_CANAL[0];
   const marca = String(a[alvo.marca] || "");
   const paginas = new Map(idsDaMarcaDoLivro(marca));
