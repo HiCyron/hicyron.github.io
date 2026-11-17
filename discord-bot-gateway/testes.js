@@ -16551,6 +16551,76 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("o número da página: só fecha o toque", JSON.stringify(passos.splice(0)), JSON.stringify([["update"]]));
   }
 
+  /* a faxina da sala do livro: sai tudo de antes, menos a página e o fixado */
+  {
+    Object.assign(globalThis, { LIVRO_NO_CANAL: [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" }] });
+    const agora = Date.now();
+    const dia = 86400000;
+    const { separarFaxina, faxinarSala, faxinaDoLivro } =
+      carregar(["LOTE_VELHO", "FAXINA_DO_LIVRO", "separarFaxina", "faxinarSala", "idsDaMarcaDoLivro", "faxinaDoLivro"]);
+    const msg = (id, dias, extra = {}) => [String(id), { id: String(id), createdTimestamp: agora - dias * dia, ...extra }];
+    const s1 = separarFaxina(new Map([msg(1, 1), msg(2, 30), msg(3, 1, { pinned: true }), msg(4, 0)]), new Set(["4"]), agora);
+    ok("as novas saem em lote", JSON.stringify(s1.novas.map((m) => m.id)), JSON.stringify(["1"]));
+    ok("as de mais de 14 dias, uma a uma", JSON.stringify(s1.velhas.map((m) => m.id)), JSON.stringify(["2"]));
+    verdade("a página do livro e o fixado ficam", ![...s1.novas, ...s1.velhas].some((m) => m.id === "3" || m.id === "4"));
+
+    /* uma sala com 150 mensagens: 120 novas, 29 velhas, e a página do livro */
+    const todas = new Map();
+    for (let i = 1; i <= 150; i++) todas.set(String(1000 + i), { id: String(1000 + i), createdTimestamp: agora - (i <= 29 ? 20 : 1) * dia });
+    const pagina = "1150";
+    const feitos = { lote: [], uma: [] };
+    const apagadas = new Set();
+    const vivas = () => [...todas.values()].filter((m) => !apagadas.has(m.id));
+    for (const m of todas.values()) m.delete = async () => { feitos.uma.push(m.id); apagadas.add(m.id); };
+    const canal = {
+      messages: { fetch: async ({ limit, before }) => new Map(vivas()
+        .filter((m) => !before || BigInt(m.id) < BigInt(before))
+        .sort((a, b) => (BigInt(b.id) > BigInt(a.id) ? 1 : -1)).slice(0, limit).map((m) => [m.id, m])) },
+      bulkDelete: async (ids) => { feitos.lote.push(ids.length); ids.forEach((id) => apagadas.add(id)); return new Map(ids.map((i) => [i, 1])); },
+    };
+    Object.assign(globalThis, { apagadasPorMim: new Set() });
+    const r = await faxinarSala(canal, new Set([pagina]));
+    ok("tudo de antes saiu", r.apagadas, 149);
+    ok("sem falha", r.falhas, 0);
+    ok("só a página do livro sobrou", JSON.stringify(vivas().map((m) => m.id)), JSON.stringify([pagina]));
+    ok("as velhas foram uma a uma", feitos.uma.length, 29);
+    verdade("o registro da moderação sabe que fui eu", globalThis.apagadasPorMim.has("1001"));
+
+    /* a ordem: sem o livro no ar, nada sai; com ele, uma vez só */
+    let marcas = {};
+    const faxinadas = [];
+    const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot",
+      channels: { cache: { get: (id) => ({ name: { 11: "🎮game-central", 22: "🎮game-central-pt" }[id], messages: {} }) } } };
+    const antes = { client: globalThis.client, faxinarSala: globalThis.faxinarSala };
+    Object.assign(globalThis, {
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-top" }),
+      replicasDoIdioma: async () => [{ canal_id: "22", idioma: "pt", tipo: "game" }],
+      fontesReplica: async () => new Map([["11", "game"]]),
+    });
+    try {
+      const { faxinaDoLivro: faxina } = (0, eval)(`(() => { const faxinarSala = async (c, f) => { faxinadas.push([c.name, [...f]]); return { apagadas: 5, falhas: 0 }; };
+        ${pedaco("faxinaDoLivro")}; return { faxinaDoLivro }; })()`.replace("faxinadas", "globalThis.__faxinadas"));
+      globalThis.__faxinadas = faxinadas;
+      ok("sem o livro no ar: nada sai", await faxina(), "sem-livro");
+      ok("e nada foi apagado", faxinadas.length, 0);
+      marcas = { "livro_no_canal:top": "2026-11-17|2/2|11:100,22:101" };
+      ok("com o livro: faxina", await faxina(), "feito");
+      ok("cada sala guarda a própria página", JSON.stringify(faxinadas), JSON.stringify([["🎮game-central", ["100"]], ["🎮game-central-pt", ["101"]]]));
+      verdade("a marca diz o que foi feito", /\|2\/2 salas\|10 apagadas\|0 falhas$/.test(marcas["livro_faxina:top:1"]));
+      faxinadas.length = 0;
+      ok("uma vez só", await faxina(), "feito");
+      ok("e não mexe de novo", faxinadas.length, 0);
+      marcas = Object.defineProperty({}, "falhou", { value: true });
+      ok("banco fora: não apaga no escuro", await faxina(), "sem-banco");
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    verdade("agendada ao subir, depois do livro", /setTimeout\(\(\) => faxina\(3\), 8 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
   {
     verdade("dica: sem nenhum desses, só a tropa (guia do Urso; e é o que a aliança faz)",
