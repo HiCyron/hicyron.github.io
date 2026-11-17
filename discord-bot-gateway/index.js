@@ -34,7 +34,7 @@ import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo } from "./herois.js";
 import { fileURLToPath } from "node:url";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 
 /* A fonte da imagem traduzida vai JUNTO com o bot, e nao e' a da maquina: a
    imagem do Fly e' um Alpine sem fonte nenhuma, e depender do que estiver
@@ -12446,6 +12446,20 @@ async function letraEmDesenho(nome, tamanho = 112) {
   return fonte.getPath(letra, 128 - (caixa.x1 + caixa.x2) / 2, 128 - (caixa.y1 + caixa.y2) / 2, tamanho).toPathData(2);
 }
 
+/* O herói ANIMADO, de corpo inteiro (dono, 17/11: "fiz um vídeo de cada
+   herói"). O dono gravou os heróis dele dentro do jogo; cada um virou um GIF
+   de ~3 s, 200 px, sem o "SSR" do canto nem botão do celular
+   (img/kingshot/herois/<nome>.gif, o nome como o normalizar deixa: "Long
+   Fei" -> longfei). Quem tem GIF aparece animado no canto da ficha; quem
+   não tem (herói que o dono ainda não tem no jogo) fica com o retrato no
+   hexágono. Para pôr mais um, é só pôr o GIF na pasta. */
+const PASTA_DOS_HEROIS_ANIMADOS = fileURLToPath(new URL("./img/kingshot/herois/", import.meta.url));
+
+function gifDoHeroi(h, existe = existsSync) {
+  const arquivo = `${PASTA_DOS_HEROIS_ANIMADOS}${normalizarHeroi(h?.name)}.gif`;
+  return h?.name && existe(arquivo) ? arquivo : null;
+}
+
 async function cartaoDoHeroi(h, idioma, guildId) {
   const motor = await motorDoGuild(guildId).catch(() => undefined);
   const dicas = [];
@@ -12455,6 +12469,13 @@ async function cartaoDoHeroi(h, idioma, guildId) {
     melhor: await textoDoJogo(melhorUso(h), idioma, motor),
     dicas_do_heroi: dicas,
   };
+  const gif = gifDoHeroi(h);
+  if (gif) {
+    return {
+      embeds: [fichaDoHeroi(h, { e: emojiKs, t, foto: "attachment://heroi.gif" })],
+      files: [{ attachment: gif, name: "heroi.gif" }],
+    };
+  }
   const png = await retratoDoKingshot(h).catch(() => null);
   return {
     embeds: [fichaDoHeroi(h, { e: emojiKs, t, foto: png ? "attachment://heroi.png" : null })],
