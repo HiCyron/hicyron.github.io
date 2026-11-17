@@ -16258,7 +16258,10 @@ function conferirCartao(onde, embed, componentes = []) {
   const dicas = H.dicasDoUrso(g);
   verdade("dica: no rally dos outros só conta a 1ª habilidade do 1º herói, com os joiners grátis calculados",
     dicas.some((d) => /rally de outra pessoa, só conta a 1ª habilidade do 1º herói: coloque Amane, Chenko ou Yeonwoo na frente/.test(d)));
-  verdade("e nada de 'só aumentam a tropa' (herói de quem entra não aumenta tropa)", !dicas.some((d) => /aumentam a tropa/.test(d)));
+  verdade("os outros dois heróis de quem entra: aumentam a tropa, as habilidades não contam (guia do Bear Hunt)",
+    dicas.some((d) => /Os outros dois heróis só aumentam a tropa que você leva; as habilidades deles não contam/.test(d)));
+  verdade("tropa por geração: 60% de arqueiros na Gen 1, não '80% ou mais' para todo mundo",
+    dicas.some((d) => /60% na Gen 1, 70% na Gen 2 e 80% ou mais da Gen 3 em diante/.test(d)));
   verdade("dica: quem nunca mandar como joiner", dicas.some((d) => /Nunca mande como joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin e Charles/.test(d)));
   verdade("dica: misturar letalidade com ataque", dicas.some((d) => /letalidade \(Chenko, Yeonwoo\) com ataque \(Amane, Margot\)/.test(d)));
   verdade("dica: no líder valem todas as habilidades", dicas.some((d) => /todas as habilidades deles valem para o rally inteiro/.test(d)));
@@ -16424,10 +16427,10 @@ function conferirCartao(onde, embed, componentes = []) {
           edit: async (m) => { editadas.push(["pt", m.embeds[0].description, JSON.stringify(m.attachments)]); } }]]));
       ok("posta", await ursoNosCanais(), "postado");
       ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 3)),
-        JSON.stringify([["marca", "urso_no_canal:top:6"], ["f", "urso-en"], ["en", "urso-en"]]));
+        JSON.stringify([["marca", "urso_no_canal:top:7"], ["f", "urso-en"], ["en", "urso-en"]]));
       ok("a ficha velha (minha) é atualizada no lugar, com a foto trocada", JSON.stringify(editadas), JSON.stringify([["pt", "urso-pt", "[]"]]));
       verdade("e nada de ficha repetida nessa sala", !enviados.some(([id]) => id === "pt"));
-      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:6"]));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:7"]));
       ok("mensagem de outro, com o mesmo cartão, não é minha", fichaDoUrsoNaSala(new Map([["a", { author: { id: "x" },
         embeds: [{ description: "<a:ks_urso_abc123:1> **Bear**" }] }]]), "eu"), null);
       ok("cartão meu que não é a ficha do Urso fica", fichaDoUrsoNaSala(new Map([["a", { author: { id: "eu" },

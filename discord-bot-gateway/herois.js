@@ -241,7 +241,10 @@ export function svgDoRetrato(h, fotoBase64 = "", lado = 256, letra = "") {
    - joiners Chenko, Amane e Yeonwoo: os melhores, em todas as fontes;
    - quem entra no rally só leva a 1ª habilidade do 1º herói; o líder leva
      as 3 habilidades dos 3 heróis: duas fontes;
-   - tropa com a maior parte arqueiros (10/10/80 a 1/10/89): duas fontes;
+   - tropa com a maior parte arqueiros (10/30/60 na Gen 1, 10/20/70 na
+     Gen 2, 10/10/80 na Gen 3, 1/10/89 depois): duas fontes;
+   - quem entra: os outros dois heróis só aumentam a capacidade da marcha
+     (kingshotmastery, conferido de novo em 17/11);
    - 30 minutos, uma vez a cada 2 dias: todas as fontes;
    - misturar letalidade (Chenko, Yeonwoo) com ataque (Amane, Margot)
      multiplica em vez de somar: kingshotmastery.
@@ -315,17 +318,22 @@ export function dicasDoUrso({ lideres, entram }, herois = HEROIS) {
   const dicas = [];
   const gratis = entram.filter(ehF2P);
   if (gratis.length) {
-    /* "Os outros dois heróis só aumentam a tropa" estava errado: herói de
-       quem entra não aumenta tropa nenhuma, só não conta. */
+    /* Os outros dois heróis de quem entra aumentam a capacidade da marcha
+       (quanta tropa vai), mas as habilidades deles não contam
+       (kingshotmastery, guia do Bear Hunt: "the second and third heroes only
+       add march capacity; their skills do nothing for the rally"). Em 17/11
+       isto virou "não contam" por engano meu e voltou no mesmo dia. */
     dicas.push(`Para entrar no rally de outra pessoa, só conta a 1ª habilidade do 1º herói: coloque ${emLista(gratis, "ou")} na frente ` +
-      "(dá para ter sem gastar). Os outros dois heróis de quem entra não contam.");
+      "(dá para ter sem gastar). Os outros dois heróis só aumentam a tropa que você leva; as habilidades deles não contam.");
   }
   const tem = (n) => entram.some((h) => h.name === n);
   if ((tem("Chenko") || tem("Yeonwoo")) && (tem("Amane") || tem("Margot"))) {
     dicas.push("Misturar letalidade (Chenko, Yeonwoo) com ataque (Amane, Margot) rende mais do que repetir o mesmo herói.");
   }
   if (lideres.length) dicas.push("Quem lidera o rally usa os 3 heróis de ataque mais fortes: todas as habilidades deles valem para o rally inteiro.");
-  dicas.push("Tropa: a maior parte arqueiros (os guias falam em 80% ou mais).");
+  /* O "80% ou mais" só vale da Gen 3 em diante: o guia dá 60% de arqueiros
+     na Gen 1 e 70% na Gen 2 (10/30/60, 10/20/70, 10/10/80, 1/10/89). */
+  dicas.push("Tropa: a maior parte arqueiros. Cerca de 60% na Gen 1, 70% na Gen 2 e 80% ou mais da Gen 3 em diante.");
   const nunca = NUNCA_NO_URSO.map((n) => herois.find((h) => h.name === n)).filter(Boolean);
   if (nunca.length) dicas.push(`Nunca mande como joiner: ${emLista(nunca)}. A 1ª habilidade deles não é de ataque.`);
   /* kingshotmastery (guia do Bear Hunt): sem joiner bom, mande só a tropa. E
