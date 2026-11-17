@@ -16073,6 +16073,16 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("melhor uso: herói de coleta é de coleta", H.melhorUso(H.acharHeroi("Edwin")), "Coleta de pedra");
   ok("melhor uso: nota baixa em tudo", H.melhorUso(H.acharHeroi("Howard")), "Pouco uso em batalha");
   verdade("dica: joiner do Urso vai como 1º herói", H.dicasDoHeroi(H.acharHeroi("Chenko")).some((d) => /1º herói/.test(d)));
+  {
+    /* Amadeus lidera e entra: a dica diz qual regra é de quem (uma jogadora do TOP leu a do joiner como se fosse do líder) */
+    const d = H.dicasDoHeroi(H.acharHeroi("Amadeus"));
+    ok("líder primeiro, depois joiner (a ordem do 'melhor uso')", d.findIndex((x) => /liderar/.test(x)) < d.findIndex((x) => /joiner/.test(x)), true);
+    verdade("como líder, valem todas as habilidades", d.some((x) => /como líder, valem todas as habilidades dos seus 3 heróis/.test(x)));
+    verdade("a regra da 1ª habilidade diz que é de quem entra no rally de outra pessoa",
+      d.some((x) => /rally do Urso de outra pessoa \(joiner\)[^]*de quem entra só conta a 1ª habilidade/.test(x)));
+    verdade("nenhuma dica fala da 1ª habilidade sem dizer que é de quem entra",
+      H.HEROIS.flatMap((h) => H.dicasDoHeroi(h)).filter((x) => /só conta a 1ª habilidade/.test(x)).every((x) => /de quem entra/.test(x)));
+  }
   verdade("dica: quem nunca mandar no Urso", H.dicasDoHeroi(H.acharHeroi("Long Fei")).some((d) => /Não mande como joiner/.test(d)));
   verdade("dica: herói de coleta, sem repetir o 'não mande'", (() => { const d = H.dicasDoHeroi(H.acharHeroi("Edwin"));
     return d.length === 1 && /coleta de pedra/.test(d[0]); })());
@@ -16247,10 +16257,11 @@ function conferirCartao(onde, embed, componentes = []) {
 
   const dicas = H.dicasDoUrso(g);
   verdade("dica: no rally dos outros só conta a 1ª habilidade do 1º herói, com os joiners grátis calculados",
-    dicas.some((d) => /só conta a 1ª habilidade do 1º herói: coloque Amane, Chenko ou Yeonwoo na frente/.test(d)));
+    dicas.some((d) => /rally de outra pessoa, só conta a 1ª habilidade do 1º herói: coloque Amane, Chenko ou Yeonwoo na frente/.test(d)));
+  verdade("e nada de 'só aumentam a tropa' (herói de quem entra não aumenta tropa)", !dicas.some((d) => /aumentam a tropa/.test(d)));
   verdade("dica: quem nunca mandar como joiner", dicas.some((d) => /Nunca mande como joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin e Charles/.test(d)));
   verdade("dica: misturar letalidade com ataque", dicas.some((d) => /letalidade \(Chenko, Yeonwoo\) com ataque \(Amane, Margot\)/.test(d)));
-  verdade("dica: o líder leva as 3 habilidades", dicas.some((d) => /as 3 habilidades valem para o rally inteiro/.test(d)));
+  verdade("dica: no líder valem todas as habilidades", dicas.some((d) => /todas as habilidades deles valem para o rally inteiro/.test(d)));
   verdade("dica: tropa com a maior parte arqueiros", dicas.some((d) => /maior parte arqueiros/.test(d)));
   verdade("dica: 30 minutos, a cada 2 dias (bate com a agenda)", dicas.some((d) => /30 minutos e volta a cada 2 dias/.test(d)) &&
     URSO.duracao === 1800 && URSO.repetir + URSO.duracao / 60 === 48 * 60);
@@ -16413,10 +16424,10 @@ function conferirCartao(onde, embed, componentes = []) {
           edit: async (m) => { editadas.push(["pt", m.embeds[0].description, JSON.stringify(m.attachments)]); } }]]));
       ok("posta", await ursoNosCanais(), "postado");
       ok("a marca antes de postar, e cada sala com a ficha na língua dela", JSON.stringify(enviados.slice(0, 3)),
-        JSON.stringify([["marca", "urso_no_canal:top:5"], ["f", "urso-en"], ["en", "urso-en"]]));
+        JSON.stringify([["marca", "urso_no_canal:top:6"], ["f", "urso-en"], ["en", "urso-en"]]));
       ok("a ficha velha (minha) é atualizada no lugar, com a foto trocada", JSON.stringify(editadas), JSON.stringify([["pt", "urso-pt", "[]"]]));
       verdade("e nada de ficha repetida nessa sala", !enviados.some(([id]) => id === "pt"));
-      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:5"]));
+      verdade("a marca final diz quantas foram", /\|3\/3\|en,en,pt$/.test(marcas["urso_no_canal:top:6"]));
       ok("mensagem de outro, com o mesmo cartão, não é minha", fichaDoUrsoNaSala(new Map([["a", { author: { id: "x" },
         embeds: [{ description: "<a:ks_urso_abc123:1> **Bear**" }] }]]), "eu"), null);
       ok("cartão meu que não é a ficha do Urso fica", fichaDoUrsoNaSala(new Map([["a", { author: { id: "eu" },
@@ -16508,28 +16519,33 @@ function conferirCartao(onde, embed, componentes = []) {
     });
     try {
       const { livroNosCanais, paginasDoLivroNaSala, idsDaMarcaDoLivro } =
-        carregar(["LIVRO_NO_CANAL", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais"]);
+        carregar(["LIVRO_NO_CANAL", "VERSAO_DO_LIVRO", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais"]);
       const agora = Date.parse("2026-11-17T12:00:00Z");
       const heroi = H.LIVRO[H.paginaDoDia("2026-11-17")].name;
       ok("posta", await livroNosCanais(agora), "postado");
-      ok("a marca antes de postar", JSON.stringify(feitos[0]), JSON.stringify(["marca", "livro_no_canal:top", "2026-11-17|0/3|"]));
+      ok("a marca antes de postar", JSON.stringify(feitos[0]), JSON.stringify(["marca", "livro_no_canal:top", "2026-11-17~2|0/3|"]));
       ok("o herói do dia em cada sala, na língua dela", JSON.stringify(feitos.filter((f) => f[0] === "post").map((f) => f[2])),
         JSON.stringify([`${heroi}-en-dia`, `${heroi}-en-dia`, `${heroi}-pt-dia`]));
       ok("a página velha minha sai, só depois da nova no ar; a de outro e o cartão do Urso ficam",
         JSON.stringify(feitos.filter((f) => f[0] === "apaga")), JSON.stringify([["apaga", "33", "7"]]));
       verdade("apagou depois de postar na mesma sala", feitos.findIndex((f) => f[0] === "apaga") > feitos.findIndex((f) => f[0] === "post" && f[1] === "33"));
-      ok("a marca final guarda onde ficou cada página", marcas["livro_no_canal:top"], "2026-11-17|3/3|11:100,22:101,33:102");
+      ok("a marca final guarda onde ficou cada página", marcas["livro_no_canal:top"], "2026-11-17~2|3/3|11:100,22:101,33:102");
       feitos.length = 0;
       ok("mesmo dia: não posta de novo", await livroNosCanais(agora + 3600000), "nada");
       ok("e não mexe em nada", feitos.length, 0);
+      const marcaBoa = marcas["livro_no_canal:top"];
+      marcas = { ...marcas, "livro_no_canal:top": marcaBoa.replace("~2|", "|") };
+      ok("página do dia com o texto velho (versão anterior): é refeita na hora", await livroNosCanais(agora + 3600000), "postado");
+      verdade("e a velha sai pelo id", feitos.some((f) => f[0] === "apaga" && f[2] === "100"));
+      feitos.length = 0;
       /* no dia seguinte, a de ontem sai pelo id guardado, mesmo que a conversa já tenha passado de 50 mensagens */
       nasSalas.clear();
       ok("dia seguinte: posta", await livroNosCanais(agora + 86400000), "postado");
       ok("o herói seguinte", feitos.find((f) => f[0] === "post")[2], `${H.LIVRO[H.paginaDoDia("2026-11-18")].name}-en-dia`);
       ok("e as de ontem saem pelos ids da marca", JSON.stringify(feitos.filter((f) => f[0] === "apaga").map((f) => f[2])),
-        JSON.stringify(["100", "101", "102"]));
+        JSON.stringify(["103", "104", "105"]));
       ok("a marca do começo não perde os ids de ontem (se cair no meio, ainda sei apagar)",
-        feitos[0][2], "2026-11-18|0/3|11:100,22:101,33:102");
+        feitos[0][2], "2026-11-18~2|0/3|11:103,22:104,33:105");
       ok("ids da marca: só pares de números", JSON.stringify(idsDaMarcaDoLivro("d|1/2|1:2,x:3,4:")), JSON.stringify([["1", "2"]]));
       ok("marca vazia: nenhum id", idsDaMarcaDoLivro(undefined).length, 0);
       ok("o formato do Discord (customId) e o cru (custom_id) contam",
