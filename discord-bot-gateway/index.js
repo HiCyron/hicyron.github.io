@@ -12744,7 +12744,8 @@ function botaoDoUrso() {
    não posta (sem ler a marca, postaria de novo a cada reinício). */
 /* A marca tem versão: ficha nova (16/11, base conferida com a geração 7),
    versão nova -- e a mensagem que já está lá é ATUALIZADA, não repetida. */
-const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:5" }];
+/* :6 -- as dicas de líder e de joiner ficaram claras (17/11). */
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:6" }];
 
 /* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
    e o cartão começa com o emoji do urso. */
@@ -12820,6 +12821,9 @@ async function ursoNosCanais() {
    sala (como a dica saía). Os ids das páginas ficam na marca, para apagar
    mesmo que a conversa tenha passado de 50 mensagens. */
 const LIVRO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" }];
+/* Texto da ficha mudou, versão nova: a página do dia é refeita na hora, sem
+   esperar a virada. 2 -- as dicas de líder e de joiner ficaram claras (17/11). */
+const VERSAO_DO_LIVRO = "2";
 
 /* O emoji do aplicativo como o botão e a lista querem, ou null. */
 function emojiDoComponente(nome) {
@@ -12873,7 +12877,7 @@ async function livroNosCanais(agora = Date.now()) {
   const pagina = paginaDoDia(dia);
   let feito = 0;
   for (const alvo of LIVRO_NO_CANAL) {
-    if (String(a[alvo.marca] || "").startsWith(`${dia}|`)) continue;
+    if (String(a[alvo.marca] || "").startsWith(`${dia}~${VERSAO_DO_LIVRO}|`)) continue;
     const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
     const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
@@ -12887,7 +12891,7 @@ async function livroNosCanais(agora = Date.now()) {
     /* A marca vai ANTES de postar: se algo cair no meio, falta uma página;
        o contrário seria a sala recebendo a mesma página a cada reinício. */
     const ontem = [...deOntem].map(([c, m]) => c + ":" + m).join(",");
-    await porAjuste(alvo.marca, `${dia}|0/${salas.length}|${ontem}`);
+    await porAjuste(alvo.marca, `${dia}~${VERSAO_DO_LIVRO}|0/${salas.length}|${ontem}`);
     const postadas = [];
     for (const sala of salas) {
       const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
@@ -12904,7 +12908,7 @@ async function livroNosCanais(agora = Date.now()) {
       for (const id of apagar) await canal.messages?.delete?.(id).catch(() => {});
     }
     feito += postadas.length;
-    await porAjuste(alvo.marca, `${dia}|${postadas.length}/${salas.length}|${postadas.join(",")}`);
+    await porAjuste(alvo.marca, `${dia}~${VERSAO_DO_LIVRO}|${postadas.length}/${salas.length}|${postadas.join(",")}`);
     console.log(`livro: herói do dia (${LIVRO[pagina]?.name}) em ${postadas.length} de ${salas.length} salas de ${guild.name}`);
   }
   return feito ? "postado" : "nada";

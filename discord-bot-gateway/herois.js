@@ -128,9 +128,20 @@ export function melhorUso(h) {
 export function dicasDoHeroi(h) {
   const dicas = [];
   if (h.coleta) dicas.push(`Herói de coleta: aumenta a coleta de ${h.coleta}. Não leve para a batalha.`);
-  if (FORTE.has(notaDaFuncao(h.bear))) dicas.push("Para entrar no rally do Urso, use como 1º herói: só a 1ª habilidade do 1º herói conta.");
-  else if (NUNCA_NO_URSO.includes(h.name) && !h.coleta) dicas.push("Não mande como joiner no Urso: a 1ª habilidade não é de ataque.");
-  if (FORTE.has(notaDaFuncao(h.rally)) && !h.coleta) dicas.push("Bom para liderar rally: quem lidera leva as 3 habilidades para o rally inteiro.");
+  /* Líder e joiner são regras diferentes, e a dica diz de qual está falando:
+     "Para entrar no rally do Urso, use como 1º herói: só a 1ª habilidade do
+     1º herói conta" saía na ficha do Amadeus logo abaixo de "Liderar rally",
+     e uma jogadora do TOP leu como se valesse para o líder ("se ele é o
+     líder, todas as habilidades valem", 17/11). Valem mesmo: a regra da 1ª
+     habilidade é só de quem ENTRA no rally de outra pessoa. */
+  if (FORTE.has(notaDaFuncao(h.rally)) && !h.coleta) {
+    dicas.push("Bom para liderar rally: como líder, valem todas as habilidades dos seus 3 heróis, para o rally inteiro.");
+  }
+  if (FORTE.has(notaDaFuncao(h.bear))) {
+    dicas.push("Bom para entrar no rally do Urso de outra pessoa (joiner): coloque como 1º herói, porque de quem entra só conta a 1ª habilidade do 1º herói.");
+  } else if (NUNCA_NO_URSO.includes(h.name) && !h.coleta) {
+    dicas.push("Não mande como joiner no Urso: a 1ª habilidade não é de ataque.");
+  }
   if (FORTE.has(notaDaFuncao(h.garrison)) && !h.coleta) dicas.push("Forte na guarnição: segura a cidade quando atacam.");
   return dicas;
 }
@@ -304,14 +315,16 @@ export function dicasDoUrso({ lideres, entram }, herois = HEROIS) {
   const dicas = [];
   const gratis = entram.filter(ehF2P);
   if (gratis.length) {
-    dicas.push(`Para entrar no rally, só conta a 1ª habilidade do 1º herói: coloque ${emLista(gratis, "ou")} na frente ` +
-      "(dá para ter sem gastar). Os outros dois heróis só aumentam a tropa.");
+    /* "Os outros dois heróis só aumentam a tropa" estava errado: herói de
+       quem entra não aumenta tropa nenhuma, só não conta. */
+    dicas.push(`Para entrar no rally de outra pessoa, só conta a 1ª habilidade do 1º herói: coloque ${emLista(gratis, "ou")} na frente ` +
+      "(dá para ter sem gastar). Os outros dois heróis de quem entra não contam.");
   }
   const tem = (n) => entram.some((h) => h.name === n);
   if ((tem("Chenko") || tem("Yeonwoo")) && (tem("Amane") || tem("Margot"))) {
     dicas.push("Misturar letalidade (Chenko, Yeonwoo) com ataque (Amane, Margot) rende mais do que repetir o mesmo herói.");
   }
-  if (lideres.length) dicas.push("Quem lidera o rally usa os 3 heróis de ataque mais fortes: as 3 habilidades valem para o rally inteiro.");
+  if (lideres.length) dicas.push("Quem lidera o rally usa os 3 heróis de ataque mais fortes: todas as habilidades deles valem para o rally inteiro.");
   dicas.push("Tropa: a maior parte arqueiros (os guias falam em 80% ou mais).");
   const nunca = NUNCA_NO_URSO.map((n) => herois.find((h) => h.name === n)).filter(Boolean);
   if (nunca.length) dicas.push(`Nunca mande como joiner: ${emLista(nunca)}. A 1ª habilidade deles não é de ataque.`);
