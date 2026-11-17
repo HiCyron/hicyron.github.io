@@ -5738,7 +5738,7 @@ function conferirCartao(onde, embed, componentes = []) {
   globalThis.motorDe = () => ({ tipo: "auto" });
   globalThis.client = { user: { id: "bot" } };
   const m = carregar(["EVENTO_SOBREVIVE", "TIPO_AGENDA", "ROTULO_INSCREVER", "textoDaRepeticao",
-    "CRONOMETRO_FINO", "cronometro", "PALAVRAS_DO_CARTAO", "COR_PERTO", "COR_COMECOU", "PERTO", "corDoEvento", "nomeLimpo", "textoDaDuracao", "cartaoDoEvento", "botoesDoEvento", "eventoDoCartao", "traducoesDaAgenda", "traduzirPara", "palavrasNaLingua", "cargaNaLingua", "AVISO_FICA", "emOrdem", "avisoVenceu", "avisoDeHoraVelha", "ehAvisoDeInicio", "pintarSala", "avisoDeInicio",
+    "CRONOMETRO_FINO", "cronometro", "PALAVRAS_DO_CARTAO", "COR_PERTO", "COR_COMECOU", "PERTO", "corDoEvento", "nomeLimpo", "textoDaDuracao", "cartaoDoEvento", "botoesDoEvento", "eventoDoCartao", "traducoesDaAgenda", "traduzirPara", "palavrasNaLingua", "cargaNaLingua", "AVISO_FICA", "emOrdem", "avisoVenceu", "avisoDeHoraVelha", "ehAvisoDeInicio", "FUSAO_DA_AGENDA", "AVISO_DE_FORA_FICA", "ehAgendaFundida", "avisoDeForaVenceu", "pintarSala", "avisoDeInicio",
     "ultimaCargaDaCopia", "apagarAvisosDeAntes", "desenharNasCopias"]);
   const AGORA = Date.UTC(2026, 9, 2, 12);
   const ev = { id: 7, titulo: "Armadilha de Caça 1", detalhes: "Cavalaria", quando: new Date(AGORA + 3600000).toISOString() };
@@ -5781,6 +5781,22 @@ function conferirCartao(onde, embed, componentes = []) {
   globalThis.canalDaAgenda = () => ({ id: "agenda" });
   await m.desenharNasCopias({}, { id: "s" }, [ev], null, AGORA);
   ok("o cartão de evento que acabou some da sala", pt.apagados, ["100"]);
+  {
+    /* 🔔 alertas + 📅 agenda: o aviso de fora some sozinho em 3 horas, só na agenda fundida (o TOP) */
+    const deFora = (id, horas) => ({ id, webhookId: "w1", author: { id: "w1", bot: true }, createdTimestamp: AGORA - horas * 3600000 });
+    const msgs = () => [deFora("700", 4), deFora("701", 1), cartaoDe("702", 7)];
+    const top = sala("pt", msgs());
+    top.canal.guild = { name: "[TOP]Best Alliance Kingshot" };
+    const outro = sala("pt", msgs());
+    outro.canal.guild = { name: "Outro servidor" };
+    globalThis.salasDaAgenda = async () => [{ canal: top.canal, idioma: "pt" }, { canal: outro.canal, idioma: "pt" }];
+    await m.desenharNasCopias({}, { id: "s" }, [ev], null, AGORA);
+    ok("na agenda fundida, o aviso de fora com mais de 3 horas sai", top.apagados, ["700"]);
+    ok("em outro servidor, nada de fora é tocado", outro.apagados, []);
+    ok("o recente fica", m.avisoDeForaVenceu(deFora("x", 2.9), AGORA), false);
+    ok("o meu (sem webhook) nunca é aviso de fora", m.avisoDeForaVenceu({ id: "y", createdTimestamp: 0 }, AGORA), false);
+    globalThis.salasDaAgenda = async () => [{ canal: pt.canal, idioma: "pt" }, { canal: es.canal, idioma: "es" }];
+  }
   ok("o que já existe é editado, não duplicado", [pt.enviados.length, pt.editados.length], [0, 1]);
   ok("a sala que ainda não tem cartão ganha um", es.enviados.length, 1);
   const edicoes = pt.editados.length;
@@ -16613,12 +16629,55 @@ function conferirCartao(onde, embed, componentes = []) {
       faxinadas.length = 0;
       ok("uma vez só", await faxina(), "feito");
       ok("e não mexe de novo", faxinadas.length, 0);
+      marcas = { ...marcas, "livro_faxina:top:1": "2026-11-17T00:50:00Z|começou" };
+      ok("caiu no meio (reinício): volta a faxinar o que sobrou", await faxina(), "feito");
+      ok("as duas salas de novo", faxinadas.length, 2);
       marcas = Object.defineProperty({}, "falhou", { value: true });
       ok("banco fora: não apaga no escuro", await faxina(), "sem-banco");
     } finally {
       Object.assign(globalThis, antes);
     }
     verdade("agendada ao subir, depois do livro", /setTimeout\(\(\) => faxina\(3\), 8 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
+  /* 🔔 alertas entra na 📅 agenda: o webhook do portal muda de sala, uma vez */
+  {
+    const { webhooksQueMudam } = carregar(["webhooksQueMudam"]);
+    const ws = new Map([["1", { id: "1", name: "portal", owner: { id: "dono" } }], ["2", { id: "2", name: "meu", owner: { id: "eu" } }],
+      ["3", { id: "3", name: "app", applicationId: "eu" }], ["4", { id: "4", name: "seguindo", owner: null }]]);
+    ok("mudam os de fora; os meus ficam", JSON.stringify(webhooksQueMudam(ws, "eu").map((w) => w.name)), JSON.stringify(["portal", "seguindo"]));
+
+    let marcas = {};
+    const mudados = [];
+    const origem = { id: "50", fetchWebhooks: async () => new Map([
+      ["1", { id: "1", name: "portal", owner: { id: "dono" }, edit: async (o) => { mudados.push(["portal", o.channel]); } }],
+      ["2", { id: "2", name: "meu", owner: { id: "eu" }, edit: async (o) => { mudados.push(["meu", o.channel]); } }]]) };
+    const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot", channels: { cache: { get: (id) => (id === "50" ? origem : null) } } };
+    const antes = { client: globalThis.client };
+    Object.assign(globalThis, {
+      TIPO_AGENDA: "agenda",
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-top" }),
+      fontesReplica: async () => new Map([["50", "alertas"], ["60", "agenda"], ["70", "game"]]),
+      canalDaAgenda: () => null,
+    });
+    try {
+      const { fundirAlertasNaAgenda } = carregar(["FUSAO_DA_AGENDA", "webhooksQueMudam", "fundirAlertasNaAgenda"]);
+      ok("muda", await fundirAlertasNaAgenda(), "movido");
+      ok("o do portal vai para a agenda; o meu fica no alertas", JSON.stringify(mudados), JSON.stringify([["portal", "60"]]));
+      verdade("a marca diz o que foi feito", /\|1\/1 webhooks\|50->60$/.test(marcas["fusao_alertas_agenda:top:1"]));
+      mudados.length = 0;
+      ok("uma vez só", await fundirAlertasNaAgenda(), "nada");
+      ok("e não mexe de novo", mudados.length, 0);
+      marcas = Object.defineProperty({}, "falhou", { value: true });
+      ok("banco fora: não mexe no escuro", await fundirAlertasNaAgenda(), "sem-banco");
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    verdade("só o TOP", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, de: "alertas"/.test(pedaco("FUSAO_DA_AGENDA")));
+    verdade("agendada ao subir", /setTimeout\(\(\) => fundirAlertasNaAgenda\(\)/.test(semComentarios(fonte)));
   }
 
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */

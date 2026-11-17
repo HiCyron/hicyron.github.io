@@ -9001,13 +9001,77 @@ function ehAvisoDeInicio(m) {
     String(m?.content || "").startsWith("🔔 **");
 }
 
+/* ---- 🔔 alertas + 📅 agenda numa sala só (dono, 17/11) ----
+
+   "Podemos fazer a fusão do avisos com o agenda, porém sem floodar o chat
+   igual do avisos." O 🔔 alertas recebia o que o portal da aliança manda
+   (o lembrete da Arena das 23:45 com @everyone, os envios à mão) e cada um
+   ficava lá para sempre, nas 10 salas. A agenda já se limpa sozinha.
+
+   A fusão: o webhook do portal MUDA DE SALA (o endereço não muda, então o
+   portal continua mandando sem saber de nada) e passa a cair na agenda. E na
+   agenda fundida, o aviso que veio de fora -- e a cópia dele em cada língua
+   -- sai sozinho 3 horas depois. Só no servidor que pediu. */
+const FUSAO_DA_AGENDA = [{ guild: /^\[TOP\]\s*Best Alliance/i, de: "alertas", marca: "fusao_alertas_agenda:top:1" }];
+const AVISO_DE_FORA_FICA = 3 * 60 * 60 * 1000;
+
+function ehAgendaFundida(nomeDoServidor) {
+  return FUSAO_DA_AGENDA.some((f) => f.guild.test(String(nomeDoServidor || "")));
+}
+
+/* Pura. Aviso de fora (webhook: o portal, ou a cópia traduzida dele) que já
+   passou do prazo. O que é meu (os cartões, o "começa em") tem regra própria. */
+function avisoDeForaVenceu(m, agora = Date.now()) {
+  return !!m?.webhookId && agora - Number(m.createdTimestamp || agora) > AVISO_DE_FORA_FICA;
+}
+
+/* Pura. Os webhooks que mudam de sala: os de fora. Os meus ficam onde estão
+   (outra função minha pode depender deles naquela sala). */
+function webhooksQueMudam(webhooks, eu) {
+  return [...(webhooks?.values?.() || [])].filter((w) => w?.id && w.owner?.id !== eu && w.applicationId !== eu);
+}
+
+async function fundirAlertasNaAgenda() {
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  let feito = 0;
+  for (const alvo of FUSAO_DA_AGENDA) {
+    if (a[alvo.marca]) continue;
+    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const fontes = [...(await fontesReplica(servidor.id))];
+    const de = fontes.find(([, t]) => t === alvo.de)?.[0];
+    const para = fontes.find(([, t]) => t === TIPO_AGENDA)?.[0] || canalDaAgenda(guild)?.id;
+    const origem = de && (guild.channels.cache.get(de) || await client.channels.fetch(de).catch(() => null));
+    if (!origem || !para || de === para) {
+      console.log(`agenda: não achei o ${alvo.de} ou a agenda em ${guild.name}`);
+      continue;
+    }
+    const ganchos = webhooksQueMudam(await origem.fetchWebhooks().catch(() => null), client.user?.id);
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|começou|${ganchos.length}`);
+    let movidos = 0;
+    for (const w of ganchos) {
+      await w.edit({ channel: para, reason: "CYRON: o alertas entrou na agenda" })
+        .then(() => movidos++)
+        .catch((e) => console.error(`agenda: não consegui mudar o webhook ${w.name}:`, e?.message || e));
+    }
+    feito += movidos;
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|${movidos}/${ganchos.length} webhooks|${de}->${para}`);
+    console.log(`agenda: ${movidos} de ${ganchos.length} webhooks do ${alvo.de} agora caem na agenda de ${guild.name}`);
+  }
+  return feito ? "movido" : "nada";
+}
+
 /* `cargaDe(ev)` monta o cartao daquela sala; `aoPostar(ev, msg)` e' chamado
    quando um cartao nasce (a sala original guarda o msg_id). */
 async function pintarSala(canal, eventos, cargaDe, aoPostar = null, agora = Date.now()) {
   const recentes = await canal.messages.fetch({ limit: 50 }).catch(() => null);
   const vivos = new Set(eventos.map((e) => String(e.id)));
   const meus = new Map();
+  const fundida = ehAgendaFundida(canal.guild?.name);
   for (const m of [...(recentes?.values?.() || [])].sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1))) {
+    if (fundida && avisoDeForaVenceu(m, agora)) { await m.delete().catch(() => {}); continue; }
     if (m.author?.id !== client.user?.id) continue;
     if (ehAvisoDeInicio(m)) {
       if (avisoVenceu(m, agora) || avisoDeHoraVelha(m, eventos)) await m.delete().catch(() => {});
@@ -12799,7 +12863,9 @@ async function faxinarSala(canal, ficam, teto = 3000) {
 async function faxinaDoLivro() {
   const a = await ajustes();
   if (a.falhou) return "sem-banco";
-  if (a[FAXINA_DO_LIVRO]) return "feito";
+  /* Reinício no meio (uma atualização, por exemplo) não deixa a faxina pela
+     metade: a marca "começou" sem resultado volta a faxinar o que sobrou. */
+  if (a[FAXINA_DO_LIVRO] && !String(a[FAXINA_DO_LIVRO]).endsWith("|começou")) return "feito";
   const alvo = LIVRO_NO_CANAL[0];
   const marca = String(a[alvo.marca] || "");
   const paginas = new Map(idsDaMarcaDoLivro(marca));
@@ -28282,6 +28348,8 @@ client.once("clientReady", () => {
     .then((r) => { if (r !== "feito" && resta) setTimeout(() => faxina(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("livro: a faxina falhou:", e?.message || e));
   setTimeout(() => faxina(3), 8 * 60 * 1000);
+  /* O 🔔 alertas entra na agenda: uma vez, três minutos depois de subir. */
+  setTimeout(() => fundirAlertasNaAgenda().catch((e) => console.log("agenda: a fusão falhou:", e?.message || e)), 3 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
