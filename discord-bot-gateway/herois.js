@@ -399,3 +399,82 @@ export function textoParaOJogo({ entram }, t) {
     `🔥 ${t.semHeroi} | ${t.soTropa}`,
   ].join("\n");
 }
+
+/* ---- 📖 o livro dos heróis (dono, 17/11) ----
+
+   "Nessa sala vamos tirar esse Saul e criar algo melhor... um painel com
+   heróis, onde aparecem os heróis e a seta <== | | ==>". Um herói por
+   página, na ordem do jogo: os lendários por geração, depois os épicos e
+   os raros. A página da sala é o herói do dia; as setas abrem o livro só
+   para quem tocou. */
+const GRUPO_DO_LIVRO = (h) => (h.gen != null ? h.gen : h.rarity === "epic" ? 50 : 60);
+export const LIVRO = HEROIS.map((h, i) => [h, i])
+  .sort(([a, i], [b, j]) => GRUPO_DO_LIVRO(a) - GRUPO_DO_LIVRO(b) || i - j)
+  .map(([h]) => h);
+
+export const TEXTOS_DO_LIVRO = {
+  titulo: "Livro dos heróis",
+  doDia: "Herói do dia",
+  comoUsar: "Toque nas setas para folhear ou escolha na lista. Só você vê as páginas que abrir.",
+};
+
+/* O herói do dia muda às 10h UTC, a hora em que a dica do Saul saía. */
+const VIRADA_DO_DIA = 10 * 60 * 60 * 1000;
+
+/* Pura. O dia do livro: "2026-11-17" de 10h UTC até 9h59 do dia seguinte. */
+export function diaDoLivro(agora = Date.now()) {
+  return new Date(Number(agora) - VIRADA_DO_DIA).toISOString().slice(0, 10);
+}
+
+/* Pura. A página do dia: cada dia, o próximo herói; volta ao primeiro
+   quando o livro acaba. */
+export function paginaDoDia(dia, total = LIVRO.length) {
+  const n = Math.floor(Date.parse(`${dia}T00:00:00Z`) / 86400000);
+  return Number.isFinite(n) && total > 0 ? ((n % total) + total) % total : 0;
+}
+
+/* Pura. A página ao lado, dando a volta nas pontas. */
+export function paginaVizinha(i, passo, total = LIVRO.length) {
+  return (((Number(i) + passo) % total) + total) % total;
+}
+
+/* Pura. A página pedida num clique ("livro:ant:3", "livro:prox:5" ou a
+   lista, com o número no valor). Fora do livro, nada. */
+export function paginaDoClique(customId, valores = []) {
+  const m = /^livro:(?:ant|prox):(\d+)$/.exec(String(customId || ""));
+  const v = m ? m[1] : /^livro:ir:/.test(String(customId || "")) ? String(valores?.[0] ?? "") : "";
+  const n = /^\d+$/.test(v) ? Number(v) : -1;
+  return n >= 0 && n < LIVRO.length ? n : null;
+}
+
+/* Pura. As setas e as listas da página `i`. `ee(nome)` devolve o emoji do
+   aplicativo como objeto ({id, name, animated}) ou null; `t` são os textos
+   já na língua certa. Lista com no máximo 25 (o teto do Discord): os 22
+   lendários numa, os épicos e raros na outra. Cada id é único na mensagem. */
+export function botoesDoLivro(i, { ee = () => null, t }) {
+  const total = LIVRO.length;
+  const opcao = (h) => {
+    const emoji = ee(EMOJI_DA_TROPA[h.troop]);
+    return {
+      label: h.name.slice(0, 100),
+      value: String(LIVRO.indexOf(h)),
+      description: `${rotuloDoHeroi(h)} · ${t.tropa[h.troop] || h.troop}`.slice(0, 100),
+      ...(emoji ? { emoji } : {}),
+      ...(LIVRO.indexOf(h) === i ? { default: true } : {}),
+    };
+  };
+  const lendarios = LIVRO.filter((h) => h.rarity === "legendary");
+  const outros = LIVRO.filter((h) => h.rarity !== "legendary");
+  const gens = lendarios.map((h) => h.gen);
+  const lista = (id, hs, texto) => ({ type: 1, components: [{ type: 3, custom_id: id,
+    placeholder: `🔎 ${texto}`.slice(0, 150), options: hs.slice(0, 25).map(opcao) }] });
+  return [
+    { type: 1, components: [
+      { type: 2, custom_id: `livro:ant:${paginaVizinha(i, -1, total)}`, style: 1, emoji: { name: "◀️" } },
+      { type: 2, custom_id: "livro:pag", style: 2, label: `📖 ${i + 1} / ${total}`, disabled: true },
+      { type: 2, custom_id: `livro:prox:${paginaVizinha(i, 1, total)}`, style: 1, emoji: { name: "▶️" } },
+    ] },
+    lista("livro:ir:lendarios", lendarios, `${t.raridade.legendary} · Gen ${Math.min(...gens)}–${Math.max(...gens)}`),
+    lista("livro:ir:outros", outros, `${t.raridade.epic} · ${t.raridade.rare}`),
+  ];
+}

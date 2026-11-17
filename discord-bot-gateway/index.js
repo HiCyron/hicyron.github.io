@@ -32,7 +32,8 @@ import { ligarSuporte, exigirSuporte, montarSuporte, guildDoSuporte, cliqueSupor
   nomeNoIdioma, ordemNoSuporte, garantirConvite, LINK_DO_CONTATO, publicarNota } from "./suporte.js";
 import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
-  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo } from "./herois.js";
+  TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
+  LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -12643,6 +12644,113 @@ async function ursoNosCanais() {
   return feito ? "postado" : "nada";
 }
 
+/* ---- 📖 o livro dos heróis no game-central (dono, 17/11) ----
+
+   "Nessa sala vamos tirar esse Saul e criar algo melhor... um painel com
+   heróis, onde aparecem os heróis e a seta <== | | ==>" e "aparecendo os
+   heróis como um livro". No lugar da dica do dia do Saul (que vinha do
+   portal da aliança, metade em inglês, metade em português), o herói do dia
+   com a ficha conferida, montado em cada sala na língua dela, como a ficha
+   do Urso.
+
+   As setas e as listas da sala abrem o livro SÓ PARA QUEM TOCOU, na língua
+   dele: se a página da sala virasse a cada toque, ela mudaria para todo
+   mundo. Dentro do livro aberto, as setas viram a página no lugar.
+
+   Todo dia, às 10h UTC, a página de ontem sai e a do dia entra no fim da
+   sala (como a dica saía). Os ids das páginas ficam na marca, para apagar
+   mesmo que a conversa tenha passado de 50 mensagens. */
+const LIVRO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" }];
+
+/* O emoji do aplicativo como o botão e a lista querem, ou null. */
+function emojiDoComponente(nome) {
+  const e = EMOJIS_DA_CYRON.get(nome);
+  return e ? { id: e.id, name: e.name, animated: !!e.animated } : null;
+}
+
+async function paginaDoLivro(i, idioma, guildId, { doDia = false } = {}) {
+  const motor = await motorDoGuild(guildId).catch(() => undefined);
+  const t = {};
+  for (const [k, v] of Object.entries(TEXTOS_DO_LIVRO)) t[k] = await textoDoJogo(v, idioma, motor);
+  const daFicha = await textosDaFicha(idioma, motor);
+  const carta = await cartaoDoHeroi(LIVRO[i], idioma, guildId);
+  return {
+    ...carta,
+    content: doDia ? `📖 **${t.titulo}** · ${t.doDia}\n-# ${t.comoUsar}` : `📖 **${t.titulo}**`,
+    components: botoesDoLivro(i, { ee: emojiDoComponente, t: daFicha }),
+  };
+}
+
+/* O toque numa seta ou na lista. Na página da sala, abre o livro só para
+   quem tocou; no livro já aberto (efêmero), vira a página no lugar. */
+async function cliqueLivro(inter) {
+  const i = paginaDoClique(inter.customId, inter.values);
+  if (i == null) return inter.deferUpdate().catch(() => {});
+  const aberto = !!inter.message?.flags?.has?.(64);
+  if (aberto) await inter.deferUpdate();
+  else await inter.deferReply({ flags: 64 });
+  const pagina = await paginaDoLivro(i, await linguaDe(inter), inter.guildId);
+  return inter.editReply(aberto ? { ...pagina, attachments: [] } : pagina);
+}
+
+/* Pura. As minhas páginas do livro entre as mensagens da sala: minhas, com
+   as setas do livro. */
+function paginasDoLivroNaSala(mensagens, eu) {
+  return [...(mensagens?.values?.() || [])].filter((m) => m.author?.id === eu &&
+    (m.components || []).some((l) => (l.components || []).some((c) => String(c.customId ?? c.custom_id ?? "").startsWith("livro:"))));
+}
+
+/* Pura. Os ids guardados na marca: "dia|3/10|canal:msg,canal:msg". */
+function idsDaMarcaDoLivro(marca) {
+  return String(marca || "").split("|")[2]?.split(",").filter(Boolean)
+    .map((par) => par.split(":")).filter(([c, m]) => /^\d+$/.test(c || "") && /^\d+$/.test(m || "")) || [];
+}
+
+async function livroNosCanais(agora = Date.now()) {
+  if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  const dia = diaDoLivro(agora);
+  const pagina = paginaDoDia(dia);
+  let feito = 0;
+  for (const alvo of LIVRO_NO_CANAL) {
+    if (String(a[alvo.marca] || "").startsWith(`${dia}|`)) continue;
+    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+      await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), alvo.canal);
+    if (!salas.length) {
+      console.log(`livro: não achei a sala dos heróis em ${guild.name}`);
+      continue;
+    }
+    const deOntem = new Map(idsDaMarcaDoLivro(a[alvo.marca]));
+    /* A marca vai ANTES de postar: se algo cair no meio, falta uma página;
+       o contrário seria a sala recebendo a mesma página a cada reinício. */
+    const ontem = [...deOntem].map(([c, m]) => c + ":" + m).join(",");
+    await porAjuste(alvo.marca, `${dia}|0/${salas.length}|${ontem}`);
+    const postadas = [];
+    for (const sala of salas) {
+      const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
+      if (typeof canal?.send !== "function") continue;
+      const carta = await paginaDoLivro(pagina, sala.idioma, guild.id, { doDia: true });
+      const velhas = paginasDoLivroNaSala(await canal.messages?.fetch?.({ limit: 50 }).catch(() => null), client.user?.id);
+      const nova = await canal.send({ ...carta, allowedMentions: { parse: [] } })
+        .catch((e) => { console.error(`livro: não postei em #${canal.name}:`, e?.message || e); return null; });
+      if (!nova) continue;
+      postadas.push(`${sala.canal}:${nova.id}`);
+      /* Só depois da nova no ar a de ontem sai: a sala nunca fica sem livro. */
+      const apagar = new Set(velhas.filter((m) => m.id !== nova.id).map((m) => m.id));
+      if (deOntem.get(sala.canal)) apagar.add(deOntem.get(sala.canal));
+      for (const id of apagar) await canal.messages?.delete?.(id).catch(() => {});
+    }
+    feito += postadas.length;
+    await porAjuste(alvo.marca, `${dia}|${postadas.length}/${salas.length}|${postadas.join(",")}`);
+    console.log(`livro: herói do dia (${LIVRO[pagina]?.name}) em ${postadas.length} de ${salas.length} salas de ${guild.name}`);
+  }
+  return feito ? "postado" : "nada";
+}
+
 async function comandoHeroi(inter) {
   const h = acharHeroi(inter.options.getString("nome"));
   /* Reconheço antes de ler o idioma: são três segundos, e o idioma vem do
@@ -25072,6 +25180,7 @@ client.on("interactionCreate", async (inter) => {
     }
     if (inter.isButton() && inter.customId === "herois:urso") return await cliqueUrso(inter);
     if (inter.isButton() && inter.customId === "urso:jogo") return await cliqueUrsoJogo(inter);
+    if (inter.isMessageComponent() && inter.customId.startsWith("livro:")) return await cliqueLivro(inter);
     /* "sa:" e nao "sup:": o "sup:ler:" e' do botao 🌐 do servidor de suporte. */
     if (inter.isMessageComponent() && inter.customId.startsWith("sa:")) {
       return await cliqueAcessoSuporte(inter);
@@ -28085,6 +28194,13 @@ client.once("clientReady", () => {
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));
   setTimeout(() => urso(2), 4 * 60 * 1000);
+  /* O livro dos heróis: cinco minutos depois de subir, e de hora em hora
+     confere se o dia virou (às 10h UTC entra o herói do dia seguinte). */
+  const livro = (resta) => livroNosCanais()
+    .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => livro(resta - 1), 10 * 60 * 1000); })
+    .catch((e) => console.log("livro: postar nos canais falhou:", e?.message || e));
+  setTimeout(() => livro(2), 5 * 60 * 1000);
+  setInterval(() => livro(0), 60 * 60 * 1000);
   setInterval(() => {
     descarregarConversa().catch((e) => console.log("conversa: descarga falhou:", e?.message || e));
     descarregarRastro().catch((e) => console.log("rastro: descarga falhou:", e?.message || e));
