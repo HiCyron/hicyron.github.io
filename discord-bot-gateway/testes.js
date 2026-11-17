@@ -16646,12 +16646,17 @@ function conferirCartao(onde, embed, componentes = []) {
     const ws = new Map([["1", { id: "1", name: "portal", owner: { id: "dono" } }], ["2", { id: "2", name: "meu", owner: { id: "eu" } }],
       ["3", { id: "3", name: "app", applicationId: "eu" }], ["4", { id: "4", name: "seguindo", owner: null }]]);
     ok("mudam os de fora; os meus ficam", JSON.stringify(webhooksQueMudam(ws, "eu").map((w) => w.name)), JSON.stringify(["portal", "seguindo"]));
+    ok("o que eu criei para o portal muda também (foi o que a :1 deixou para trás)",
+      JSON.stringify(webhooksQueMudam(ws, "eu", new Set(["3"])).map((w) => w.name)), JSON.stringify(["portal", "app", "seguindo"]));
+    const { idsDosWebhooks } = carregar(["idsDosWebhooks"]);
+    ok("do endereço guardado, só o id do webhook", JSON.stringify([...idsDosWebhooks(["https://discord.com/api/webhooks/123/segredo", null, "lixo"])]), JSON.stringify(["123"]));
 
     let marcas = {};
     const mudados = [];
-    const origem = { id: "50", fetchWebhooks: async () => new Map([
-      ["1", { id: "1", name: "portal", owner: { id: "dono" }, edit: async (o) => { mudados.push(["portal", o.channel]); } }],
-      ["2", { id: "2", name: "meu", owner: { id: "eu" }, edit: async (o) => { mudados.push(["meu", o.channel]); } }]]) };
+    let discordFora = false;
+    const origem = { id: "50", fetchWebhooks: async () => { if (discordFora) throw new Error("500"); return new Map([
+      ["1", { id: "1", name: "portal", applicationId: "eu", edit: async (o) => { mudados.push(["portal", o.channel]); } }],
+      ["2", { id: "2", name: "meu", owner: { id: "eu" }, edit: async (o) => { mudados.push(["meu", o.channel]); } }]]); } };
     const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot", channels: { cache: { get: (id) => (id === "50" ? origem : null) } } };
     const antes = { client: globalThis.client };
     Object.assign(globalThis, {
@@ -16662,12 +16667,18 @@ function conferirCartao(onde, embed, componentes = []) {
       servidorDoGuild: async () => ({ id: "s-top" }),
       fontesReplica: async () => new Map([["50", "alertas"], ["60", "agenda"], ["70", "game"]]),
       canalDaAgenda: () => null,
+      sb: async (q) => (q.startsWith("alianca_discord?") ? [{ webhook: "https://discord.com/api/webhooks/9/x" }]
+        : [{ webhook: "https://discord.com/api/webhooks/1/segredo" }]),
     });
     try {
-      const { fundirAlertasNaAgenda } = carregar(["FUSAO_DA_AGENDA", "webhooksQueMudam", "fundirAlertasNaAgenda"]);
+      const { fundirAlertasNaAgenda } = carregar(["FUSAO_DA_AGENDA", "webhooksQueMudam", "idsDosWebhooks", "webhooksDoPortal", "fundirAlertasNaAgenda"]);
+      discordFora = true;
+      ok("Discord fora: não marca, tenta na próxima", await fundirAlertasNaAgenda(), "nada");
+      ok("e não deixa marca", marcas["fusao_alertas_agenda:top:2"], undefined);
+      discordFora = false;
       ok("muda", await fundirAlertasNaAgenda(), "movido");
-      ok("o do portal vai para a agenda; o meu fica no alertas", JSON.stringify(mudados), JSON.stringify([["portal", "60"]]));
-      verdade("a marca diz o que foi feito", /\|1\/1 webhooks\|50->60$/.test(marcas["fusao_alertas_agenda:top:1"]));
+      ok("o do portal (que eu criei para ele) vai para a agenda; o outro meu fica no alertas", JSON.stringify(mudados), JSON.stringify([["portal", "60"]]));
+      verdade("a marca diz o que foi feito", /\|1\/1 webhooks\|50->60$/.test(marcas["fusao_alertas_agenda:top:2"]));
       mudados.length = 0;
       ok("uma vez só", await fundirAlertasNaAgenda(), "nada");
       ok("e não mexe de novo", mudados.length, 0);

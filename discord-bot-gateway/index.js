@@ -9012,7 +9012,10 @@ function ehAvisoDeInicio(m) {
    portal continua mandando sem saber de nada) e passa a cair na agenda. E na
    agenda fundida, o aviso que veio de fora -- e a cópia dele em cada língua
    -- sai sozinho 3 horas depois. Só no servidor que pediu. */
-const FUSAO_DA_AGENDA = [{ guild: /^\[TOP\]\s*Best Alliance/i, de: "alertas", marca: "fusao_alertas_agenda:top:1" }];
+/* :2 -- a :1 não mudou nada: o webhook do portal no alertas foi criado
+   pela própria CYRON (no /setup do portal), e a regra "os meus ficam" o
+   deixou onde estava. */
+const FUSAO_DA_AGENDA = [{ guild: /^\[TOP\]\s*Best Alliance/i, de: "alertas", marca: "fusao_alertas_agenda:top:2" }];
 const AVISO_DE_FORA_FICA = 3 * 60 * 60 * 1000;
 
 function ehAgendaFundida(nomeDoServidor) {
@@ -9025,10 +9028,25 @@ function avisoDeForaVenceu(m, agora = Date.now()) {
   return !!m?.webhookId && agora - Number(m.createdTimestamp || agora) > AVISO_DE_FORA_FICA;
 }
 
-/* Pura. Os webhooks que mudam de sala: os de fora. Os meus ficam onde estão
-   (outra função minha pode depender deles naquela sala). */
-function webhooksQueMudam(webhooks, eu) {
-  return [...(webhooks?.values?.() || [])].filter((w) => w?.id && w.owner?.id !== eu && w.applicationId !== eu);
+/* Pura. Os webhooks que mudam de sala: os que o portal usa (mesmo os que eu
+   criei para ele) e os de fora. Os outros meus ficam onde estão (outra
+   função minha pode depender deles naquela sala). */
+function webhooksQueMudam(webhooks, eu, doPortal = new Set()) {
+  return [...(webhooks?.values?.() || [])].filter((w) => w?.id &&
+    (doPortal.has(String(w.id)) || (w.owner?.id !== eu && w.applicationId !== eu)));
+}
+
+/* Pura. O id de cada webhook que o portal usa, tirado do endereço guardado
+   (".../webhooks/<id>/<segredo>"). Só o id sai daqui: o segredo fica. */
+function idsDosWebhooks(enderecos) {
+  return new Set((enderecos || []).map((u) => String(u || "").match(/\/webhooks\/(\d+)\//)?.[1]).filter(Boolean));
+}
+
+async function webhooksDoPortal() {
+  const geral = await sb("alianca_discord?select=webhook,webhook_dicas,webhook_boas_vindas");
+  const canais = await sb("alianca_discord_canais?select=webhook");
+  if (!Array.isArray(geral) || !Array.isArray(canais)) return null;
+  return idsDosWebhooks([...geral.flatMap((r) => [r.webhook, r.webhook_dicas, r.webhook_boas_vindas]), ...canais.map((r) => r.webhook)]);
 }
 
 async function fundirAlertasNaAgenda() {
@@ -9048,7 +9066,19 @@ async function fundirAlertasNaAgenda() {
       console.log(`agenda: não achei o ${alvo.de} ou a agenda em ${guild.name}`);
       continue;
     }
-    const ganchos = webhooksQueMudam(await origem.fetchWebhooks().catch(() => null), client.user?.id);
+    /* Discord ou banco fora: tenta na próxima subida, sem marcar. Nenhum
+       webhook para mudar também não marca -- foi assim que a :1 se perdeu. */
+    const lista = await origem.fetchWebhooks().catch(() => null);
+    const doPortal = await webhooksDoPortal().catch(() => null);
+    if (!lista || !doPortal) {
+      console.log(`agenda: não consegui ler os webhooks do ${alvo.de} em ${guild.name}; tento depois`);
+      continue;
+    }
+    const ganchos = webhooksQueMudam(lista, client.user?.id, doPortal);
+    if (!ganchos.length) {
+      console.log(`agenda: nenhum webhook para mudar do ${alvo.de} em ${guild.name}`);
+      continue;
+    }
     await porAjuste(alvo.marca, `${new Date().toISOString()}|começou|${ganchos.length}`);
     let movidos = 0;
     for (const w of ganchos) {
