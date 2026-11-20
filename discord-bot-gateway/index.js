@@ -34,6 +34,7 @@ import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
+import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS } from "./eventos-jogo.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -9215,9 +9216,21 @@ function avisoDeInicio(ev, aviso, P = PALAVRAS_DO_CARTAO, titulo = ev.titulo, an
       description: antes ? `**${P.comecaEm} ${antes} min**` : `**${P.comecou}**` + (Number(ev.duracao_seg) > 0
         ? ` · ${P.fechaAs} <t:${Math.floor(new Date(ev.quando).getTime() / 1000 + Number(ev.duracao_seg))}:t>` : ""),
       ...(ev.gif_url ? { thumbnail: { url: String(ev.gif_url) } } : {}) }],
-    ...(urso ? { components: [botaoDoUrso()] } : {}),
+    ...(urso ? { components: [botaoDoUrso()] } : comoFunciona(ev.titulo)),
     allowedMentions: aviso.allowedMentions,
   };
+}
+
+/* O aviso de um evento do jogo (Castelo, Swordland, Vikings...) ganha o
+   botão "How it works": a ficha do evento, na língua de quem tocou
+   (eventos-jogo.js). Pelo título ORIGINAL do evento: na sala de cada língua o
+   título que chega aqui já pode estar traduzido. */
+function comoFunciona(tituloOriginal) {
+  const ev = eventoDoJogo(tituloOriginal);
+  if (!ev) return {};
+  const e = EMOJIS_DA_CYRON.get("ks_pergaminho");
+  return { components: [{ type: 1, components: [{ type: 2, custom_id: `jogo:como:${ev.chave}`, style: 2, label: "How it works",
+    emoji: e ? { id: e.id, name: e.name, animated: !!e.animated } : { name: "ℹ️" } }] }] };
 }
 
 const FAXINA_DA_AGENDA = 30 * 60 * 1000;
@@ -12650,7 +12663,7 @@ let emblemaDoUrso = null;
    "manifestação" em alemão (ver regraDosTermos), e nome de herói é nome:
    "Rosa" não pode virar "Pink". Vai pelo mesmo caminho que protege os
    termos de cada servidor. */
-const TERMOS_DO_JOGO_NA_TRADUCAO = ["rally", "joiner", "Bear Trap", "/evento", "Gen", ...HEROIS.map((h) => h.name)];
+const TERMOS_DO_JOGO_NA_TRADUCAO = ["rally", "joiner", "Bear Trap", "/evento", "Gen", ...NOMES_DOS_EVENTOS, ...HEROIS.map((h) => h.name)];
 
 async function textoDoJogo(texto, idioma, motor) {
   if (!texto || !idioma || idioma === "pt") return texto;
@@ -12694,6 +12707,22 @@ async function cliqueUrsoJogo(inter) {
   for (const [k, v] of Object.entries(TEXTOS_DO_URSO)) t[k] = await textoDoJogo(v, idioma, motor);
   return inter.editReply({ content: textoParaOJogo(heroisDoUrso(), t).slice(0, 2000),
     embeds: [{ color: 0xB8641E, description: `📋 ${t.comoCopiar}` }] });
+}
+
+/* O botão "How it works" do aviso: a ficha do evento, só para quem tocou,
+   na língua dele. Os termos do jogo passam protegidos (textoDoJogo). */
+async function cliqueComoFunciona(inter) {
+  const ev = acharEventoDoJogo(String(inter.customId).split(":")[2]);
+  if (!ev) return inter.deferUpdate().catch(() => {});
+  await inter.deferReply({ flags: 64 });
+  const idioma = await linguaDe(inter);
+  const motor = await motorDoGuild(inter.guildId).catch(() => undefined);
+  const passar = (v) => textoDoJogo(v, idioma, motor);
+  const t = {};
+  for (const [k, v] of Object.entries(TEXTOS_DO_EVENTO)) t[k] = await passar(v);
+  const dicas = [];
+  for (const d of ev.dicas) dicas.push(await passar(d));
+  return inter.editReply({ embeds: [fichaDoEvento(ev, { t, como: await passar(ev.como), dicas, nome: await passar(ev.nome), e: emojiKs })] });
 }
 
 async function comandoUrso(inter) {
@@ -25488,6 +25517,7 @@ client.on("interactionCreate", async (inter) => {
     }
     if (inter.isButton() && inter.customId === "herois:urso") return await cliqueUrso(inter);
     if (inter.isButton() && inter.customId === "urso:jogo") return await cliqueUrsoJogo(inter);
+    if (inter.isButton() && inter.customId.startsWith("jogo:como:")) return await cliqueComoFunciona(inter);
     if (inter.isMessageComponent() && inter.customId.startsWith("livro:")) return await cliqueLivro(inter);
     /* "sa:" e nao "sup:": o "sup:ler:" e' do botao 🌐 do servidor de suporte. */
     if (inter.isMessageComponent() && inter.customId.startsWith("sa:")) {
