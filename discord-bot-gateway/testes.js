@@ -16644,11 +16644,11 @@ function conferirCartao(onde, embed, componentes = []) {
       marcas = { "livro_no_canal:top": "2026-11-17|2/2|11:100,22:101" };
       ok("com o livro: faxina", await faxina(), "feito");
       ok("cada sala guarda a própria página", JSON.stringify(faxinadas), JSON.stringify([["🎮game-central", ["100"]], ["🎮game-central-pt", ["101"]]]));
-      verdade("a marca diz o que foi feito", /\|2\/2 salas\|10 apagadas\|0 falhas$/.test(marcas["livro_faxina:top:1"]));
+      verdade("a marca diz o que foi feito", /\|2\/2 salas\|10 apagadas\|0 falhas$/.test(marcas["livro_faxina:top:2"]));
       faxinadas.length = 0;
       ok("uma vez só", await faxina(), "feito");
       ok("e não mexe de novo", faxinadas.length, 0);
-      marcas = { ...marcas, "livro_faxina:top:1": "2026-11-17T00:50:00Z|começou" };
+      marcas = { ...marcas, "livro_faxina:top:2": "2026-11-17T00:50:00Z|começou" };
       ok("caiu no meio (reinício): volta a faxinar o que sobrou", await faxina(), "feito");
       ok("as duas salas de novo", faxinadas.length, 2);
       marcas = Object.defineProperty({}, "falhou", { value: true });
@@ -16760,6 +16760,52 @@ function conferirCartao(onde, embed, componentes = []) {
     }
     verdade("só o TOP, só o alertas", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, tipo: "alertas"/.test(pedaco("SALAS_QUE_SAEM")));
     verdade("agendada depois da fusão", /setTimeout\(\(\) => apagarSalasQueSaem\(\)[^]*?6 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
+  /* a sala do livro só para ler: trava na origem, as cópias seguem */
+  {
+    const { portasParaTrancar } = carregar(["portasParaTrancar"]);
+    const S = PermissionFlagsBits.SendMessages;
+    const porta = (type, allow = []) => ({ type, allow: { has: (f) => allow.includes(f) } });
+    const portas = new Map([["todos", porta(0)], ["eu", porta(1, [S])], ["r4", porta(0, [S])], ["leitor", porta(0, [PermissionFlagsBits.ViewChannel])],
+      ["pessoa", porta(1, [S])]]);
+    ok("tranca o @everyone e quem tinha 'falar' escrito; eu e o só-leitor ficam", JSON.stringify(portasParaTrancar(portas, "todos", "eu")),
+      JSON.stringify([{ id: "todos", type: 0 }, { id: "r4", type: 0 }, { id: "pessoa", type: 1 }]));
+
+    let marcas = {};
+    const editadas = [];
+    let sincronizou = 0;
+    const origem = { name: "🎮game-central", permissionOverwrites: { cache: portas,
+      edit: async (id, o, op) => { editadas.push([id, Object.keys(o).filter((k) => o[k] === false).length, op.type]); } } };
+    const guild = { id: "gtop", name: "[TOP]Best Alliance Kingshot", roles: { everyone: { id: "todos" } },
+      channels: { cache: { get: (id) => ({ 11: origem, 22: { name: "🎮game-central-pt" } }[id] || null) } } };
+    const antes = { client: globalThis.client };
+    Object.assign(globalThis, {
+      LIVRO_NO_CANAL: [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" }],
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: { find: (f) => [guild].find(f) } }, channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-top" }),
+      replicasDoIdioma: async () => [{ canal_id: "22", idioma: "pt", tipo: "game" }],
+      fontesReplica: async () => new Map([["11", "game"]]),
+      sincronizarAgora: async () => { sincronizou++; },
+    });
+    try {
+      const { trancarSalaDoLivro } = carregar(["TRAVA_DO_LIVRO", "TRANCA_DA_SALA", "portasParaTrancar", "trancarSalaDoLivro"]);
+      ok("tranca", await trancarSalaDoLivro(), "feito");
+      ok("primeiro eu ganho a minha porta (para continuar postando o livro)", JSON.stringify(editadas[0]), JSON.stringify(["eu", 0, 1]));
+      ok("depois o @everyone, o cargo que falava e a pessoa: os 4 jeitos de falar trancados",
+        JSON.stringify(editadas.slice(1)), JSON.stringify([["todos", 4, 0], ["r4", 4, 0], ["pessoa", 4, 1]]));
+      verdade("só a origem: a cópia não é tocada (ela segue a origem na montagem)", editadas.length === 4);
+      ok("e a montagem roda na hora", sincronizou, 1);
+      verdade("a marca diz quantas", /\|1\/1 origens$/.test(marcas["livro_trancado:top:1"]));
+      editadas.length = 0;
+      ok("uma vez só", await trancarSalaDoLivro(), "feito");
+      ok("e não mexe de novo", editadas.length, 0);
+    } finally {
+      Object.assign(globalThis, antes);
+    }
+    verdade("agendada antes da faxina", /setTimeout\(\(\) => trancarSalaDoLivro\(\)[^]*?4 \* 60 \* 1000\)[^]*?setTimeout\(\(\) => faxina\(3\), 8 \* 60 \* 1000\)/.test(semComentarios(fonte)));
   }
 
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
