@@ -12922,7 +12922,9 @@ async function livroNosCanais(agora = Date.now()) {
    o resto), menos a página do livro e o que estiver fixado. O que tem menos
    de 14 dias sai em lote; o mais velho, uma a uma (o Discord não apaga em
    lote mensagem velha). A marca vai ANTES, com o que foi feito no fim. */
-const FAXINA_DO_LIVRO = "livro_faxina:top:1";
+/* :2 -- depois da trava (20/11): sai o que entrou antes dela (um "." de
+   alguém, copiado em cada língua). */
+const FAXINA_DO_LIVRO = "livro_faxina:top:2";
 const LOTE_VELHO = 14 * 24 * 60 * 60 * 1000 - 60 * 60 * 1000;
 
 /* Pura. Do lote, o que sai: tudo menos o que fica e o que está fixado,
@@ -12990,6 +12992,70 @@ async function faxinaDoLivro() {
   }
   await porAjuste(FAXINA_DO_LIVRO, `${new Date().toISOString()}|${salasFeitas}/${salas.length} salas|${apagadas} apagadas|${falhas} falhas`);
   console.log(`livro: faxina em ${salasFeitas} salas, ${apagadas} mensagens apagadas, ${falhas} falharam`);
+  return "feito";
+}
+
+/* ---- a sala do livro só para ler (dono, 20/11: "precisamos travar as
+   mensagens desse chat") ----
+
+   Alguém escreveu "." no game-central, e a cópia foi para as 10 línguas,
+   em cima do livro. A trava vai SÓ na sala de origem: as portas de cada
+   cópia seguem a origem (portasDaReplica pergunta se lá dá para falar), e a
+   montagem refaz as 9 na hora. O que tranca: mensagem, tópico e resposta
+   em tópico, para todo mundo e para cada cargo que tinha "falar" escrito na
+   porta (porta de cargo que permite vence a do @everyone que nega). O bot
+   ganha porta própria para continuar postando o livro. ADM continua
+   podendo escrever (o Discord não tranca administrador). */
+const TRAVA_DO_LIVRO = "livro_trancado:top:1";
+const TRANCA_DA_SALA = { SendMessages: false, SendMessagesInThreads: false, CreatePublicThreads: false, CreatePrivateThreads: false };
+
+/* Pura. As portas que precisam trancar: a do @everyone sempre, e a de quem
+   tinha algum jeito de falar escrito nela. A minha fica de fora. */
+function portasParaTrancar(portas, todosId, eu) {
+  const falar = ["SendMessages", "SendMessagesInThreads", "CreatePublicThreads", "CreatePrivateThreads"]
+    .map((k) => PermissionFlagsBits[k]);
+  const fora = [{ id: todosId, type: 0 }];
+  for (const [id, porta] of portas || []) {
+    if (id === todosId || id === eu) continue;
+    if (falar.some((f) => porta?.allow?.has?.(f))) fora.push({ id, type: porta.type ?? 0 });
+  }
+  return fora;
+}
+
+async function trancarSalaDoLivro() {
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  if (a[TRAVA_DO_LIVRO]) return "feito";
+  const alvo = LIVRO_NO_CANAL[0];
+  const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+  const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+  if (!servidor) return "sem-servidor";
+  const fontes = await fontesReplica(servidor.id);
+  const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+    await replicasDoIdioma(servidor.id), fontes, alvo.canal);
+  const origens = salas.filter((sala) => fontes.has(sala.canal));
+  if (!origens.length) return "sem-sala";
+  await porAjuste(TRAVA_DO_LIVRO, `${new Date().toISOString()}|começou`);
+  const motivo = "CYRON: a sala do livro dos heróis é só para ler";
+  let trancadas = 0;
+  for (const { canal: id } of origens) {
+    const canal = guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
+    if (!canal?.permissionOverwrites) continue;
+    try {
+      await canal.permissionOverwrites.edit(client.user.id, { ViewChannel: true, SendMessages: true, EmbedLinks: true,
+        AttachFiles: true, ReadMessageHistory: true }, { type: 1, reason: motivo });
+      for (const porta of portasParaTrancar(canal.permissionOverwrites.cache, guild.roles.everyone.id, client.user.id)) {
+        await canal.permissionOverwrites.edit(porta.id, TRANCA_DA_SALA, { type: porta.type, reason: motivo });
+      }
+      trancadas++;
+    } catch (e) {
+      console.error(`livro: não consegui trancar #${canal.name}:`, e?.message || e);
+    }
+  }
+  await porAjuste(TRAVA_DO_LIVRO, `${new Date().toISOString()}|${trancadas}/${origens.length} origens`);
+  console.log(`livro: ${trancadas} de ${origens.length} salas de origem do livro trancadas; as cópias seguem na montagem`);
+  /* As cópias seguem a origem já, e não na próxima volta do relógio. */
+  if (trancadas) await sincronizarAgora(guild).catch(() => {});
   return "feito";
 }
 
@@ -28443,6 +28509,8 @@ client.once("clientReady", () => {
     .catch((e) => console.log("livro: postar nos canais falhou:", e?.message || e));
   setTimeout(() => livro(2), 5 * 60 * 1000);
   setInterval(() => livro(0), 60 * 60 * 1000);
+  /* A sala do livro trava (só ler) antes da faxina. */
+  setTimeout(() => trancarSalaDoLivro().catch((e) => console.log("livro: a trava falhou:", e?.message || e)), 4 * 60 * 1000);
   /* A faxina da sala do livro, uma vez, depois que o livro já está no ar. */
   const faxina = (resta) => faxinaDoLivro()
     .then((r) => { if (r !== "feito" && resta) setTimeout(() => faxina(resta - 1), 10 * 60 * 1000); })
