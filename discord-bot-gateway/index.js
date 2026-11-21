@@ -38,7 +38,8 @@ import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
-import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA } from "./calendario-site.js";
+import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite } from "./calendario-site.js";
+import { desenharSemana } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -48,6 +49,8 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
    DejaVu: licenca livre (fontes/LICENCA-DejaVu.txt), cobre latino, cirilico
    e grego. */
 const FONTE_DA_IMAGEM = fileURLToPath(new URL("./fontes/DejaVuSans-Bold.ttf", import.meta.url));
+/* O título dos desenhos da agenda do jogo: Cinzel, a cara de pergaminho do jogo. */
+const FONTE_DO_TITULO = fileURLToPath(new URL("./fontes/Cinzel_700Bold.ttf", import.meta.url));
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 const SB_URL = process.env.SUPABASE_URL;
@@ -13516,7 +13519,41 @@ function botoesDoDia(eventos, dia) {
     emoji: emojiDoComponente(nomeDoEmojiDoEvento(nome)) || { name: "ℹ️" } })) }];
 }
 
-const AMOSTRA_DA_AGENDA = "1";
+/* O ícone do evento para o desenho: o emoji ev_... do aplicativo (nasceu do
+   print), baixado uma vez do CDN do Discord. Sem emoji, a barra vai sem ícone. */
+const ICONES_DO_DESENHO = new Map();
+async function iconeDoDesenho(nome, buscar = fetch) {
+  const e = EMOJIS_DA_CYRON.get(nomeDoEmojiDoEvento(nome));
+  if (!e) return null;
+  if (ICONES_DO_DESENHO.has(e.id)) return ICONES_DO_DESENHO.get(e.id);
+  try {
+    const r = await buscar(`https://cdn.discordapp.com/emojis/${e.id}.png?size=96`, { signal: AbortSignal.timeout(8000) });
+    if (!r.ok) return null;
+    const b64 = Buffer.from(await r.arrayBuffer()).toString("base64");
+    ICONES_DO_DESENHO.set(e.id, b64);
+    return b64;
+  } catch { return null; }
+}
+
+/* A semana desenhada (agenda-desenho.js), em PNG. Sem sharp: null (quem
+   chama cai no cartão em texto). */
+async function desenhoDaSemana(eventos, agora, reino) {
+  const sharp = await carregarSharp();
+  if (!sharp) return null;
+  const [fonteTitulo, fonteTexto] = await Promise.all([fonteDoDesenho(FONTE_DO_TITULO), fonteDoDesenho(FONTE_DA_IMAGEM)]);
+  const icones = new Map();
+  for (const e of eventos) {
+    if (icones.has(e.nome)) continue;
+    const b64 = await iconeDoDesenho(e.nome);
+    if (b64) icones.set(e.nome, b64);
+  }
+  const { svg } = desenharSemana({ eventos: eventos.map((e) => ({ ...e, hora: horaDoSite(e) })), agora, reino, fonteTitulo, fonteTexto, icones,
+    chaveDe: (nome) => eventoDoJogo(nome)?.chave || null });
+  return sharp(Buffer.from(svg)).png().toBuffer();
+}
+
+/* 2: o cartão da semana virou desenho (o dono achou o de texto feio, 21/11). */
+const AMOSTRA_DA_AGENDA = "2";
 async function amostraDaAgenda() {
   if ((await ajustes()).agenda_amostra === AMOSTRA_DA_AGENDA) return "feito";
   if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
@@ -13531,18 +13568,21 @@ async function amostraDaAgenda() {
   await porAjuste("agenda_amostra", AMOSTRA_DA_AGENDA);
   const agora = Date.now();
   const dica = (nome) => eventoDoJogo(nome)?.dicas?.[0] || "";
-  await canal.send({ content: "🧪 **Teste: a agenda do jogo**\n" +
-    `Como vai ficar na 📅 agenda de cada língua da [TOP] (traduzido para cada sala), com o calendário do reino #${reino}:\n` +
-    "1️⃣ O **cartão da semana**: um só, que se atualiza sozinho (nada de mensagem nova a cada mudança).\n" +
-    "2️⃣ O **aviso do dia**, na virada do dia do jogo (00:00 UTC, 21h de Brasília): o que começa e o que acaba. O de ontem some.\n" +
-    "Toque no ℹ️ para ver a ficha do evento (só você vê, na sua língua). Nada disso vai para a [TOP] antes do seu ok.",
+  const png = await desenhoDaSemana(eventos, agora, reino).catch((e) => { console.log("agenda: o desenho falhou:", e?.message || e); return null; });
+  const lista = listaDoComoFunciona(eventos.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), TEXTOS_DA_AGENDA.comoFunciona);
+  await canal.send({ content: "🧪 **Teste 2: a agenda do jogo, desenhada**\n" +
+    "O cartão da semana agora é uma imagem, como o calendário do jogo: uma barra por evento, do dia em que começa ao dia em que termina, " +
+    "com o ícone do próprio jogo. Embaixo, o ℹ️ abre como funciona cada evento (só para quem tocou, na língua dele).",
     allowedMentions: { parse: [] } });
-  await canal.send({ embeds: [cartaoDaSemana(eventos, agora, { reino, emoji: emojiDoEvento })],
-    components: listaDoComoFunciona(eventos.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), TEXTOS_DA_AGENDA.comoFunciona),
-    allowedMentions: { parse: [] } });
+  if (png) {
+    await canal.send({ embeds: [{ color: 0xC8962E, image: { url: "attachment://semana.png" } }], files: [{ attachment: png, name: "semana.png" }],
+      components: lista, allowedMentions: { parse: [] } });
+  } else {
+    await canal.send({ embeds: [cartaoDaSemana(eventos, agora, { reino, emoji: emojiDoEvento })], components: lista, allowedMentions: { parse: [] } });
+  }
   const aviso = avisoDoDia(eventos, agora, { emoji: emojiDoEvento, dica });
   if (aviso) await canal.send({ embeds: [aviso], components: botoesDoDia(eventos, agora), allowedMentions: { parse: [] } });
-  console.log(`agenda: amostra postada em #${CANAL_DE_TESTES} (reino ${reino}, ${eventos.length} eventos)`);
+  console.log(`agenda: amostra ${AMOSTRA_DA_AGENDA} postada em #${CANAL_DE_TESTES} (reino ${reino}, ${eventos.length} eventos, ${png ? "desenho" : "texto"})`);
   return "postado";
 }
 

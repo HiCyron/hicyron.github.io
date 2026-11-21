@@ -17224,6 +17224,26 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o aviso do dia: o que começa hoje, com a dica", /🟢 \*\*Começa hoje\*\*\n▫️ \*\*Castle Battle\*\* · 12:00–17:00 UTC\n↳ Tome as torres primeiro\./.test(doDia.description));
       verdade("e o último dia de cada um", /🏁 \*\*Último dia\*\*\n[^\n]*Governor Duel[^\n]*Voyage of Light/.test(doDia.description) && doDia.title === "☀️ Hoje no reino · sábado 21/11");
       ok("dia sem nada começando nem acabando: sem aviso", S.avisoDoDia(site, D(19, 4)), null);
+      /* 🎨 o DESENHO da semana (o dono achou o cartão em texto feio, 21/11) */
+      {
+        const Dz = await import("./agenda-desenho.js");
+        const { default: opentype } = await import("opentype.js");
+        const { readFileSync: lerArq } = await import("node:fs");
+        const fonte = (f) => { const b = lerArq(new URL(`./fontes/${f}`, import.meta.url)); return opentype.parse(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)); };
+        const fonteTitulo = fonte("Cinzel_700Bold.ttf"), fonteTexto = fonte("DejaVuSans-Bold.ttf");
+        const janela = Dz.eventosDaJanela(site, D(21, 8));
+        verdade("a janela: o que ainda não acabou e começa nesta semana", janela.length > 0 && !janela.some((e) => e.nome === "Brew Workshop") && janela.every((e) => e.inicio < D(28)));
+        ok("em ordem: o que começou antes primeiro", janela[0].inicio <= D(21), true);
+        const des = Dz.desenharSemana({ eventos: site.map((e) => ({ ...e, hora: S.horaDoSite(e) })), agora: D(21, 8), reino: "2311", fonteTitulo, fonteTexto,
+          icones: new Map([["Castle Battle", "iVBORw0KGgo="]]), chaveDe: (n) => ficha(n)?.chave || null });
+        verdade("sai um SVG com uma barra por evento da janela", des.svg.startsWith("<svg") && des.eventos === janela.length && des.altura > 300);
+        verdade("o texto vira caminho (o servidor não tem fonte): nenhum <text>", !/<text/.test(des.svg) && /<path d="M/.test(des.svg));
+        verdade("o ícone do jogo vai junto, quando existe", /data:image\/png;base64,iVBORw0KGgo=/.test(des.svg));
+        ok("as cores: batalha vermelha, aliança verde, oferta dourada, alquimia roxa",
+          [Dz.corDoEvento({}, "castelo"), Dz.corDoEvento({}, "campeonato"), Dz.corDoEvento({ categoria: "Deals" }), Dz.corDoEvento({ categoria: "Alchemy Junction" })].join(),
+          "#B8463A,#3E8E4F,#C08A22,#7E4FB8");
+        verdade("e o PNG sai do SVG (sharp)", await (async () => { const sh = (await import("sharp")).default; const png = await sh(Buffer.from(des.svg)).png().toBuffer(); const m = await sh(png).metadata(); return m.width === 1200 && m.height === des.altura; })());
+      }
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */
