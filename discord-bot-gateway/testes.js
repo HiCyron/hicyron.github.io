@@ -17107,6 +17107,16 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o número sai desenhado (sem fonte), branco com preto", px1.length === 56 * 80 * 3 && pretos(px1) > 50 && pretos(px1) < 56 * 80 / 2);
       verdade("dois dígitos cabem sem encostar na borda", pretos(px2) > pretos(px1) && !borda(px2, 56, 80));
       verdade("o pedido fala do número da faixa e pede um item por número", /NUMBER/.test(C.pedidoDosNomes(4)) && /"n":1/.test(C.pedidoDosNomes(4)));
+      verdade("e pede para nunca pular faixa, e o ícone só quando o nome falta", /Never skip a strip/.test(C.pedidoDosNomes(4)) && /ONLY when the name is empty or cut/.test(C.pedidoDosNomes(4)));
+      /* a mesma barra em dois prints, lida num e pulada no outro: um evento só (5º teste, 21/11) */
+      const doisPrints = C.eventosDoCalendario([an, an], resp([{ n: 1, text: "Rally do Herói" }, { n: 2, text: "Rally ..." }, { n: 3, text: "Camp..." }, { n: 4, text: "" },
+        { n: 5, text: "Rally do Herói" }, { n: 7, text: "Camp..." }, { n: 8, text: "" }]), Date.now(), { conhecidos: ["Campeonato da Aliança"] });
+      ok("a barra pulada num print é a mesma do outro (mesmas datas, mesmo ícone)", doisPrints.eventos.length, 4);
+      ok("fica o melhor nome", doisPrints.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 23)).nome, "Rally do Herói");
+      ok("nome que é começo de outro (a IA comeu uma letra) sai da memória",
+        C.lerMemoria(C.memoriaNova([{ nome: "Fundo de Ascensão do Heró" }], [{ nome: "Fundo de Ascensão do Herói" }])).map((m) => m.nome).join(), "Fundo de Ascensão do Herói");
+      ok("e não atrapalha completar o cortado", C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "Fundo de Ascensão do..." }, { text: "B" }, { text: "C" }]), Date.now(),
+        { memoria: [{ nome: "Fundo de Ascensão do Heró" }, { nome: "Fundo de Ascensão do Herói" }] }).eventos.find((e) => e.inicio === Date.UTC(2026, 10, 23)).nome, "Fundo de Ascensão do Herói");
 
       /* o ícone vira EMOJI: o quadrado do ícone e o nome do emoji */
       const b0 = an.barras[0], corte = C.recorteDoIcone(b0, W, H);
@@ -17194,6 +17204,15 @@ function conferirCartao(onde, embed, componentes = []) {
       const r = C.resumoDoCalendario(j.eventos, D(20, 23));
       verdade("o resumo: a hora do castelo e a seção do site", /Batalha do Castelo\*\* · sáb 21\/11 · 12:00–17:00 UTC/.test(r) && /🌐 \*\*Mais à frente \(mightpulse\.com\)\*\*\n▫️ \*\*Desert Trial\*\* · qua 25\/11 → sex 27\/11/.test(r));
       ok("a memória guarda o nome em inglês do site", C.lerMemoria(C.memoriaNova([], [{ nome: "Voyage da Luz", assinatura: null, en: "Voyage of Light" }]))[0].en, "Voyage of Light");
+      ok("a ponta que o print não mostra vem do site", [j.eventos[1].inicio, j.eventos[0].inicio].map((x) => new Date(x).getUTCDate()).join(), "18,17");
+      verdade("com a hora do site: o castelo das 12:00 não está 'agora' às 03:50", !/Agora[\s\S]*Batalha do Castelo[\s\S]*Vem aí/.test(C.resumoDoCalendario(j.eventos, D(21, 3))) &&
+        /Vem aí\*\*\n[\s\S]*Batalha do Castelo/.test(C.resumoDoCalendario(j.eventos, D(21, 3))));
+      /* um "Confr..." lido e a outra barra que a IA pulou: os dois só podem ser o Swordland e o Tri */
+      const mistos = S.juntarComOSite([{ nome: "Confr...", inicio: D(23), fim: null }, { nome: "?", soIcone: true, inicio: D(23), fim: null }],
+        site.filter((e) => /Swordland|Tri-Alliance/.test(e.nome)), { primeiroDia: D(18), ultimoDia: D(24), chaveDe: (n) => ficha(n)?.chave || null, fichaDe: ficha, chavesPossiveis: comecam });
+      ok("barra lida e barra pulada, mesmas datas, mesmos dois eventos: reparte", mistos.eventos.map((e) => e.nome).sort().join(), "Swordland Showdown,Tri-Alliance Clash");
+      verdade("sem certeza de qual ícone é qual: nenhum emoji nasce daí", mistos.eventos.every((e) => !e.certo));
+      verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */
       Object.assign(globalThis, { urlDoSite: S.urlDoSite, eventosDoSite: S.eventosDoSite });
