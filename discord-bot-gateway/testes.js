@@ -192,6 +192,8 @@ Object.assign(globalThis, carregar(["comoFunciona"]));
 /* Os nomes no estilo do ranking ("・⚙️┊cyron"): a CYRON acha as salas dela
    pelos dois jeitos, e as funções que buscam sala pelo nome usam isto. */
 Object.assign(globalThis, carregar(["nomeSimples", "mesmoNome"]));
+/* O import do index que o FUNCOES usa (a função dos códigos nasce ligada nos servidores de Kingshot). */
+Object.assign(globalThis, { pareceKingshot: (await import("./codigos-jogo.js")).pareceKingshot });
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -17354,6 +17356,59 @@ function conferirCartao(onde, embed, componentes = []) {
           /mesmoNome\(c\.name, nome\)/.test(pedaco("canalPorNomeOuCria")));
       }
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
+
+      /* 🎁 os CÓDIGOS DE PRESENTE do Kingshot (dono, 21/11: "bora do resgate de códigos") */
+      {
+        const K = await import("./codigos-jogo.js");
+        ok("o código limpo: letras e números, 4 a 24, maiúscula como veio", [K.codigoLimpo(" FORTHEKINGDOM "), K.codigoLimpo("Bw8Gkp9Kn"), K.codigoLimpo("`VIP777`"),
+          K.codigoLimpo("com espaço"), K.codigoLimpo("abc"), K.codigoLimpo("A".repeat(25))].join("|"), "FORTHEKINGDOM|Bw8Gkp9Kn|VIP777|||");
+        const anuncio = K.codigosDoAnuncio("Governors! 🎁 New Gift Code: **SAYHIHI**\nRedeem at the gift code center. Also try **KINGSHOT** and **Bonus2026**");
+        ok("o anúncio oficial: o que vem depois de 'Gift Code:' é forte; negrito solto é fraco; palavra comum não é código",
+          `${anuncio.fortes.join()}/${anuncio.fracos.join()}`, "SAYHIHI/Bonus2026");
+        ok("anúncio que não fala de código: nada", JSON.stringify(K.codigosDoAnuncio("Castle Battle starts at **12:00** with **REWARDS**")), JSON.stringify({ fortes: [], fracos: [] }));
+        ok("em chinês e em português também", [K.codigosDoAnuncio("兑换码：KS2026GO").fortes.join(), K.codigosDoAnuncio("Código: NATAL25").fortes.join()].join("|"), "KS2026GO|NATAL25");
+        const agoraK = Date.UTC(2026, 10, 21, 17);
+        ok("a validade: até o fim do dia em UTC; ano que vem se a data já passou; inválida ou vencida não",
+          [K.validadeDe("31/12", agoraK), K.validadeDe("2026-12-31", agoraK), K.validadeDe("05/01", agoraK), K.validadeDe("31/02", agoraK), K.validadeDe("01/01/2020", agoraK), K.validadeDe("", agoraK)]
+            .map((x) => (x ? new Date(x).toISOString().slice(0, 16) : String(x))).join(" "),
+          "2027-01-01T00:00 2027-01-01T00:00 2027-01-06T00:00 null null null");
+        ok("parece Kingshot: nasce ligado nesses", ["[TOP]Best Alliance Kingshot", "Kingdom #2311", "Ks", "[FTL]ForTheLeague", "TAMAKO STORE", "CYRON SUPPORT", "REALM OF SPARKS"]
+          .map((n) => (K.pareceKingshot(n) ? 1 : 0)).join(""), "1111000");
+        const fontesK = new Map([["100", "evento"], ["200", "agenda"]]);
+        const replicasK = [{ canal_id: "101", idioma: "pt", tipo: "evento" }, { canal_id: "201", idioma: "pt", tipo: "agenda" }];
+        const chatsK = [{ canal_id: "301", idioma: "pt" }, { canal_id: null, idioma: "es" }];
+        ok("onde vai: os anúncios (a original em inglês e as cópias)", K.salasDoCodigo(fontesK, replicasK, chatsK).map((x) => `${x.canal}:${x.idioma}`).join(), "100:en,101:pt");
+        ok("sem anúncios: a agenda; sem agenda: o chat de cada língua (sala que existe)",
+          [K.salasDoCodigo(new Map([["200", "agenda"]]), replicasK.slice(1), chatsK), K.salasDoCodigo(new Map(), [], chatsK)].map((l) => l.map((x) => x.canal).join("+")).join(" | "),
+          "200+201 | 301");
+        const cartaoK = K.cartaoDoCodigo({ codigo: "SAYHIHI", premio: "500 gemas", ate: Date.UTC(2027, 0, 1) }, { bau: "<:ks_bau:1>" });
+        verdade("o cartão: o baú do jogo, o código num bloco (fácil de copiar), o prêmio, a validade contando e o como",
+          cartaoK.description.startsWith("<:ks_bau:1> **Código novo do Kingshot**\n\n```\nSAYHIHI\n```") && /🎁 \*\*Prêmio:\*\* 500 gemas/.test(cartaoK.description) &&
+          /<t:1798761600:D> \(<t:1798761600:R>\)/.test(cartaoK.description) && /Resgatar/.test(cartaoK.description));
+        const botoesK = K.botoesDoCodigo("SAYHIHI")[0].components;
+        ok("os botões: o site OFICIAL e o copiar", `${botoesK[0].url}|${botoesK[1].custom_id}`, "https://ks-giftcode.centurygame.com/|codigo:copiar:SAYHIHI");
+        verdade("expirado: cinza, sem botões, dizendo que expirou", K.botoesDoCodigo("X1234", { expirado: true }).length === 0 &&
+          /❌ \*\*Este código expirou\*\*/.test(K.cartaoDoCodigo({ codigo: "X1234" }, { expirado: true }).description));
+        ok("o botão copiar devolve o código; outro botão, nada", [K.codigoDoBotao("codigo:copiar:SAYHIHI"), K.codigoDoBotao("codigo:copiar:a b"), K.codigoDoBotao("outro")].join("|"), "SAYHIHI||");
+        ok("o registro estragado vira vazio", JSON.stringify(K.estadoDoCodigo("lixo")), JSON.stringify({ codigo: "", premio: "", ate: null, estado: "", enviados: {} }));
+        /* a ligação no index */
+        const F = carregar(["FUNCOES", "FUNCAO_CODIGOS", "funcaoLigada"]);
+        verdade("no 🧩: liga sozinho no servidor de Kingshot; a escolha do ADM vale por cima",
+          F.funcaoLigada(F.FUNCAO_CODIGOS, { id: "a", nome: "Kingdom #2311" }, {}) && !F.funcaoLigada(F.FUNCAO_CODIGOS, { id: "b", nome: "TAMAKO STORE" }, {}) &&
+          !F.funcaoLigada(F.FUNCAO_CODIGOS, { id: "a", nome: "Kingdom #2311" }, { "codigos_ks:a": "0" }) && F.funcaoLigada(F.FUNCAO_CODIGOS, { id: "b", nome: "TAMAKO STORE" }, { "codigos_ks:b": "1" }));
+        verdade("e o liga/desliga grava 1 ou 0", /if \(f\.padrao\) return porAjuste\(f\.ajuste\(servidor\), ligar \? "1" : "0"\)/.test(pedaco("mudarFuncao")));
+        const esp = semComentarios(pedaco("espalharCodigo"));
+        verdade("o envio: nunca o mesmo código duas vezes; reiniciar no meio continua de onde parou",
+          /est\.estado === "enviado"/.test(esp) && /if \(est\.enviados\[guild\.id\]\) continue;/.test(esp) && /est\.enviados\[guild\.id\] = feitos;\s*await salvar\(\)/.test(esp));
+        verdade("só onde a função está ligada", /funcaoLigada\(FUNCAO_CODIGOS, servidor, marcas\)/.test(pedaco("salasDoCodigoNoServidor")));
+        verdade("o /admin: formulário, prévia só para o dono, enviar com um toque", /botao\("presente", "🎁", "Código do Kingshot"/.test(fonte) &&
+          /acao === "presente" && inter\.isButton\(\)\) return inter\.showModal/.test(fonte) && /inter\.customId === "admin:presente"\) return await prepararPresente/.test(fonte) &&
+          /deferReply\(\{ flags: 64 \}\)/.test(pedaco("prepararPresente")) && /admin:presente_ok:/.test(pedaco("previaDoCodigo")));
+        verdade("o anúncio seguido: só o que veio do Seguir (webhook) ou do dono", /if \(!msg\.webhookId && !await ehDono\(msg\.author\?\.id\)\) return;/.test(pedaco("codigoDoAnuncio")) &&
+          /mesmoNome\(msg\.channel\?\.name \|\| "", CANAL_DOS_CODIGOS\) && msg\.author\?\.id !== client\.user\?\.id && await ehOPainel/.test(fonte));
+        verdade("o copiar responde só para quem tocou, só o código", /customId\.startsWith\("codigo:copiar:"\)\) \{\s*return await inter\.reply\(\{ flags: 64, content: codigoDoBotao/.test(fonte));
+        verdade("a validade que vence vira 'expirou' (de hora em hora)", /expirarCodigos\(\)/.test(fonte) && /expirado: true/.test(pedaco("expirarCodigos")));
+      }
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */
       Object.assign(globalThis, { urlDoSite: S.urlDoSite, eventosDoSite: S.eventosDoSite });
