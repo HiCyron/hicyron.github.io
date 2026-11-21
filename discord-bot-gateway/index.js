@@ -40,6 +40,8 @@ import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCa
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
 import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite,
   diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada, chaveDoAviso } from "./calendario-site.js";
+import { TEXTOS_DO_CODIGO, codigoLimpo, codigosDoAnuncio, validadeDe, pareceKingshot, salasDoCodigo, cartaoDoCodigo, botoesDoCodigo,
+  codigoDoBotao, estadoDoCodigo, MARCA_DO_CODIGO } from "./codigos-jogo.js";
 import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -7709,7 +7711,13 @@ const FUNCOES = [
   { chave: "boasvindas", emoji: "👋", nome: "Boas-vindas nas salas de conversa",
     oque: "Quem chega e escolhe o idioma é recebido em todas as salas, cada uma na sua língua.",
     ajuste: (s) => `boas-vindas-salas-off:${s.id}` },
+  /* Nasce ligada só em servidor que parece de Kingshot (o código de presente
+     é do jogo; num servidor de outra coisa seria propaganda). */
+  { chave: "codigos", emoji: "🎁", nome: "Códigos de presente do Kingshot",
+    oque: "Quando sai um código novo do Kingshot, eu aviso nas salas de cada língua, com o botão de resgatar.",
+    padrao: (s) => pareceKingshot(s?.nome), ajuste: (s) => `codigos_ks:${s.id}` },
 ];
+const FUNCAO_CODIGOS = FUNCOES.find((f) => f.chave === "codigos");
 
 /* Ligada ou nao. Em geral o ajuste guarda o DESLIGADO ("1"); vazio ou ausente
    e' ligado -- o mesmo que cada funcao ja' lia. Funcao com `padraoDesligado`
@@ -7717,6 +7725,9 @@ const FUNCOES = [
 function funcaoLigada(f, servidor, marcas) {
   if (f.coluna) return !!servidor?.[f.coluna];
   const v = marcas?.[f.ajuste(servidor)];
+  /* Com `padrao`: o ajuste guarda a escolha do ADM ("1" ligado, "0"
+     desligado); sem escolha, vale o padrão daquele servidor. */
+  if (f.padrao) return v === "1" ? true : v === "0" ? false : !!f.padrao(servidor);
   return f.padraoDesligado ? v === "1" : !v;
 }
 
@@ -7727,6 +7738,7 @@ async function mudarFuncao(f, servidor, ligar) {
     cacheServidor.delete(servidor.guild_id);
     return;
   }
+  if (f.padrao) return porAjuste(f.ajuste(servidor), ligar ? "1" : "0");
   if (f.padraoDesligado) return porAjuste(f.ajuste(servidor), ligar ? "1" : null);
   await porAjuste(f.ajuste(servidor), ligar ? "" : "1");
 }
@@ -13959,6 +13971,206 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
     }
   }
   return feito ? "postado" : "nada";
+}
+
+/* ---------------- 🎁 os CÓDIGOS DE PRESENTE do Kingshot (dono, 21/11) ----------------
+
+   O que é puro mora em codigos-jogo.js. Aqui: o botão do /admin (formulário
+   -> prévia só para o dono -> "Enviar para todos"), o envio para cada sala de
+   cada língua dos servidores com a função ligada, a validade que vence, e o
+   canal do painel que segue os anúncios oficiais do jogo.
+
+   O registro de cada código fica no banco (codigo_ks:<código>) com o que foi
+   enviado em cada servidor: reiniciar no meio continua de onde parou, e o
+   mesmo código nunca vai duas vezes. */
+const CANAL_DOS_CODIGOS = "🎁-codigos-kingshot";
+const codigosEnviando = new Set();
+
+function janelaDoPresente() {
+  return {
+    custom_id: "admin:presente",
+    title: "Código de presente do Kingshot",
+    components: [
+      { type: 1, components: [{ type: 4, custom_id: "codigo", style: 1, required: true, max_length: 24,
+        label: "Código", placeholder: "FORTHEKINGDOM" }] },
+      { type: 1, components: [{ type: 4, custom_id: "premio", style: 1, required: false, max_length: 200,
+        label: "Prêmio (opcional)", placeholder: "500 gemas, 2 aceleradores de 1h" }] },
+      { type: 1, components: [{ type: 4, custom_id: "ate", style: 1, required: false, max_length: 10,
+        label: "Vale até (opcional, dia em UTC)", placeholder: "31/12 ou 2026-12-31" }] },
+    ],
+  };
+}
+
+/* A mensagem do código numa sala, na língua dela (o baú do jogo no título). */
+async function cargaDoCodigo(dados, idioma, motor, { expirado = false } = {}) {
+  const t = await textosDaAgendaNaLingua(TEXTOS_DO_CODIGO, idioma, motor);
+  const premio = dados.premio ? await textoDoJogo(dados.premio, idioma, motor) : "";
+  return { embeds: [cartaoDoCodigo({ ...dados, premio }, { t, bau: emojiKs("ks_bau", "🎁"), expirado })],
+    components: botoesDoCodigo(dados.codigo, { t, expirado }), allowedMentions: { parse: [] } };
+}
+
+/* As salas de um servidor que recebem o código (null: função desligada,
+   servidor sem instalação ou sem sala). */
+async function salasDoCodigoNoServidor(guild, marcas) {
+  const servidor = await servidorDoGuild(guild.id).catch(() => null);
+  if (!servidor || !funcaoLigada(FUNCAO_CODIGOS, servidor, marcas)) return null;
+  const salas = salasDoCodigo(await fontesReplica(servidor.id), await replicasDoIdioma(servidor.id),
+    await canaisEspelho(servidor.id).catch(() => []), { tipoAgenda: TIPO_AGENDA });
+  return salas.length ? { servidor, salas } : null;
+}
+
+async function alcanceDoCodigo() {
+  const marcas = await ajustes();
+  let servidores = 0, salas = 0;
+  for (const guild of client.guilds.cache.values()) {
+    const alvo = await salasDoCodigoNoServidor(guild, marcas).catch(() => null);
+    if (alvo) { servidores++; salas += alvo.salas.length; }
+  }
+  return { servidores, salas };
+}
+
+/* O formulário do /admin: confere, guarda o rascunho e mostra a prévia. */
+async function prepararPresente(inter) {
+  if (!await ehDono(inter.user.id)) return inter.reply({ flags: 64, content: "Não conheço esse comando." });
+  const campo = (n) => { try { return String(inter.fields.getTextInputValue(n) || "").trim(); } catch { return ""; } };
+  const codigo = codigoLimpo(campo("codigo"));
+  if (!codigo) return inter.reply({ flags: 64, content: "❌ O código tem que ter de 4 a 24 letras e números, sem espaço." });
+  const ateTexto = campo("ate"), ate = validadeDe(ateTexto);
+  if (ateTexto && !ate) return inter.reply({ flags: 64, content: "❌ Não entendi a validade, ou ela já passou. Use 31/12 ou 2026-12-31." });
+  await inter.deferReply({ flags: 64 });
+  const marca = MARCA_DO_CODIGO(codigo);
+  const velho = estadoDoCodigo((await ajustes())[marca]);
+  if (velho.estado === "enviado" || velho.estado === "enviando") {
+    return inter.editReply(`ℹ️ O código **${codigo}** já foi enviado (${Object.keys(velho.enviados).length} servidores). Não mando de novo.`);
+  }
+  const dados = { codigo, premio: campo("premio"), ate };
+  await porAjuste(marca, JSON.stringify({ ...dados, estado: "rascunho", enviados: {} }));
+  return inter.editReply(await previaDoCodigo(dados));
+}
+
+async function previaDoCodigo(dados, cabeca = "👀 **Prévia** (só você vê).") {
+  const carga = await cargaDoCodigo(dados, "pt", undefined);
+  const { servidores, salas } = await alcanceDoCodigo();
+  return {
+    content: `${cabeca} Vai para **${servidores}** servidores, **${salas}** salas, cada uma na sua língua.`,
+    embeds: carga.embeds,
+    components: [...carga.components, { type: 1, components: [
+      { type: 2, style: 3, custom_id: `admin:presente_ok:${dados.codigo}`, emoji: { name: "📣" }, label: "Enviar para todos" },
+      { type: 2, style: 2, custom_id: `admin:presente_nao:${dados.codigo}`, label: "Cancelar" },
+    ] }],
+  };
+}
+
+async function enviarPresente(inter, codigo) {
+  await inter.deferUpdate();
+  const r = await espalharCodigo(codigo);
+  return inter.editReply({ content: r.texto, components: [] }).catch(() => {});
+}
+
+/* Manda o código para cada sala de cada servidor com a função ligada. */
+async function espalharCodigo(codigo) {
+  const marca = MARCA_DO_CODIGO(codigo);
+  const a = await ajustes();
+  if (a.falhou) return { texto: "❌ O banco não respondeu. Nada foi enviado; tente de novo." };
+  const est = estadoDoCodigo(a[marca]);
+  if (!est.codigo) return { texto: `❌ Não achei o rascunho do código **${codigo}**. Abra o formulário de novo.` };
+  if (est.estado === "enviado") return { texto: `ℹ️ O código **${codigo}** já tinha sido enviado.` };
+  if (codigosEnviando.has(codigo)) return { texto: `⏳ Já estou enviando o código **${codigo}**.` };
+  codigosEnviando.add(codigo);
+  try {
+    est.estado = "enviando";
+    const salvar = () => porAjuste(marca, JSON.stringify(est)).catch(() => {});
+    await salvar();
+    let servidores = 0, salas = 0, falhas = 0;
+    for (const guild of client.guilds.cache.values()) {
+      if (est.enviados[guild.id]) continue;   // reiniciou no meio: já foi
+      const alvo = await salasDoCodigoNoServidor(guild, a).catch(() => null);
+      if (!alvo) continue;
+      const motor = await motorDoGuild(guild.id).catch(() => undefined);
+      const feitos = {};
+      for (const sala of alvo.salas) {
+        const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
+        if (typeof canal?.send !== "function") continue;
+        const carga = await cargaDoCodigo(est, sala.idioma, motor).catch(() => null);
+        const m = carga && await canal.send(carga).catch((e) => { console.error(`códigos: não postei em #${canal.name} (${guild.name}):`, e?.message || e); return null; });
+        if (m) { feitos[sala.canal] = `${m.id}:${sala.idioma}`; salas++; } else falhas++;
+      }
+      est.enviados[guild.id] = feitos;
+      await salvar();
+      if (Object.keys(feitos).length) servidores++;
+    }
+    est.estado = "enviado";
+    await salvar();
+    console.log(`códigos: ${codigo} em ${salas} salas de ${servidores} servidores${falhas ? ` (${falhas} falharam)` : ""}`);
+    return { servidores, salas, falhas,
+      texto: `📣 **${codigo}** enviado: **${salas}** salas em **${servidores}** servidores${falhas ? ` · ${falhas} falharam` : ""}.` };
+  } finally {
+    codigosEnviando.delete(codigo);
+  }
+}
+
+/* O anúncio OFICIAL que chegou no canal seguido (o botão "Seguir" do
+   Discord, no canal de anúncios do Kingshot). Só vale o que veio de lá
+   (webhook do Seguir) ou do próprio dono. Código claro ("Gift Code: X") vai
+   sozinho; o que só está em negrito pede um toque do dono. */
+async function codigoDoAnuncio(msg) {
+  if (!msg.webhookId && !await ehDono(msg.author?.id)) return;
+  const texto = [msg.content, ...(msg.embeds || []).flatMap((e) => [e.title, e.description, ...(e.fields || []).flatMap((f) => [f.name, f.value])])]
+    .filter(Boolean).join("\n");
+  const { fortes, fracos } = codigosDoAnuncio(texto);
+  const a = await ajustes();
+  const novo = (c) => !["enviado", "enviando"].includes(estadoDoCodigo(a[MARCA_DO_CODIGO(c)]).estado);
+  for (const codigo of fortes.filter(novo)) {
+    await porAjuste(MARCA_DO_CODIGO(codigo), JSON.stringify({ codigo, premio: "", ate: null, estado: "rascunho", enviados: {} }));
+    const r = await espalharCodigo(codigo);
+    await msg.reply({ content: `${r.texto}\n-# veio do anúncio oficial`, allowedMentions: { parse: [] } }).catch(() => {});
+  }
+  for (const codigo of fracos.filter(novo)) {
+    await porAjuste(MARCA_DO_CODIGO(codigo), JSON.stringify({ codigo, premio: "", ate: null, estado: "rascunho", enviados: {} }));
+    await msg.reply({ ...(await previaDoCodigo({ codigo, premio: "", ate: null }, "🤔 Achei este código no anúncio, mas não tenho certeza.")),
+      allowedMentions: { parse: [] } }).catch(() => {});
+  }
+}
+
+/* O canal do painel para seguir os anúncios oficiais. Uma vez por partida;
+   sala com o mesmo nome é usada, nunca duplicada. */
+async function canalDosCodigos() {
+  const gid = await guildDoPainel();
+  const guild = gid && client.guilds.cache.get(gid);
+  if (!guild) return;
+  if (guild.channels.cache.some((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, CANAL_DOS_CODIGOS))) return;
+  await guild.channels.create({ name: CANAL_DOS_CODIGOS, type: ChannelType.GuildText,
+    topic: "Siga aqui o canal de anúncios do Kingshot (botão Seguir): código novo que chegar, eu espalho.",
+    reason: "CYRON: códigos de presente do Kingshot" })
+    .then((c) => console.log(`códigos: criei #${c.name} em ${guild.name}`))
+    .catch((e) => console.error("códigos: não criei o canal dos anúncios:", e?.message || e));
+}
+
+/* Código com validade que venceu: cada mensagem vira "expirou", sem botões. */
+async function expirarCodigos(agora = Date.now()) {
+  const a = await ajustes();
+  if (a.falhou) return 0;
+  let feitos = 0;
+  for (const [chave, valor] of Object.entries(a)) {
+    if (!chave.startsWith("codigo_ks:")) continue;
+    const est = estadoDoCodigo(valor);
+    if (est.estado !== "enviado" || !est.ate || est.ate > agora) continue;
+    est.estado = "expirado";
+    await porAjuste(chave, JSON.stringify(est));
+    for (const [gid, salas] of Object.entries(est.enviados)) {
+      const guild = client.guilds.cache.get(gid);
+      if (!guild) continue;
+      const motor = await motorDoGuild(gid).catch(() => undefined);
+      for (const [canalId, par] of Object.entries(salas)) {
+        const [msgId, idioma] = String(par).split(":");
+        const canal = guild.channels.cache.get(canalId);
+        const m = canal && await canal.messages?.fetch?.(msgId).catch(() => null);
+        if (m && await m.edit(await cargaDoCodigo(est, idioma || "en", motor, { expirado: true })).then(() => true).catch(() => false)) feitos++;
+      }
+    }
+    console.log(`códigos: ${est.codigo} expirou; ${feitos} mensagens marcadas`);
+  }
+  return feitos;
 }
 
 /* ---------------- 🛠️ /suporte: acesso do dono da CYRON, COM permissao ----------------
@@ -21334,7 +21546,7 @@ function linhasDoAdmin(aba = "resumo", servidores = []) {
         botao("fala", "🎧", "Áudio", 1), botao("ajustes", "⚙️", "Ajustes", 1), botao("codigos", "🎟️", "Gerar códigos")],
       [botao("comandos", "🧪", "Meus comandos"), botao("novocomando", "➕", "Novo comando", 4),
         botao("suporte", "🏗️", "Montar suporte"), botao("remontar", "🔄", "Remontar painel"), convite],
-      [botao("ia", "🧠", "IA do privado", 1)],
+      [botao("ia", "🧠", "IA do privado", 1), botao("presente", "🎁", "Código do Kingshot", 3)],
     ],
   }[aba] || [];
   /* A lista de servidores e' um menu, e nao texto: escolher abre a ficha com
@@ -22045,6 +22257,11 @@ async function cliqueAdmin(inter) {
   if (acao === "visao" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaVisao()));
   if (acao === "fala" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaFala()));
   if (acao === "ia" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaIA()));
+  if (acao === "presente" && inter.isButton()) return inter.showModal(janelaValida(janelaDoPresente()));
+  if (acao.startsWith("presente_ok:") && inter.isButton()) return enviarPresente(inter, acao.slice("presente_ok:".length));
+  if (acao.startsWith("presente_nao:") && inter.isButton()) {
+    return inter.update({ content: "↩️ Cancelado. Nada foi enviado.", embeds: [], components: [] });
+  }
   /* Cria ou arruma o servidor de suporte. Rodar de novo nao duplica nada:
      sala que existe fica, texto que eu postei e' editado. */
   if (acao === "suporte" && inter.isButton()) {
@@ -26442,6 +26659,11 @@ client.on("interactionCreate", async (inter) => {
     if (inter.isButton() && inter.customId === "como-funciona") {
       return await comandoAjuda(inter);
     }
+    /* 📋 do código de presente: só o código, só para quem tocou -- no
+       celular, segurar a mensagem e "copiar texto" pega ele limpo. */
+    if (inter.isButton() && inter.customId.startsWith("codigo:copiar:")) {
+      return await inter.reply({ flags: 64, content: codigoDoBotao(inter.customId) || "—" });
+    }
     /* O 📝 embaixo de um print. E' um BOTAO -- a primeira versao desta linha
        morava dentro do bloco dos menus de selecao, logo abaixo, onde botao
        nenhum entra. O clique chegava, ninguem respondia, e o Discord mostrava
@@ -26466,6 +26688,7 @@ client.on("interactionCreate", async (inter) => {
       if (inter.customId === "admin:visao") return await salvarVisao(inter);
       if (inter.customId === "admin:fala") return await salvarFala(inter);
       if (inter.customId === "admin:ia") return await salvarIA(inter);
+      if (inter.customId === "admin:presente") return await prepararPresente(inter);
       if (inter.customId === "admin:novocomando") return await salvarComando(inter);
       if (inter.customId === "admin:busca") return await procurarServidor(inter);
       return;
@@ -26547,6 +26770,13 @@ client.on("messageCreate", async (msg) => {
       return;
     }
     if (!msg.author?.bot && !msg.webhookId && !msg.system) anotarConversa(msg.guild.id);
+
+    /* O canal do painel que segue os anúncios oficiais do Kingshot (ver
+       codigoDoAnuncio). Só ali; nada mais acontece com essas mensagens. */
+    if (mesmoNome(msg.channel?.name || "", CANAL_DOS_CODIGOS) && msg.author?.id !== client.user?.id && await ehOPainel(msg.guild.id)) {
+      await codigoDoAnuncio(msg).catch((e) => console.error("códigos: não li o anúncio:", e?.message || e));
+      return;
+    }
 
     if (msg.webhookId) {
       const servidor = await servidorDoGuild(msg.guild.id);
@@ -29382,6 +29612,9 @@ client.once("clientReady", () => {
   setTimeout(() => agendaJogo(2), 6 * 60 * 1000);
   /* De 5 em 5 minutos: o evento que acaba sai da agenda logo. */
   setInterval(() => agendaJogo(0), 5 * 60 * 1000);
+  /* Os códigos de presente: o canal dos anúncios no painel e a validade. */
+  setTimeout(() => canalDosCodigos().catch((e) => console.log("códigos: canal falhou:", e?.message || e)), 2 * 60 * 1000);
+  setInterval(() => expirarCodigos().catch((e) => console.log("códigos: validade falhou:", e?.message || e)), 60 * 60 * 1000);
   const urso = (resta) => ursoNosCanais()
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));
