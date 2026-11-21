@@ -184,6 +184,11 @@ Object.assign(globalThis, carregar(["EMOJIS_DA_CYRON", "emojiPequeno", "emojiDaC
 /* O botão 🐻 dos avisos do Urso: todo aviso de evento pergunta se é do Urso
    (e, em teste, se é o painel). Fica no escopo de todos, como os emojis. */
 Object.assign(globalThis, carregar(["URSO", "ehEventoDoUrso", "heroisNoUrso", "botaoDoUrso"]));
+/* O botão "How it works" dos eventos do jogo: todo aviso pergunta se o
+   evento é um deles (Castelo, Swordland, Vikings...). Mesmo motivo do Urso. */
+globalThis.eventoDoJogo = (await import("./eventos-jogo.js")).eventoDoJogo;
+globalThis.NOMES_DOS_EVENTOS = (await import("./eventos-jogo.js")).NOMES_DOS_EVENTOS;
+Object.assign(globalThis, carregar(["comoFunciona"]));
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -16806,6 +16811,64 @@ function conferirCartao(onde, embed, componentes = []) {
       Object.assign(globalThis, antes);
     }
     verdade("agendada antes da faxina", /setTimeout\(\(\) => trancarSalaDoLivro\(\)[^]*?4 \* 60 \* 1000\)[^]*?setTimeout\(\(\) => faxina\(3\), 8 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
+  /* ℹ️ como funciona cada evento do jogo (o botão do aviso) */
+  {
+    const E = await import("./eventos-jogo.js");
+    const casa = (t) => E.eventoDoJogo(t)?.chave ?? null;
+    ok("o nome do jogo em português acha o evento", casa("Batalha do Castelo"), "castelo");
+    ok("em inglês também", casa("🏰 Castle Battle"), "castelo");
+    ok("com acento ou sem", casa("Batalha do Santuario"), "santuario");
+    ok("Swordland", casa("Swordland Showdown"), "swordland");
+    ok("Tri-Alliance, como o jogo corta ou em inglês", [casa("Confronto Tri-Aliança"), casa("Tri-Alliance Clash")].join(), "tri,tri");
+    ok("O Governador mais Forte", casa("O Governador mais Forte"), "governador");
+    ok("Campeonato da Aliança", casa("Campeonato da Aliança"), "campeonato");
+    ok("Duelo dos Governadores", casa("Duelo dos Governadores"), "duelo");
+    ok("Vai com Tudo / All Out", [casa("Vai com Tudo"), casa("All Out")].join(), "vaicomtudo,vaicomtudo");
+    ok("Mobilização, Armamentos, Viking, Pesca", [casa("Mobilização da Aliança"), casa("Competição de Armamentos"),
+      casa("Vingança Viking"), casa("Torneio de Pesca")].join(), "mobilizacao,armamento,viking,pesca");
+    ok("o Urso fica com a ficha dele", [casa("Armadilha do Urso 1"), casa("🐻 Urso"), casa("Bear Trap")].join(), ",,");
+    ok("evento que não é do jogo: nada", casa("Reunião da aliança"), null);
+    verdade("todo evento tem como funciona e pelo menos 2 dicas", E.EVENTOS_DO_JOGO.every((e) => e.como.length > 40 && e.dicas.length >= 2));
+    ok("chaves únicas (o botão leva a chave)", new Set(E.EVENTOS_DO_JOGO.map((e) => e.chave)).size, E.EVENTOS_DO_JOGO.length);
+    verdade("nenhum número disputado entre os guias (tempo do Castelo, pontos)",
+      !E.EVENTOS_DO_JOGO.some((e) => /2h30|2,5 h|3 horas|\b\d+ pontos/.test([e.como, ...e.dicas].join(" "))));
+    verdade("a ficha cabe com folga, mesmo com o texto 40% mais longo e emoji de verdade", E.EVENTOS_DO_JOGO.every((ev) => {
+      const longo = (x) => x + " ".repeat(Math.ceil(x.length * 0.4));
+      return E.fichaDoEvento(ev, { t: E.TEXTOS_DO_EVENTO, como: longo(ev.como), dicas: ev.dicas.map(longo),
+        e: (n) => `<a:${n}_3fa2c9:1439876543210987654>` }).description.length < 4000;
+    }));
+    const ficha = E.fichaDoEvento(E.acharEventoDoJogo("castelo"), { t: E.TEXTOS_DO_EVENTO, como: "c", dicas: ["d1", "d2"] });
+    verdade("a ficha diz que são guias da comunidade e manda conferir no evento", /confira no evento/.test(ficha.footer.text));
+    verdade("os nomes em inglês passam protegidos pelo tradutor", /\.\.\.NOMES_DOS_EVENTOS/.test(pedaco("TERMOS_DO_JOGO_NA_TRADUCAO")));
+
+    /* o aviso ganha o botão; o do Urso continua com o dele */
+    const ev = { titulo: "🏰 Batalha do Castelo", quando: new Date(Date.now() + 600000).toISOString(), duracao_seg: 0 };
+    const aviso = { content: "🔔 **x**", allowedMentions: { parse: [] } };
+    const c = avisoDeInicio(ev, aviso, PALAVRAS_DO_CARTAO, "Castle Battle", 15, false);
+    ok("aviso do Castelo: botão How it works com a chave", c.components?.[0]?.components?.[0]?.custom_id, "jogo:como:castelo");
+    ok("pelo título original, mesmo com o título traduzido na sala", avisoDeInicio(ev, aviso, PALAVRAS_DO_CARTAO, "Burgschlacht", 0, false)
+      .components?.[0]?.components?.[0]?.custom_id, "jogo:como:castelo");
+    ok("o do Urso continua com o Bear heroes", avisoDeInicio({ ...ev, titulo: "🐻 Urso" }, aviso, PALAVRAS_DO_CARTAO, "Urso", 0, true)
+      .components?.[0]?.components?.[0]?.custom_id, "herois:urso");
+    ok("evento que não é do jogo: sem botão", avisoDeInicio({ ...ev, titulo: "Reunião" }, aviso, PALAVRAS_DO_CARTAO, "Reunião", 0, false).components, undefined);
+
+    /* o toque: a ficha só para quem tocou, na língua dele */
+    const passos = [];
+    Object.assign(globalThis, { acharEventoDoJogo: E.acharEventoDoJogo, fichaDoEvento: E.fichaDoEvento, TEXTOS_DO_EVENTO: E.TEXTOS_DO_EVENTO,
+      linguaDe: async () => "en", motorDoGuild: async () => ({}), textoDoJogo: async (v) => `[en] ${v}`, emojiKs: (n, r) => r });
+    const { cliqueComoFunciona } = carregar(["cliqueComoFunciona"]);
+    await cliqueComoFunciona({ customId: "jogo:como:viking", guildId: "g",
+      deferReply: async (o) => passos.push(["efemera", o.flags]), deferUpdate: async () => passos.push(["fecha"]),
+      editReply: async (m) => passos.push(["ficha", m.embeds[0].description]) });
+    ok("só para quem tocou", JSON.stringify(passos[0]), JSON.stringify(["efemera", 64]));
+    verdade("na língua de quem tocou (nome, como funciona e dicas)", /\*\*\[en\] Vingança Viking\*\*/.test(passos[1][1]) &&
+      /\[en\] Ondas de vikings/.test(passos[1][1]) && /\[en\] Reforce quem está online/.test(passos[1][1]));
+    passos.length = 0;
+    await cliqueComoFunciona({ customId: "jogo:como:nada", deferUpdate: async () => passos.push(["fecha"]) });
+    ok("chave desconhecida: só fecha o toque", JSON.stringify(passos), JSON.stringify([["fecha"]]));
+    verdade("o botão chega ao clique", /customId\.startsWith\("jogo:como:"\)\) return await cliqueComoFunciona\(inter\)/.test(semComentarios(fonte)));
   }
 
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
