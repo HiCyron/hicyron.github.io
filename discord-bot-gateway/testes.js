@@ -16237,8 +16237,9 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("e o painel não cria mais os do teste", !/DEF_HEROI|DEF_URSO/.test(semComentarios(fonte)));
   verdade("o comando e o autocompletar estão ligados", /nome === "heroi"\) return comandoHeroi\(inter\)/.test(idx) &&
     /commandName === "heroi"\) \{\s*return inter\.respond\(sugestoesDeHeroi/.test(idx));
-  verdade("os emojis ks_ sobem junto com os da CYRON", /novos \+= await trocarEmojisDoKingshot\(publicados\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
-  verdade("a subida avisa quando terminou", /trocarEmojisDoKingshot\(publicados\);\s*SUBIDA_DOS_EMOJIS\.pronta = true/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+  verdade("os emojis ks_ sobem junto com os da CYRON", /novos \+= await trocarEmojisDoKingshot\(publicados[,)]/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+  verdade("e os ícones dos eventos do calendário também (img/eventos)", /emojisDoKingshot\(PASTA_DOS_EVENTOS\)/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
+  verdade("a subida avisa quando terminou", /trocarEmojisDoKingshot\(publicados[^;]*\);\s*SUBIDA_DOS_EMOJIS\.pronta = true/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
   verdade("a subida guarda se o emoji é animado", /animated: !!e\.animated/.test(semComentarios(pedaco("garantirEmojisDaCyron"))));
 }
 
@@ -17243,6 +17244,23 @@ function conferirCartao(onde, embed, componentes = []) {
           [Dz.corDoEvento({}, "castelo"), Dz.corDoEvento({}, "campeonato"), Dz.corDoEvento({ categoria: "Deals" }), Dz.corDoEvento({ categoria: "Alchemy Junction" })].join(),
           "#B8463A,#3E8E4F,#C08A22,#7E4FB8");
         verdade("e o PNG sai do SVG (sharp)", await (async () => { const sh = (await import("sharp")).default; const png = await sh(Buffer.from(des.svg)).png().toBuffer(); const m = await sh(png).metadata(); return m.width === 1200 && m.height === des.altura; })());
+      }
+      /* o ÍCONE FIXO de cada evento ("mas todos aqui têm emoji", 21/11) */
+      {
+        const { iconeFixo } = await import("./eventos-jogo.js");
+        const { existsSync } = await import("node:fs");
+        const nomes = ["Brewmaster Stall", "Banca do Mestre das...", "Brew Workshop", "Oficina de Poções", "Fishing Tournament", "Torneio de Pesca", "Fundo de Ascensão do Herói",
+          "Hero Rally", "Rally do Herói", "Voyage of Light", "Voyage da Luz", "Champagne Fair", "Sanctuary Battle", "Batalha do Santuário", "Alliance Championship",
+          "Campeonato da Aliança", "Governor Duel", "Duelo dos Governadores", "All Out", "Vai com Tudo", "Strongest Governor", "O Governador mais Forte",
+          "Castle Battle", "Batalha do Castelo", "Armament Competition", "Competição de Armamentos", "Swordland Showdown", "Tri-Alliance Clash",
+          "Alliance Mobilization", "Mobilização da Aliança", "Desert Trial", "Officer Project"];
+        const faltam = nomes.filter((n) => !iconeFixo(n));
+        ok("todo evento do calendário do 2311 tem ícone, em inglês e em português", faltam.join(), "");
+        const semArquivo = [...new Set(nomes.map(iconeFixo))].filter((k) => !existsSync(new URL(`./img/eventos/${k}.png`, import.meta.url)));
+        ok("e cada ícone tem o arquivo, que sobe como emoji", semArquivo.join(), "");
+        verdade("o nome do emoji cabe no Discord com a marca do desenho (até 32)", nomes.every((n) => iconeFixo(n).length + 7 <= 32));
+        ok("o par que o print não separa: o lobo é o Desert Trial, a torre é o Swordland", [iconeFixo("Desert Trial"), iconeFixo("Swordland Showdown")].join(), "ks_ev_desert_trial,ks_ev_swordland");
+        ok("evento desconhecido: sem ícone fixo (vai o da leitura)", iconeFixo("Evento Novo"), "");
       }
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 

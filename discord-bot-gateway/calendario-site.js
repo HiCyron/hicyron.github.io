@@ -47,9 +47,10 @@ const CORTADO = /\s*(\.{2,}|…)\s*$/;
 
 /* Palavras do jogo em português e o que o jogo usa em inglês. Serve para
    casar "Feira ..." com "Champagne Fair" e "Confr..." com "...Clash" e
-   "...Showdown" (o jogo em português chama os dois de "Confronto"). */
+   "...Showdown" (o jogo em português chama os dois de "Confronto"; o
+   "Confronto entre..." é o das alianças, o Tri-Alliance Clash). */
 const PALAVRAS_IRMAS = {
-  feira: ["fair"], confronto: ["clash", "showdown"], banca: ["stall"], oficina: ["workshop"], fundo: ["fund"],
+  feira: ["fair"], confronto: ["clash", "showdown"], entre: ["alliance"], banca: ["stall"], oficina: ["workshop"], fundo: ["fund"],
   ascensao: ["ascension"], heroi: ["hero"], rally: ["rally"], batalha: ["battle"], campeonato: ["championship"],
   governador: ["governor"], duelo: ["duel"], mobilizacao: ["mobilization"], competicao: ["competition"],
   armamentos: ["armament"], viagem: ["voyage"], voyage: ["voyage"], luz: ["light"], pesca: ["fishing"], torneio: ["tournament"],

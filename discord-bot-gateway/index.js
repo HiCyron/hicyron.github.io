@@ -34,7 +34,7 @@ import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
-import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO } from "./eventos-jogo.js";
+import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO , iconeFixo } from "./eventos-jogo.js";
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
@@ -10413,8 +10413,14 @@ const DIA_EM_MS = 86400000;
 
 /* O emoji do evento: o ícone do próprio jogo (ev_..., criado na leitura do
    calendário), senão o emoji da ficha, senão um quadradinho. */
-function emojiDoEvento(nome) {
-  return emojiKs(nomeDoEmojiDoEvento(nome), "") || eventoDoJogo(nome)?.emoji || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
+function emojiDoEvento(nome, site = "") {
+  return emojiKs(iconeFixo(nome) || iconeFixo(site), "") || emojiKs(nomeDoEmojiDoEvento(nome), "") ||
+    eventoDoJogo(nome)?.emoji || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
+}
+
+/* O emoji do evento como o botão e a lista querem: o fixo, senão o da leitura. */
+function emojiDoEventoNoComponente(nome, site = "") {
+  return emojiDoComponente(iconeFixo(nome) || iconeFixo(site)) || emojiDoComponente(nomeDoEmojiDoEvento(nome));
 }
 
 /* Os ícones dos eventos viram emojis do aplicativo (o pedido do dono, 21/11:
@@ -10427,7 +10433,10 @@ async function emojisDosEventos(sharp, prints, eventos) {
   if (!sharp || !SUBIDA_DOS_EMOJIS.pronta) return 0;
   let novos = 0;
   for (const e of eventos) {
-    if (!(e.lido || (e.peloSite && e.certo)) || !e.origem || novos >= EMOJIS_NOVOS_POR_LEITURA) continue;
+    /* Nome lido inteiro, ou casado com certeza com o site (mesmo que o nome
+       tenha vindo pelo começo: "Vai co..." = Vai com Tudo, confirmado). */
+    if (!(e.lido || (e.site && e.certo)) || !e.origem || novos >= EMOJIS_NOVOS_POR_LEITURA) continue;
+    if (iconeFixo(e.nome) || iconeFixo(e.site || "")) continue;
     const nome = nomeDoEmojiDoEvento(e.nome);
     if (!nome || EMOJIS_DA_CYRON.has(nome)) continue;
     const p = prints[e.origem.p], b = p?.an?.barras?.[e.origem.b];
@@ -12794,6 +12803,9 @@ function emojiDaCyron(nome, reserva = "") {
    Os animados precisam do "a:" na marcação -- sem ele o Discord mostra o
    primeiro quadro, parado, e a graça era justamente o brilho se mexendo. */
 const PASTA_DO_KINGSHOT = fileURLToPath(new URL("./img/kingshot/", import.meta.url));
+/* Os ícones dos eventos do calendário (eventos-jogo.js, iconeFixo): sobem do
+   mesmo jeito, com a marca do desenho no nome. */
+const PASTA_DOS_EVENTOS = fileURLToPath(new URL("./img/eventos/", import.meta.url));
 
 function emojiKs(nome, reserva = "") {
   const e = EMOJIS_DA_CYRON.get(nome);
@@ -12894,7 +12906,7 @@ async function garantirEmojisDaCyron() {
       EMOJIS_DA_CYRON.set(nome, { id: e.id, name: e.name, animated: !!e.animated });
       novos++;
     }
-    novos += await trocarEmojisDoKingshot(publicados);
+    novos += await trocarEmojisDoKingshot(publicados, [...emojisDoKingshot(), ...emojisDoKingshot(PASTA_DOS_EVENTOS)]);
     SUBIDA_DOS_EMOJIS.pronta = true;
     if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
   } catch (e) {
@@ -13489,7 +13501,7 @@ async function eventosDaAgenda(reino) {
   const doSite = await calendarioDoSite(reino);
   if (!doSite?.eventos?.length) return null;
   const memoria = lerMemoria(await ajuste(MEMORIA_DO_CALENDARIO));
-  return doSite.eventos.map((e) => ({ ...e, nome: nomeEmPortugues(e.nome, { memoria, fichaDe: (n) => eventoDoJogo(n) }) }));
+  return doSite.eventos.map((e) => ({ ...e, site: e.nome, nome: nomeEmPortugues(e.nome, { memoria, fichaDe: (n) => eventoDoJogo(n) }) }));
 }
 
 /* A lista "Como funciona" do cartão: os eventos da semana que têm ficha. */
@@ -13501,7 +13513,7 @@ function listaDoComoFunciona(eventos, placeholder) {
   }
   if (!vistos.size) return [];
   const opcoes = [...vistos.values()].slice(0, 25).map(({ ev, nome }) => ({
-    label: String(nome).slice(0, 100), value: ev.chave, emoji: emojiDoComponente(nomeDoEmojiDoEvento(nome)) || { name: ev.emoji } }));
+    label: String(nome).slice(0, 100), value: ev.chave, emoji: emojiDoEventoNoComponente(nome) || { name: ev.emoji } }));
   return [{ type: 1, components: [{ type: 3, custom_id: "jogo:como", placeholder: `ℹ️ ${placeholder}`.slice(0, 150), options: opcoes }] }];
 }
 
@@ -13516,14 +13528,14 @@ function botoesDoDia(eventos, dia) {
   if (!vistos.size) return [];
   return [{ type: 1, components: [...vistos.values()].slice(0, 5).map(({ ev, nome }) => ({
     type: 2, style: 2, custom_id: `jogo:como:${ev.chave}`, label: String(nome).slice(0, 80),
-    emoji: emojiDoComponente(nomeDoEmojiDoEvento(nome)) || { name: "ℹ️" } })) }];
+    emoji: emojiDoEventoNoComponente(nome) || { name: "ℹ️" } })) }];
 }
 
 /* O ícone do evento para o desenho: o emoji ev_... do aplicativo (nasceu do
    print), baixado uma vez do CDN do Discord. Sem emoji, a barra vai sem ícone. */
 const ICONES_DO_DESENHO = new Map();
-async function iconeDoDesenho(nome, buscar = fetch) {
-  const e = EMOJIS_DA_CYRON.get(nomeDoEmojiDoEvento(nome));
+async function iconeDoDesenho(nome, site = "", buscar = fetch) {
+  const e = EMOJIS_DA_CYRON.get(iconeFixo(nome) || iconeFixo(site)) || EMOJIS_DA_CYRON.get(nomeDoEmojiDoEvento(nome));
   if (!e) return null;
   if (ICONES_DO_DESENHO.has(e.id)) return ICONES_DO_DESENHO.get(e.id);
   try {
@@ -13544,7 +13556,7 @@ async function desenhoDaSemana(eventos, agora, reino) {
   const icones = new Map();
   for (const e of eventos) {
     if (icones.has(e.nome)) continue;
-    const b64 = await iconeDoDesenho(e.nome);
+    const b64 = await iconeDoDesenho(e.nome, e.site || "");
     if (b64) icones.set(e.nome, b64);
   }
   const { svg } = desenharSemana({ eventos: eventos.map((e) => ({ ...e, hora: horaDoSite(e) })), agora, reino, fonteTitulo, fonteTexto, icones,
@@ -13552,8 +13564,9 @@ async function desenhoDaSemana(eventos, agora, reino) {
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
-/* 2: o cartão da semana virou desenho (o dono achou o de texto feio, 21/11). */
-const AMOSTRA_DA_AGENDA = "2";
+/* 2: o cartão da semana virou desenho (o dono achou o de texto feio, 21/11).
+   3: todo evento com o ícone do jogo ("mas todos aqui têm emoji"). */
+const AMOSTRA_DA_AGENDA = "3";
 async function amostraDaAgenda() {
   if ((await ajustes()).agenda_amostra === AMOSTRA_DA_AGENDA) return "feito";
   if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
@@ -13570,7 +13583,7 @@ async function amostraDaAgenda() {
   const dica = (nome) => eventoDoJogo(nome)?.dicas?.[0] || "";
   const png = await desenhoDaSemana(eventos, agora, reino).catch((e) => { console.log("agenda: o desenho falhou:", e?.message || e); return null; });
   const lista = listaDoComoFunciona(eventos.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), TEXTOS_DA_AGENDA.comoFunciona);
-  await canal.send({ content: "🧪 **Teste 2: a agenda do jogo, desenhada**\n" +
+  await canal.send({ content: "🧪 **Teste 3: a agenda do jogo, desenhada, com o ícone de cada evento**\n" +
     "O cartão da semana agora é uma imagem, como o calendário do jogo: uma barra por evento, do dia em que começa ao dia em que termina, " +
     "com o ícone do próprio jogo. Embaixo, o ℹ️ abre como funciona cada evento (só para quem tocou, na língua dele).",
     allowedMentions: { parse: [] } });
@@ -13580,7 +13593,8 @@ async function amostraDaAgenda() {
   } else {
     await canal.send({ embeds: [cartaoDaSemana(eventos, agora, { reino, emoji: emojiDoEvento })], components: lista, allowedMentions: { parse: [] } });
   }
-  const aviso = avisoDoDia(eventos, agora, { emoji: emojiDoEvento, dica });
+  const emojiDaAgenda = (nome) => emojiDoEvento(nome, eventos.find((e) => e.nome === nome)?.site || "");
+  const aviso = avisoDoDia(eventos, agora, { emoji: emojiDaAgenda, dica });
   if (aviso) await canal.send({ embeds: [aviso], components: botoesDoDia(eventos, agora), allowedMentions: { parse: [] } });
   console.log(`agenda: amostra ${AMOSTRA_DA_AGENDA} postada em #${CANAL_DE_TESTES} (reino ${reino}, ${eventos.length} eventos, ${png ? "desenho" : "texto"})`);
   return "postado";
