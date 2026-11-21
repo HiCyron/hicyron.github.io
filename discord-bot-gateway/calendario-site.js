@@ -229,6 +229,7 @@ export const TEXTOS_DA_AGENDA = {
   ultimo: "Último dia", rodape: "Do calendário do jogo (mightpulse.com) · horário UTC: o dia do jogo vira às 00:00 UTC",
   comoFunciona: "Como funciona cada evento…",
   virada: "Novo dia do jogo", comeca2: "começa", termina: "termina",
+  urso: "Caça ao Urso", proximo: "próximo",
 };
 
 /* Pura. A próxima virada do dia do jogo (00:00 UTC). */
@@ -243,6 +244,49 @@ export function proximaVirada(agora) {
 export function linhaDaVirada(agora, rotulo = TEXTOS_DA_AGENDA.virada) {
   const s = Math.floor(proximaVirada(agora) / 1000);
   return `⏳ **${rotulo}** <t:${s}:R> · <t:${s}:t>`;
+}
+
+/* ---- 🐻 a Caça ao Urso na agenda (dono, 21/11: "no calendário da TOP podia
+   ter o urso né?") ----
+
+   O urso NÃO está no calendário do reino (o site do jogo não lista): quem
+   marca a hora dele é a liderança de cada aliança. Então a liderança digita
+   os horários uma vez, e eles entram no aviso do dia daquele servidor, com o
+   contador vivo até o próximo. */
+
+/* Pura. Os horários que a liderança digitou ("12:00, 20:00", "12h 20h",
+   "9", "09:30") -> minutos do dia (0..1439), únicos, em ordem, até 6. Hora
+   inválida sai fora; nada reconhecido -> []. */
+export function horariosDoUrso(texto) {
+  const out = new Set();
+  for (const m of String(texto ?? "").matchAll(/(\d{1,2})(?:[:h.](\d{2}))?/g)) {
+    const h = Number(m[1]), min = m[2] ? Number(m[2]) : 0;
+    if (h < 24 && min < 60) out.add(h * 60 + min);
+  }
+  return [...out].sort((a, b) => a - b).slice(0, 6);
+}
+
+/* Pura. Os horários em texto "HH:MM" (UTC), para guardar e mostrar. */
+export function horariosDoUrsoEmTexto(horarios) {
+  return (horarios || []).map((m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+}
+
+/* Pura. O próximo urso a partir de agora (ms UTC): o primeiro horário de hoje
+   que ainda não passou, senão o primeiro de amanhã. null: sem horário. */
+export function proximoUrso(horarios, agora = Date.now()) {
+  if (!horarios?.length) return null;
+  const d = diaDe(agora), min = (agora - d) / 60000;
+  const hoje = horarios.find((h) => h > min);
+  return hoje != null ? d + hoje * 60000 : d + DIA + horarios[0] * 60000;
+}
+
+/* Pura. A linha do urso no aviso: o ícone, os horários em UTC e o contador
+   vivo até o próximo (no relógio de cada um). Sem horário: "". */
+export function linhaDoUrso(horarios, agora, { urso = "🐻", t = TEXTOS_DA_AGENDA } = {}) {
+  if (!horarios?.length) return "";
+  const horas = horariosDoUrsoEmTexto(horarios).join(", ");
+  const prox = Math.floor(proximoUrso(horarios, agora) / 1000);
+  return `${urso} **${t.urso || TEXTOS_DA_AGENDA.urso}** · ${horas} UTC · ${t.proximo || TEXTOS_DA_AGENDA.proximo} <t:${prox}:R>`;
 }
 
 /* Pura. O cartão da semana: o que está rolando e o que começa nos próximos
@@ -298,11 +342,11 @@ export function chaveDoAviso(eventos, agora) {
   return `${diaDe(agora)}|` + [...comeca, ...acaba].map((e) => `${e.site || e.nome}@${e.inicio > agora ? "antes" : "agora"}`).sort().join(",");
 }
 
-export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => "", t = TEXTOS_DA_AGENDA, enfeite = {} } = {}) {
+export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => "", t = TEXTOS_DA_AGENDA, enfeite = {}, urso = "" } = {}) {
   const f = { ...ENFEITES_DO_AVISO, ...enfeite };
   const d = diaDe(dia);
   const { comeca, acaba } = doAviso(eventos, dia);
-  if (!comeca.length && !acaba.length) return null;
+  if (!comeca.length && !acaba.length && !urso) return null;
   const s = (ms) => Math.floor(ms / 1000);
   /* Os galhos ligam cada linha de baixo ao evento: ├ no meio, └ na última. */
   const ramos = (linhas) => linhas.map((x, i) => `${i === linhas.length - 1 ? f.fim : f.galho} ${x}`);
@@ -322,6 +366,7 @@ export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => 
     }
   }
   if (acaba.length) partes.push("", `${f.ultimo} **${t.ultimo}**`, ...ramos(acaba.map((e) => `${emoji(e.nome)} ${e.nome}`)));
+  if (urso) partes.push("", urso);
   partes.push("", linhaDaVirada(d, t.virada || TEXTOS_DA_AGENDA.virada));
   const nome = DIAS_DA_SEMANA[new Date(d).getUTCDay()];
   return {
