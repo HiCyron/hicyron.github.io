@@ -17248,6 +17248,32 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("e em cima da imagem da semana", /description: virada, image:/.test(pedaco("cargaDaSemana")) && /linhaDaVirada\(agora/.test(pedaco("cargaDaSemana")));
       verdade("e o último dia de cada um, um por linha", /🏁 \*\*Último dia\*\*\n├ ▫️ Brewmaster Stall\n├ ▫️ Governor Duel\n└ ▫️ Voyage of Light/.test(doDia.description) && doDia.title === "☀️ Hoje no reino · sábado 21/11");
       ok("dia sem nada começando nem acabando: sem aviso", S.avisoDoDia(site, D(19, 4)), null);
+      /* 🐻 a Caça ao Urso na agenda (dono, 21/11: "no calendário da TOP podia ter o urso né?") */
+      ok("os horários do urso: HH:MM, h, 9; hora inválida sai; nada reconhecido vazio",
+        [S.horariosDoUrso("12:00, 20:00").join(), S.horariosDoUrso("12h 20h").join(), S.horariosDoUrso("9").join(), S.horariosDoUrso("24:00, 12:99, 08:30").join(), S.horariosDoUrso("urso").join()].join(" | "),
+        "720,1200 | 720,1200 | 540 | 510 | ");
+      ok("o próximo urso: o de hoje que ainda não passou, senão o primeiro de amanhã",
+        [new Date(S.proximoUrso([720, 1200], D(21, 10))).toISOString(), new Date(S.proximoUrso([720, 1200], D(21, 21))).toISOString(), String(S.proximoUrso([], D(21)))].join(" "),
+        "2026-11-21T12:00:00.000Z 2026-11-22T12:00:00.000Z null");
+      ok("a linha do urso: ícone, horários em UTC e o contador vivo até o próximo", S.linhaDoUrso([720, 1200], D(21, 10), { urso: "🐻" }),
+        "🐻 **Caça ao Urso** · 12:00, 20:00 UTC · próximo <t:1795262400:R>");
+      ok("sem horário: sem linha", S.linhaDoUrso([], D(21, 10)), "");
+      verdade("o urso entra no aviso mesmo num dia sem evento (e não quebra o dia que tem)",
+        (() => { const av = S.avisoDoDia(site, D(19, 4), { urso: S.linhaDoUrso([420], D(19, 4), { urso: "🐻" }) });
+          return av && /🐻 \*\*Caça ao Urso\*\* · 07:00 UTC/.test(av.description) && /Novo dia do jogo/.test(av.description); })() &&
+        /🐻 \*\*Caça ao Urso\*\*/.test(S.avisoDoDia(site, D(21, 4), { urso: S.linhaDoUrso([1200], D(21, 4), { urso: "🐻" }) }).description));
+      {
+        verdade("o ajuste do horário é por servidor", /const URSO_HORARIO = \(guildId\) => `urso_horario:\$\{guildId\}`/.test(fonte));
+        const cd = semComentarios(pedaco("cargaDoDia"));
+        verdade("o aviso do dia leva a linha do urso do servidor", /linhaDoUrso\(horariosUrso, agora, \{ urso: emojiKs\("ks_urso", "🐻"\), t: ta \}\)/.test(cd) && /enfeite: enfeitesDoAviso\(\), urso \}/.test(cd));
+        const ag = semComentarios(pedaco("agendaDoJogoNosCanais"));
+        verdade("a agenda lê o horário do urso do servidor e o põe na chave do aviso (reeedita quando o próximo urso muda)",
+          /const horariosUrso = horariosDoUrso\(a\[URSO_HORARIO\(guild\.id\)\]\)/.test(ag) && /\|urso:\$\{proximoUrso\(horariosUrso, agora\) \|\| 0\}/.test(ag) && /cargaDoDia\(eventos, agora, sala\.idioma, motor, horariosUrso\)/.test(ag));
+        verdade("o botão de marcar o horário na ficha do urso (só a liderança passa do clique)", /custom_id: "urso:horario", style: 2, label: String\(t\.botaoHorario\)/.test(fonte) &&
+          /ManageGuild\)\) \{\s*return inter\.reply\(\{ flags: 64, content: "⏰ Só a liderança/.test(pedaco("cliqueUrsoHorario")) &&
+          /inter\.customId === "urso:horario"\) return await cliqueUrsoHorario/.test(fonte) && /inter\.customId === "urso:horario"\) return await salvarHorarioDoUrso/.test(fonte));
+        verdade("marcar o horário força a agenda na hora", /agendaDoJogoNosCanais\(\)\.catch/.test(pedaco("salvarHorarioDoUrso")) && /porAjuste\(URSO_HORARIO\(inter\.guildId\)/.test(pedaco("salvarHorarioDoUrso")));
+      }
       /* 🎨 o DESENHO da semana (o dono achou o cartão em texto feio, 21/11) */
       {
         const Dz = await import("./agenda-desenho.js");

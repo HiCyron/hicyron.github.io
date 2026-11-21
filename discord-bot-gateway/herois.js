@@ -289,6 +289,7 @@ export const TEXTOS_DO_URSO = {
   soTropa: "só a tropa",
   botaoJogo: "Texto para o chat do jogo",
   comoCopiar: "Toque e segure a mensagem de cima, Copiar texto, e cole no chat da aliança.",
+  botaoHorario: "Marcar horário do urso",
 };
 const BOA = new Set(["S+", "S", "A"]);
 

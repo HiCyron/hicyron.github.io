@@ -39,7 +39,8 @@ import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCa
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
 import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite,
-  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada, chaveDoAviso } from "./calendario-site.js";
+  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada, chaveDoAviso,
+  horariosDoUrso, horariosDoUrsoEmTexto, proximoUrso, linhaDoUrso } from "./calendario-site.js";
 import { TEXTOS_DO_CODIGO, codigoLimpo, codigosDoAnuncio, validadeDe, pareceKingshot, salasDoCodigo, cartaoDoCodigo, botoesDoCodigo,
   codigoDoBotao, estadoDoCodigo, MARCA_DO_CODIGO, SITE_DOS_CODIGOS, codigosDoSite, decisaoDoSite } from "./codigos-jogo.js";
 import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
@@ -13108,14 +13109,55 @@ async function cartaoDoUrso(idioma, guildId) {
     files: emblemaDoUrso ? [{ attachment: emblemaDoUrso, name: "urso.png" }] : [],
     /* O botão do texto para o chat do jogo: quem tocar recebe, só para ele e
        na língua dele, a lista pronta para colar no chat da aliança. */
-    components: [{ type: 1, components: [{ type: 2, custom_id: "urso:jogo", style: 2, label: String(t.botaoJogo).slice(0, 80),
-      emoji: pergaminho ? { id: pergaminho.id, name: pergaminho.name, animated: !!pergaminho.animated } : { name: "📋" } }] }],
+    components: [{ type: 1, components: [
+      { type: 2, custom_id: "urso:jogo", style: 2, label: String(t.botaoJogo).slice(0, 80),
+        emoji: pergaminho ? { id: pergaminho.id, name: pergaminho.name, animated: !!pergaminho.animated } : { name: "📋" } },
+      /* A liderança marca aqui o horário do urso; ele entra na agenda com o
+         contador. Quem não é liderança vê o botão mas não passa do clique. */
+      { type: 2, custom_id: "urso:horario", style: 2, label: String(t.botaoHorario).slice(0, 80), emoji: { name: "⏰" } },
+    ] }],
   };
 }
 
 /* O texto para o chat do jogo, na língua de quem tocou. O texto vai SOZINHO
    na mensagem (o "Copiar texto" do Discord copia só ela, sem o cartão), e o
    como copiar vai no cartão embaixo. */
+/* A liderança (Gerenciar Servidor) marca o horário do urso num formulário;
+   quem não é liderança vê o botão mas só recebe um aviso. */
+async function cliqueUrsoHorario(inter) {
+  if (!inter.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    return inter.reply({ flags: 64, content: "⏰ Só a liderança (com **Gerenciar Servidor**) marca o horário do urso." });
+  }
+  const idioma = await linguaDe(inter).catch(() => "pt");
+  const motor = await motorDoGuild(inter.guildId).catch(() => undefined);
+  const tr = (txt) => textoDoJogo(txt, idioma, motor);
+  const atual = horariosDoUrsoEmTexto(horariosDoUrso((await ajustes())[URSO_HORARIO(inter.guildId)])).join(", ");
+  return inter.showModal(janelaValida({
+    custom_id: "urso:horario",
+    title: await tr("Horário da Caça ao Urso"),
+    components: [{ type: 1, components: [{ type: 4, custom_id: "horarios", style: 1, required: false, max_length: 60,
+      label: await tr("Horários em UTC (ex: 12:00, 20:00)"), placeholder: "12:00, 20:00", value: atual }] }],
+  }));
+}
+
+async function salvarHorarioDoUrso(inter) {
+  if (!inter.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
+    return inter.reply({ flags: 64, content: "⏰ Só a liderança marca o horário do urso." });
+  }
+  await inter.deferReply({ flags: 64 });
+  const txt = (() => { try { return inter.fields.getTextInputValue("horarios"); } catch { return ""; } })();
+  const horarios = horariosDoUrso(txt);
+  await porAjuste(URSO_HORARIO(inter.guildId), horariosDoUrsoEmTexto(horarios).join(","));
+  /* O aviso do dia mostra o urso já na próxima passada da agenda; forço agora
+     (muda a chave do aviso só deste servidor, então só ele é reeditado). */
+  agendaDoJogoNosCanais().catch((e) => console.log("urso: agenda após marcar o horário falhou:", e?.message || e));
+  const idioma = await linguaDe(inter).catch(() => "pt");
+  const motor = await motorDoGuild(inter.guildId).catch(() => undefined);
+  if (!horarios.length) return inter.editReply("🐻 " + await textoDoJogo("Tirei o horário do urso da agenda.", idioma, motor));
+  const horas = horariosDoUrsoEmTexto(horarios).join(", ");
+  return inter.editReply(`🐻 ${await textoDoJogo("Caça ao Urso na agenda:", idioma, motor)} **${horas} UTC**.`);
+}
+
 async function cliqueUrsoJogo(inter) {
   await inter.deferReply({ flags: 64 });
   const idioma = await linguaDe(inter);
@@ -13858,7 +13900,7 @@ async function cargaDaSemana(eventos, agora, reino, idioma, motor) {
 }
 
 /* O aviso do dia para uma sala (null: dia sem nada começando nem acabando). */
-async function cargaDoDia(eventos, agora, idioma, motor) {
+async function cargaDoDia(eventos, agora, idioma, motor, horariosUrso = []) {
   const daSala = eventosNaLingua(eventos, idioma);
   const ta = await textosDaAgendaNaLingua(TEXTOS_DA_AGENDA, idioma, motor);
   const dicas = new Map();
@@ -13866,10 +13908,14 @@ async function cargaDoDia(eventos, agora, idioma, motor) {
     const d = (eventoDoJogo(e.nome) || eventoDoJogo(e.site || ""))?.dicas?.[0];
     if (d && !dicas.has(e.nome)) dicas.set(e.nome, await textoDoJogo(d, idioma, motor));
   }
+  const urso = linhaDoUrso(horariosUrso, agora, { urso: emojiKs("ks_urso", "🐻"), t: ta });
   const aviso = avisoDoDia(daSala, agora, { emoji: (n) => emojiDoEvento(n, daSala.find((e) => e.nome === n)?.site || ""), dica: (n) => dicas.get(n) || "", t: ta,
-    enfeite: enfeitesDoAviso() });
+    enfeite: enfeitesDoAviso(), urso });
   return aviso ? { embeds: [aviso], components: botoesDoDia(daSala, agora), allowedMentions: { parse: [] } } : null;
 }
+
+/* O ajuste onde ficam os horários do urso de um servidor (a liderança marca). */
+const URSO_HORARIO = (guildId) => `urso_horario:${guildId}`;
 
 /* Os enfeites do jogo no aviso (dono, 21/11: "temos esses emojis que podemos
    utilizar também, os de enfeite e liga"): a chama azul no que começa, a
@@ -13897,6 +13943,9 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
     const salvar = () => porAjuste(alvo.marca, JSON.stringify(estado)).catch(() => {});
     const motor = await motorDoGuild(guild.id).catch(() => undefined);
     const chave = chaveDaSemana(eventos, agora), dia = Math.floor(agora / 86400000) * 86400000;
+    /* O horário do urso é de CADA servidor (a liderança marca); entra no aviso
+       daquele servidor, com o contador até o próximo. */
+    const horariosUrso = horariosDoUrso(a[URSO_HORARIO(guild.id)]);
     const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
     /* A semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
     if (estado.chave !== chave) {
@@ -13927,7 +13976,7 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
     /* O aviso do dia: um por dia (o de ontem sai) e, no meio do dia, editado
        quando um evento com hora começa ou acaba (dono, 21/11: "o evento do
        castelo já acabou... ele deveria sair dali"). */
-    const chaveA = chaveDoAviso(eventos, agora);
+    const chaveA = `${chaveDoAviso(eventos, agora)}|urso:${proximoUrso(horariosUrso, agora) || 0}`;
     if (estado.dia === dia && estado.aviso !== chaveA) {
       estado.aviso = chaveA;
       await salvar();
@@ -13935,7 +13984,7 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
       for (const sala of salas) {
         const canal = await canalDe(sala.canal);
         if (typeof canal?.send !== "function") continue;
-        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => undefined);
+        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor, horariosUrso).catch(() => undefined);
         if (carga === undefined) continue;
         const velho = estado.avisos[sala.canal] && await canal.messages?.fetch?.(estado.avisos[sala.canal]).catch(() => null);
         if (!carga) {
@@ -13961,7 +14010,7 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
         if (typeof canal?.send !== "function") continue;
         if (estado.avisos[sala.canal]) await canal.messages?.delete?.(estado.avisos[sala.canal]).catch(() => {});
         delete estado.avisos[sala.canal];
-        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => null);
+        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor, horariosUrso).catch(() => null);
         if (!carga) continue;
         const nova = await canal.send(carga).catch((e) => { console.error(`agenda do jogo: aviso do dia falhou em #${canal.name}:`, e?.message || e); return null; });
         if (nova) { estado.avisos[sala.canal] = nova.id; aqui++; }
@@ -26618,6 +26667,7 @@ client.on("interactionCreate", async (inter) => {
     }
     if (inter.isButton() && inter.customId === "herois:urso") return await cliqueUrso(inter);
     if (inter.isButton() && inter.customId === "urso:jogo") return await cliqueUrsoJogo(inter);
+    if (inter.isButton() && inter.customId === "urso:horario") return await cliqueUrsoHorario(inter);
     if (inter.isButton() && inter.customId.startsWith("jogo:como:")) return await cliqueComoFunciona(inter);
     if (inter.isStringSelectMenu?.() && inter.customId === "jogo:como") return await cliqueComoFunciona(inter);
     if (inter.isMessageComponent() && inter.customId.startsWith("livro:")) return await cliqueLivro(inter);
@@ -26722,6 +26772,7 @@ client.on("interactionCreate", async (inter) => {
       return await cliqueOuvirAudio(inter);
     }
     if (inter.isModalSubmit()) {
+      if (inter.customId === "urso:horario") return await salvarHorarioDoUrso(inter);
       if (inter.customId === "cyron:motor") return await salvarMotor(inter);
       if (inter.customId === "cyron:palavras") return await salvarPalavras(inter);
       if (inter.customId === "cyron:codigo") return await resgatarCodigo(inter);
