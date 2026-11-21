@@ -17325,6 +17325,7 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("o urso ganha o ícone do jogo no desenho (a cabeça da Caça ao Urso)", /iconeFixo\(nome\) \|\| iconeFixo\(site\) \|\| iconeDaAlianca\(nome\)/.test(fonte) &&
           /urso\|bear\|armadilha\|hunting/.test(pedaco("iconeDaAlianca")) && /"ks_ev_bear"/.test(pedaco("iconeDaAlianca")) &&
           (await import("node:fs")).existsSync(new URL("./img/eventos/ks_ev_bear.png", import.meta.url)));
+        verdade("a versão do desenho entra na chave (desenho novo = imagem refeita sozinha)", /const chave = `v\$\{VERSAO_DO_DESENHO\}\|` \+ chaveDaSemana/.test(pub));
         verdade("a chave da semana olha cada vez de cada evento da liderança", /daLideranca\.flatMap\(\(l\) => l\.ocorrencias\.map\(\(o\) => \(\{ nome: l\.nome, \.\.\.o \}\)\)\)/.test(pub));
         verdade("a semana: edita a mensagem da sala; só manda nova quando ela sumiu", pub.indexOf("velha.edit") > 0 && pub.indexOf("velha.edit") < pub.indexOf("canal.send(carga)"));
         verdade("o id da mensagem nova é guardado na hora (reiniciar no meio não duplica)", /estado\.semana\[sala\.canal\] = nova\.id;\s*await salvar\(\)/.test(pub));
