@@ -17282,6 +17282,17 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("só na TOP e no Kingdom #2311", /TOP/.test(pedaco("AGENDA_DO_JOGO")) && /Kingdom/.test(pedaco("AGENDA_DO_JOGO")) && (pedaco("AGENDA_DO_JOGO").match(/guild:/g) || []).length === 2);
         verdade("na sala que não é em português, o nome oficial em inglês", /startsWith\("pt"\) \? eventos : eventos\.map\(\(e\) => \(\{ \.\.\.e, nome: e\.site \|\| e\.nome \}\)\)/.test(pedaco("eventosNaLingua")));
       }
+      /* as salas do Urso e dos heróis no Kingdom #2311 */
+      {
+        const criar = semComentarios(pedaco("criarSalasDoJogo"));
+        verdade("a marca vai antes de criar (reiniciar no meio não cria de novo)", criar.indexOf("porAjuste(alvo.marca") < criar.indexOf("guild.channels.create"));
+        verdade("sala com o mesmo nome já existente é adotada, não duplicada", /guild\.channels\.cache\.find\(\(c\) => c\.type === ChannelType\.GuildText && c\.name === def\.nome\)/.test(criar));
+        verdade("só de leitura: ninguém escreve além da CYRON", /PermissionFlagsBits\.SendMessages \| PermissionFlagsBits\.CreatePublicThreads/.test(criar) && /id: client\.user\.id/.test(criar));
+        verdade("e vira origem: a máquina das réplicas cria a cópia em cada língua", /sbPost\("discord_fonte_replica", \{ servidor_id: servidor\.id, canal_id: canal\.id, tipo: def\.tipo, gera_replica: true \}\)/.test(criar));
+        verdade("só no Kingdom #2311, e as duas salas", /Kingdom/.test(pedaco("SALAS_DO_JOGO")) && /urso/.test(pedaco("SALAS_DO_JOGO")) && /herois/.test(pedaco("SALAS_DO_JOGO")));
+        verdade("a ficha do Urso e o livro também no 2311, esperando as cópias", /Kingdom[^\n]*esperaCopias: true/.test(pedaco("URSO_NO_CANAL")) && /Kingdom[^\n]*esperaCopias: true/.test(pedaco("LIVRO_NO_CANAL")));
+        verdade("a TOP continua igual", /hunting-trap/.test(pedaco("URSO_NO_CANAL")) && /game-central/.test(pedaco("LIVRO_NO_CANAL")));
+      }
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */

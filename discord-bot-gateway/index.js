@@ -13144,7 +13144,11 @@ function botaoDoUrso() {
    versão nova -- e a mensagem que já está lá é ATUALIZADA, não repetida. */
 /* :6 -- as dicas de líder e de joiner ficaram claras (17/11).
    :7 -- tropa por geração e os outros dois heróis de quem entra (17/11). */
-const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:7" }];
+const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-trap/, marca: "urso_no_canal:top:7" },
+  /* O Kingdom #2311 (dono, 21/11: "vamos colocar a aba do urso e dos heróis
+     no 2311 também"): a sala nasce em criarSalasDoJogo; a ficha espera as
+     cópias de todas as línguas existirem (esperaCopias). */
+  { guild: /^Kingdom\s*#?\s*2311\b/i, canal: /^urso$/, marca: "urso_no_canal:k2311:1", esperaCopias: true }];
 
 /* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
    e o cartão começa com o emoji do urso. */
@@ -13166,6 +13170,73 @@ function salasDoUrso(nomeDoCanal, replicas, fontes, padrao) {
   ];
 }
 
+/* As cópias de todas as línguas já nasceram? A sala nova tem que ter tantas
+   salas quanto a agenda (a original + uma por língua). Postar antes deixaria
+   as línguas que nascem depois sem a ficha (a marca é de uma vez só). */
+async function copiasProntas(guild, servidor, salas) {
+  const agenda = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+    await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), SALA_DA_AGENDA);
+  return salas.length >= Math.max(2, agenda.length);
+}
+
+/* ---- as salas do Urso e dos heróis no Kingdom #2311 (dono, 21/11) ----
+
+   Na [TOP] elas já existem (hunting-trap e game-central). No Kingdom #2311
+   nascem aqui: a sala original, logo abaixo da 📅 agenda, só de leitura (a
+   CYRON escreve, os jogadores leem), com as mesmas portas da agenda; e a
+   linha de origem no banco, para a máquina das réplicas criar a cópia em
+   cada língua sozinha. Uma vez (marca); sala com o mesmo nome já existente é
+   adotada, nunca duplicada. */
+const SALAS_DO_JOGO = [{ guild: /^Kingdom\s*#?\s*2311\b/i, marca: "salas_jogo:k2311:1",
+  salas: [{ nome: "🐻-urso", tipo: "urso" }, { nome: "📖-herois", tipo: "herois" }] }];
+
+async function criarSalasDoJogo() {
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  let feito = 0;
+  for (const alvo of SALAS_DO_JOGO) {
+    if (a[alvo.marca]) continue;
+    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const fontes = await fontesReplica(servidor.id);
+    const agendaId = [...fontes].find(([, t]) => t === TIPO_AGENDA)?.[0];
+    const agenda = agendaId && (guild.channels.cache.get(agendaId) || await client.channels.fetch(agendaId).catch(() => null));
+    if (!agenda) { console.log(`salas do jogo: não achei a agenda em ${guild.name}`); continue; }
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|começou`);
+    let posicao = agenda.position;
+    const feitas = [];
+    for (const def of alvo.salas) {
+      if ([...fontes.values()].includes(def.tipo)) { feitas.push(`${def.nome}:já era`); continue; }
+      let canal = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === def.nome);
+      if (!canal) {
+        /* As portas da agenda (quem vê o quê), e ninguém escreve além da CYRON. */
+        const portas = [...agenda.permissionOverwrites.cache.values()].map((o) => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
+        const todos = portas.find((o) => o.id === guild.roles.everyone.id);
+        const calar = PermissionFlagsBits.SendMessages | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads |
+          PermissionFlagsBits.SendMessagesInThreads;
+        if (todos) { todos.deny = BigInt(todos.deny) | calar; todos.allow = BigInt(todos.allow) & ~calar; }
+        else portas.push({ id: guild.roles.everyone.id, type: 0, allow: 0n, deny: calar });
+        portas.push({ id: client.user.id, type: 1, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages |
+          PermissionFlagsBits.EmbedLinks | PermissionFlagsBits.AttachFiles | PermissionFlagsBits.ManageMessages, deny: 0n });
+        canal = await guild.channels.create({ name: def.nome, type: ChannelType.GuildText, parent: agenda.parentId || undefined,
+          permissionOverwrites: portas, reason: "CYRON: sala do jogo (o dono pediu)" })
+          .catch((e) => { console.error(`salas do jogo: não criei #${def.nome}:`, e?.message || e); return null; });
+        if (!canal) continue;
+        await canal.setPosition(++posicao).catch(() => {});
+      }
+      await sbPost("discord_fonte_replica", { servidor_id: servidor.id, canal_id: canal.id, tipo: def.tipo, gera_replica: true })
+        .catch((e) => { if (!/\b23505\b/.test(String(e?.message || ""))) console.error(`salas do jogo: não liguei #${def.nome}:`, e?.message || e); });
+      feitas.push(`${def.nome}:${canal.id}`);
+      feito++;
+    }
+    cacheFontes.delete(servidor.id);
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|${feitas.join(",")}`);
+    console.log(`salas do jogo: ${feitas.join(", ")} em ${guild.name}`);
+  }
+  return feito ? "criado" : "nada";
+}
+
 async function ursoNosCanais() {
   if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
   const a = await ajustes();
@@ -13180,6 +13251,10 @@ async function ursoNosCanais() {
       await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), alvo.canal);
     if (!salas.length) {
       console.log(`urso: não achei a sala do Urso em ${guild.name}`);
+      continue;
+    }
+    if (alvo.esperaCopias && !(await copiasProntas(guild, servidor, salas))) {
+      console.log(`urso: as cópias da sala do Urso em ${guild.name} ainda estão nascendo; tento depois`);
       continue;
     }
     await porAjuste(alvo.marca, `${new Date().toISOString()}|0/${salas.length}`);
@@ -13219,7 +13294,8 @@ async function ursoNosCanais() {
    Todo dia, às 10h UTC, a página de ontem sai e a do dia entra no fim da
    sala (como a dica saía). Os ids das páginas ficam na marca, para apagar
    mesmo que a conversa tenha passado de 50 mensagens. */
-const LIVRO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" }];
+const LIVRO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" },
+  { guild: /^Kingdom\s*#?\s*2311\b/i, canal: /^herois$/, marca: "livro_no_canal:k2311", esperaCopias: true }];
 /* Texto da ficha mudou, versão nova: a página do dia é refeita na hora, sem
    esperar a virada. 2 -- as dicas de líder e de joiner ficaram claras (17/11). */
 const VERSAO_DO_LIVRO = "2";
@@ -13284,6 +13360,10 @@ async function livroNosCanais(agora = Date.now()) {
       await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), alvo.canal);
     if (!salas.length) {
       console.log(`livro: não achei a sala dos heróis em ${guild.name}`);
+      continue;
+    }
+    if (alvo.esperaCopias && !(await copiasProntas(guild, servidor, salas))) {
+      console.log(`livro: as cópias da sala dos heróis em ${guild.name} ainda estão nascendo; tento depois`);
       continue;
     }
     const deOntem = new Map(idsDaMarcaDoLivro(a[alvo.marca]));
@@ -29179,6 +29259,9 @@ client.once("clientReady", () => {
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));
   setTimeout(() => urso(2), 4 * 60 * 1000);
+  /* O urso confere de hora em hora: a ficha das salas novas espera as cópias. */
+  setInterval(() => urso(0), 60 * 60 * 1000);
+  setTimeout(() => criarSalasDoJogo().catch((e) => console.log("salas do jogo: falhou:", e?.message || e)), 3 * 60 * 1000);
   /* O livro dos heróis: cinco minutos depois de subir, e de hora em hora
      confere se o dia virou (às 10h UTC entra o herói do dia seguinte). */
   const livro = (resta) => livroNosCanais()
