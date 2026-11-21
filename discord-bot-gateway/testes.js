@@ -17265,6 +17265,23 @@ function conferirCartao(onde, embed, componentes = []) {
         ok("o par que o print não separa: o lobo é o Desert Trial, a torre é o Swordland", [iconeFixo("Desert Trial"), iconeFixo("Swordland Showdown")].join(), "ks_ev_desert_trial,ks_ev_swordland");
         ok("evento desconhecido: sem ícone fixo (vai o da leitura)", iconeFixo("Evento Novo"), "");
       }
+      /* a PUBLICAÇÃO nas agendas (TOP e Kingdom #2311) */
+      ok("os dias da semana na língua da sala", [S.diasDaSemanaEm("pt").join(" "), S.diasDaSemanaEm("en")[0], S.diasDaSemanaEm("tr")[0]].join(" | "), "DOM SEG TER QUA QUI SEX SÁB | SUN | PAZ");
+      const k1 = S.chaveDaSemana(site, D(21, 4)), k2 = S.chaveDaSemana(site, D(21, 20)), k3 = S.chaveDaSemana(site, D(22, 1)), k4 = S.chaveDaSemana(site.slice(1), D(21, 4));
+      verdade("a chave da semana: muda com o dia e com o site, não com a hora", k1 === k2 && k1 !== k3 && k1 !== k4);
+      ok("o estado da agenda: estragado vira vazio", JSON.stringify(S.estadoDaAgenda("lixo")), JSON.stringify({ chave: "", dia: 0, semana: {}, avisos: {} }));
+      ok("e o bom volta igual", S.estadoDaAgenda(JSON.stringify({ chave: "x", dia: 5, semana: { 1: "2" }, avisos: {} })).semana["1"], "2");
+      const hist = S.historicoNovo([{ n: "All Out", i: D(13), f: D(15) }], [{ nome: "Vai com Tudo", site: "All Out", inicio: D(20), fim: D(22) }, { nome: "X", site: "All Out", inicio: D(20), fim: D(22) }]);
+      ok("o histórico do reino: o novo na frente, sem repetir, pelo nome do site", hist.map((h) => `${h.n}@${new Date(h.i).getUTCDate()}`).join(), "All Out@20,All Out@13");
+      ok("e com teto", S.historicoNovo([], Array.from({ length: 50 }, (_, i) => ({ nome: "E", inicio: D(1) + i * 86400000, fim: D(2) + i * 86400000 })), 30).length, 30);
+      {
+        const pub = semComentarios(pedaco("agendaDoJogoNosCanais"));
+        verdade("a semana: edita a mensagem da sala; só manda nova quando ela sumiu", pub.indexOf("velha.edit") > 0 && pub.indexOf("velha.edit") < pub.indexOf("canal.send(carga)"));
+        verdade("o id da mensagem nova é guardado na hora (reiniciar no meio não duplica)", /estado\.semana\[sala\.canal\] = nova\.id;\s*await salvar\(\)/.test(pub));
+        verdade("o aviso do dia: o de ontem sai antes do novo", pub.indexOf("estado.avisos[sala.canal]).catch") > 0 && pub.indexOf("estado.avisos[sala.canal]).catch") < pub.indexOf("cargaDoDia("));
+        verdade("só na TOP e no Kingdom #2311", /TOP/.test(pedaco("AGENDA_DO_JOGO")) && /Kingdom/.test(pedaco("AGENDA_DO_JOGO")) && (pedaco("AGENDA_DO_JOGO").match(/guild:/g) || []).length === 2);
+        verdade("na sala que não é em português, o nome oficial em inglês", /startsWith\("pt"\) \? eventos : eventos\.map\(\(e\) => \(\{ \.\.\.e, nome: e\.site \|\| e\.nome \}\)\)/.test(pedaco("eventosNaLingua")));
+      }
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */
