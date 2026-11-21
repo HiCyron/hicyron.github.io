@@ -13714,10 +13714,11 @@ function botoesDoDia(eventos, dia) {
 /* O ícone do evento para o desenho: o emoji ev_... do aplicativo (nasceu do
    print), baixado uma vez do CDN do Discord. Sem emoji, a barra vai sem ícone. */
 const ICONES_DO_DESENHO = new Map();
-/* O ícone de um evento da aliança (criado pela liderança): o urso, quando o
-   título fala dele; senão, sem ícone (a barra vai limpa). */
+/* O ícone de um evento da aliança (criado pela liderança): a cabeça do urso
+   do próprio jogo (a da Caça ao Urso na Lista de Tarefas, recortada do print
+   do dono, 21/11), quando o título fala dele; senão, sem ícone. */
 function iconeDaAlianca(nome) {
-  return /\b(urso|bear|armadilha|hunting)\b/i.test(String(nome || "")) ? "ks_urso" : "";
+  return /\b(urso|bear|armadilha|hunting)\b/i.test(String(nome || "")) ? "ks_ev_bear" : "";
 }
 async function iconeDoDesenho(nome, site = "", buscar = fetch) {
   const e = EMOJIS_DA_CYRON.get(iconeFixo(nome) || iconeFixo(site) || iconeDaAlianca(nome)) || EMOJIS_DA_CYRON.get(nomeDoEmojiDoEvento(nome));
@@ -13909,7 +13910,8 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
        É por servidor; o reino é o mesmo, a agenda da liderança não. */
     const daLideranca = (await eventosDoServidor(servidor.id, agora).catch(() => []))
       .flatMap((ev) => barrasDaAlianca({ titulo: ev.titulo, quando: ev.quando, repetir: ev.repetir_min, duracao: ev.duracao_seg }, agora)).slice(0, 20);
-    const chave = chaveDaSemana([...eventos, ...daLideranca], agora), dia = Math.floor(agora / 86400000) * 86400000;
+    const chave = chaveDaSemana([...eventos, ...daLideranca.flatMap((l) => l.ocorrencias.map((o) => ({ nome: l.nome, ...o })))], agora),
+      dia = Math.floor(agora / 86400000) * 86400000;
     const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
     /* A semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
     if (estado.chave !== chave) {
