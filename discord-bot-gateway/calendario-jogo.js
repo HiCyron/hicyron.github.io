@@ -101,8 +101,9 @@ function dataCurta(ms) {
 /* Pura. O resumo para conferir: o que está rolando e o que vem, com o
    intervalo em dias do jogo (UTC). `emoji(nome)` dá o emoji do evento. */
 export function resumoDoCalendario(eventos, agora = Date.now(), emoji = () => "▫️") {
-  const agoraRola = eventos.filter((e) => (e.inicio == null || e.inicio <= agora) && (e.fim == null || e.fim > agora));
-  const vem = eventos.filter((e) => e.inicio != null && e.inicio > agora);
+  const doPrint = eventos.filter((e) => !e.previsto), previstos = eventos.filter((e) => e.previsto);
+  const agoraRola = doPrint.filter((e) => (e.inicio == null || e.inicio <= agora) && (e.fim == null || e.fim > agora));
+  const vem = doPrint.filter((e) => e.inicio != null && e.inicio > agora);
   /* Sem _itálico_: o app mostra o texto cru e o "_" aparecia. */
   const linha = (e) => {
     const de = e.inicio == null ? "" : dataCurta(e.inicio);
@@ -114,6 +115,7 @@ export function resumoDoCalendario(eventos, agora = Date.now(), emoji = () => "�
   return [
     ...(agoraRola.length ? ["🔴 **Agora**", ...agoraRola.map(linha)] : []),
     ...(vem.length ? ["", "⏭️ **Vem aí**", ...vem.map(linha)] : []),
+    ...(previstos.length ? ["", "🔮 **Depois do print (pelo ciclo, confirme no jogo)**", ...previstos.map(linha)] : []),
   ].join("\n").trim();
 }
 
@@ -195,7 +197,7 @@ export function analisarCalendario(data, W, H, C = 3) {
     ini: Math.min(6, Math.max(0, Math.floor((b.x0 - L + 0.08 * w) / w))),
     fim: Math.min(6, Math.max(0, Math.floor((b.x1 - L - 0.06 * w) / w))),
     depois: b.x1 >= R - 0.1 * w,
-    assinatura: assinaturaDoIcone(px, b),
+    ...iconeDaBarra(px, b),
   }));
   return { topo, L, R, w, hoje, barras };
 }
@@ -212,7 +214,7 @@ export function analisarCalendario(data, W, H, C = 3) {
    mesmo ícone deu distância até 5,5 e ícones diferentes, 17 ou mais. */
 const LADO = 8;
 export const ICONE_IGUAL = 9;
-function assinaturaDoIcone(px, b) {
+function iconeDaBarra(px, b) {
   const h = b.y1 - b.y0, ys = [];
   for (let y = b.y0 + Math.round(h * 0.2); y <= b.y1 - Math.round(h * 0.2); y++) ys.push(y);
   const amostra = [];
@@ -228,7 +230,7 @@ function assinaturaDoIcone(px, b) {
     else if (ini >= 0 && ++vazio > 8) break;
     if (ini >= 0 && x - ini > 1.3 * h) break;
   }
-  if (ini < 0 || fim - ini < 10) return null;
+  if (ini < 0 || fim - ini < 10) return { assinatura: null, icone: null };
   const larg = fim - ini + 1, ass = [];
   for (let gy = 0; gy < LADO; gy++) {
     for (let gx = 0; gx < LADO; gx++) {
@@ -245,7 +247,82 @@ function assinaturaDoIcone(px, b) {
       ass.push(Math.round(s[0] / n), Math.round(s[1] / n), Math.round(s[2] / n));
     }
   }
-  return ass;
+  return { assinatura: ass, icone: { x0: ini, x1: fim }, cor };
+}
+
+/* Pura. O quadrado do ícone no print, para virar emoji: centrado no ícone,
+   um pouco maior que a barra (o desenho sai por cima dela). */
+export function recorteDoIcone(b, W, H) {
+  if (!b?.icone) return null;
+  const lado = Math.min(W, H, Math.round((b.y1 - b.y0) * 1.3));
+  const cx = Math.round((b.icone.x0 + b.icone.x1) / 2);
+  const left = Math.max(0, Math.min(W - lado, cx - Math.round(lado / 2)));
+  /* o fundo do quadrado fica acima da sombra escura da barra */
+  const top = Math.max(0, Math.min(H - lado, b.y1 - Math.round((b.y1 - b.y0) * 0.08) - lado));
+  return { left, top, width: lado, height: lado };
+}
+
+/* Pura. O emoji só com o desenho: o fundo (o bege da grade, o verde-água de
+   hoje, a cor da barra e a bolinha vermelha de "novo") vira transparente,
+   entrando pelas bordas e parando no contorno do desenho. A linha clara da
+   borda de cima da barra sai, e pedaço solto que sobrar também (fica o
+   desenho maior e o que tiver pelo menos 15% dele). `rgb` são os pixels do
+   recorte; devolve RGBA. Tolerância testada nos 26 ícones do reino 2311:
+   mais que isso come o ingresso amarelo na barra amarela. */
+export function emojiSemFundo(rgb, w, h, cor, linhaDaBarra = -10) {
+  const tons = [cor || [128, 128, 128], [235, 222, 206], [153, 214, 209], [228, 40, 40], [214, 196, 170]];
+  const ehFundo = (i) => tons.some((c) => Math.abs(rgb[i] - c[0]) + Math.abs(rgb[i + 1] - c[1]) + Math.abs(rgb[i + 2] - c[2]) < 70);
+  const fora = new Uint8Array(w * h), fila = [];
+  for (let x = 0; x < w; x++) fila.push(x, (h - 1) * w + x);
+  for (let y = 0; y < h; y++) fila.push(y * w, y * w + w - 1);
+  while (fila.length) {
+    const p = fila.pop();
+    if (fora[p] || !ehFundo(p * 3)) continue;
+    fora[p] = 1;
+    const x = p % w;
+    if (x > 0) fila.push(p - 1);
+    if (x < w - 1) fila.push(p + 1);
+    if (p >= w) fila.push(p - w);
+    if (p < w * (h - 1)) fila.push(p + w);
+  }
+  /* a borda de cima da barra: linha fina (até 3 pixels de altura) */
+  for (let y = Math.max(0, linhaDaBarra - 3); y <= Math.min(h - 1, linhaDaBarra + 3); y++) {
+    for (let x = 0; x < w; x++) {
+      if (fora[y * w + x]) continue;
+      let cima = y, baixo = y;
+      while (cima > 0 && !fora[(cima - 1) * w + x]) cima--;
+      while (baixo < h - 1 && !fora[(baixo + 1) * w + x]) baixo++;
+      if (baixo - cima + 1 <= 3) for (let k = cima; k <= baixo; k++) fora[k * w + x] = 1;
+    }
+  }
+  const grupo = new Int32Array(w * h).fill(-1), tamanhos = [];
+  for (let p0 = 0; p0 < w * h; p0++) {
+    if (fora[p0] || grupo[p0] >= 0) continue;
+    const g = tamanhos.length, pilha = [p0];
+    let n = 0;
+    grupo[p0] = g;
+    while (pilha.length) {
+      const p = pilha.pop(), x = p % w;
+      n++;
+      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, p - w, p + w]) {
+        if (q >= 0 && q < w * h && !fora[q] && grupo[q] < 0) { grupo[q] = g; pilha.push(q); }
+      }
+    }
+    tamanhos.push(n);
+  }
+  const maior = Math.max(0, ...tamanhos), out = Buffer.alloc(w * h * 4);
+  for (let p = 0; p < w * h; p++) {
+    out[p * 4] = rgb[p * 3]; out[p * 4 + 1] = rgb[p * 3 + 1]; out[p * 4 + 2] = rgb[p * 3 + 2];
+    out[p * 4 + 3] = !fora[p] && tamanhos[grupo[p]] >= 0.15 * maior ? 255 : 0;
+  }
+  return out;
+}
+
+/* Pura. O nome do emoji do evento: ev_ + o nome sem acento (o Discord
+   aceita letras, números e _, até 32). */
+export function nomeDoEmojiDoEvento(nome) {
+  const base = normal(nome).replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  return base.length >= 2 ? `ev_${base}`.slice(0, 32).replace(/_+$/, "") : "";
 }
 
 /* Pura. A diferença média entre dois ícones (0 = iguais). */
@@ -399,11 +476,11 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
   const total = analises.reduce((t, an) => t + (an?.barras?.length || 0), 0);
   const nomes = nomesPorFaixa(j?.bars, total);
   let k = 0;
-  const porPrint = analises.map((an) => (an?.barras || []).map((b) => {
+  const porPrint = analises.map((an, pi) => (an?.barras || []).map((b, bi) => {
     const n = nomes[k++] || {};
     const nome = String(n.text || "").replace(/\s+/g, " ").trim().slice(0, 80);
     return {
-      nome, icone: String(n.icon || "").trim().slice(0, 40), assinatura: b.assinatura || null,
+      nome, icone: String(n.icon || "").trim().slice(0, 40), assinatura: b.assinatura || null, origem: { p: pi, b: bi },
       cortado: CORTADO.test(nome), lido: !!nome && !CORTADO.test(nome), peloIcone: false, completado: false,
       inicio: b.ini === 0 ? null : dias[b.ini],
       fim: b.depois ? null : dias[b.fim] + DIA,
@@ -450,7 +527,32 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
   /* Para a memória: só o que a IA leu inteiro, nunca o que eu completei. */
   const aprendidos = [...new Map(inteiros.map((e) => [normal(e.nome), { nome: e.nome, assinatura: e.assinatura }])).values()];
   return {
-    agora: base, eventos, lidos: nomes.filter(Boolean).length, esperados: k, aprendidos,
+    agora: base, eventos, lidos: nomes.filter(Boolean).length, esperados: k, aprendidos, ultimoDia: dias[6],
     completados: eventos.filter((e) => e.completado || (e.peloIcone && !e.soIcone && !e.cortado)).length,
   };
+}
+
+/* ---------------- a SEQUÊNCIA: o que vem depois do print ----------------
+
+   O pedido do dono (21/11): se o R4 esquecer de mandar os prints, a CYRON
+   segue a sequência até a próxima leitura. Cada evento volta num ciclo (o
+   Campeonato toda semana; Tri-Aliança, Governador e Mobilização a cada 4
+   semanas, no que os guias concordam -- eventos-jogo.js). O print dá o dia
+   em que o evento começou; o ciclo dá o próximo. É PREVISÃO: sai marcada,
+   e o print novo sempre manda. Evento sem ciclo conhecido não é previsto. */
+export function previstosPeloCiclo(eventos, { cicloDe = () => 0, depoisDe, ate }) {
+  const previstos = [];
+  const ja = new Set(eventos.map((e) => `${normal(e.nome)}|${e.inicio}`));
+  for (const e of eventos) {
+    const ciclo = Number(cicloDe(e.nome)) || 0;
+    if (!ciclo || e.inicio == null || e.soIcone || CORTADO.test(e.nome)) continue;
+    const dura = e.fim == null ? null : e.fim - e.inicio;
+    for (let inicio = e.inicio + ciclo * DIA; inicio < ate; inicio += ciclo * DIA) {
+      const chave = `${normal(e.nome)}|${inicio}`;
+      if (inicio < depoisDe || ja.has(chave)) continue;
+      ja.add(chave);
+      previstos.push({ nome: e.nome, inicio, fim: dura == null ? null : inicio + dura, previsto: true });
+    }
+  }
+  return previstos.sort((a, b) => a.inicio - b.inicio || a.nome.localeCompare(b.nome));
 }
