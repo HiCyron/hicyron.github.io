@@ -36,7 +36,7 @@ import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FIC
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
 import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO } from "./eventos-jogo.js";
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
-  analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova } from "./calendario-jogo.js";
+  analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels } from "./calendario-jogo.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -10363,21 +10363,29 @@ async function lerCalendarioComIA(imagem, buscar = fetch) {
 }
 
 /* As faixas das barras, uma embaixo da outra, para a IA ler só os nomes:
-   cada faixa é o começo da barra (ícone e nome), até 640 de largura. Mais de
+   cada faixa é o começo da barra (ícone e nome), até 720 de largura (mais a margem do número). Mais de
    2400 de altura vira uma segunda imagem (o Groq aceita 3 por pedido: o
    topo e até 2 de faixas). */
-const LARGURA_DAS_FAIXAS = 640;
+/* 720: com 640, o nome comprido da barra que vem de antes (centrado nela)
+   saía cortado na faixa: "Fundo de Ascensão do Heró". */
+const LARGURA_DAS_FAIXAS = 720;
 const ALTURA_DAS_FAIXAS = 2400;
+/* A margem branca com o número da faixa (calendario-jogo.js, numeroEmPixels):
+   a IA devolve o nome com o número, e o nome não escorrega para a barra do
+   vizinho quando ela pula uma faixa só com ícone. */
+const MARGEM_DO_NUMERO = 64;
 async function montarFaixas(sharp, prints) {
   const grupos = [[]];
-  let altura = 0;
+  let altura = 0, numero = 0;
   for (const p of prints) {
     for (const b of p.an.barras) {
+      numero++;
       const left = Math.max(0, b.x0 - 8), top = Math.max(0, b.y0 - 6);
       const width = Math.min(LARGURA_DAS_FAIXAS, p.info.width - left), height = Math.min(b.y1 - b.y0 + 12, p.info.height - top);
       const input = await sharp(p.data, { raw: p.info }).extract({ left, top, width, height }).png().toBuffer();
+      const rotulo = await sharp(numeroEmPixels(numero, MARGEM_DO_NUMERO - 8, height), { raw: { width: MARGEM_DO_NUMERO - 8, height, channels: 3 } }).png().toBuffer();
       if (altura + height > ALTURA_DAS_FAIXAS && grupos.at(-1).length) { grupos.push([]); altura = 0; }
-      grupos.at(-1).push({ input, top: altura, left: 0, height });
+      grupos.at(-1).push({ input, top: altura, left: MARGEM_DO_NUMERO, height }, { input: rotulo, top: altura, left: 0, height, rotulo: true });
       altura += height + 14;
     }
   }
@@ -10385,10 +10393,10 @@ async function montarFaixas(sharp, prints) {
   const imagens = [];
   for (const g of usados) {
     const alto = g.reduce((m, f) => Math.max(m, f.top + f.height), 0) + 10;
-    imagens.push(await sharp({ create: { width: LARGURA_DAS_FAIXAS, height: alto, channels: 3, background: "#ffffff" } })
+    imagens.push(await sharp({ create: { width: MARGEM_DO_NUMERO + LARGURA_DAS_FAIXAS, height: alto, channels: 3, background: "#ffffff" } })
       .composite(g.map(({ input, top, left }) => ({ input, top, left }))).jpeg({ quality: 88 }).toBuffer());
   }
-  return { imagens, faixas: usados.reduce((n, g) => n + g.length, 0) };
+  return { imagens, faixas: usados.reduce((n, g) => n + g.filter((f) => !f.rotulo).length, 0) };
 }
 
 /* A memória dos nomes do calendário (calendario-jogo.js): os nomes inteiros

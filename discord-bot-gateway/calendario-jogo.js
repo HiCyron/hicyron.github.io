@@ -312,10 +312,58 @@ export function pedidoDosNomes(n, imagensDeFaixas = 1) {
   const onde = imagensDeFaixas > 1 ? `Images 2 to ${imagensDeFaixas + 1} have` : "Image 2 has";
   return [
     "Image 1 is the top of the in-game EVENTS CALENDAR of the mobile game Kingshot (possibly in Portuguese): the current UTC time (\"Hora UTC YYYY-MM-DD HH:MM:SS\") and a row of 7 day columns, each with a weekday and a date as MM/DD.",
-    `${onde} ${n} horizontal strips separated by white gaps, top to bottom${imagensDeFaixas > 1 ? " (continuing from one image to the next)" : ""}. Each strip is ONE event bar cut from that calendar: an icon and usually the event name (the name may be cut with "...").`,
-    "Answer ONLY with JSON in this exact shape:",
-    `{"utc_now":"YYYY-MM-DD HH:MM","days":["MM/DD",... 7 items],"bars":[{"text":"the name exactly as written, letter by letter, or \\"\\" if the strip has only an icon","icon":"what the icon shows, in 1 to 3 words IN PORTUGUESE (e.g. \\"castelo com coroa\\", \\"peixe\\")"}, ... exactly ${n} items, in order]}`,
+    `${onde} ${n} horizontal strips separated by white gaps, top to bottom${imagensDeFaixas > 1 ? " (continuing from one image to the next)" : ""}. Each strip is ONE event bar cut from that calendar: an icon and usually the event name (the name may be cut with "..."). ` +
+      `Each strip has its NUMBER (1 to ${n}) in big black digits on the white margin at its left.`,
+    `Answer ONLY with JSON in this exact shape, with ONE item for EVERY strip number from 1 to ${n} (strips with only an icon too):`,
+    `{"utc_now":"YYYY-MM-DD HH:MM","days":["MM/DD",... 7 items],"bars":[{"n":1,"text":"the name exactly as written, letter by letter, or \\"\\" if the strip has only an icon","icon":"what the icon shows, in 1 to 3 words IN PORTUGUESE (e.g. \\"castelo com coroa\\", \\"peixe\\")"}, ... ${n} items]}`,
   ].join("\n");
+}
+
+/* O NÚMERO de cada faixa, desenhado em pixels (sem fonte: o servidor pode não
+   ter nenhuma). No 4º teste (21/11) a IA pulou uma faixa só com ícone e os
+   nomes seguintes escorregaram uma barra: o castelo com coroa virou
+   "Competição". Com o número na faixa, a IA devolve o número junto, e um
+   nome nunca cai na barra do vizinho. Devolve os pixels crus (RGB). */
+const SEGMENTOS = ["abcdef", "bc", "abged", "abgcd", "fgbc", "afgcd", "afgedc", "abc", "abcdefg", "abcfgd"];
+export function numeroEmPixels(numero, largura, altura) {
+  const img = Buffer.alloc(largura * altura * 3, 255);
+  const pinta = (x0, y0, x1, y1) => {
+    for (let y = Math.max(0, y0); y <= Math.min(altura - 1, y1); y++) {
+      for (let x = Math.max(0, x0); x <= Math.min(largura - 1, x1); x++) img.fill(0, (y * largura + x) * 3, (y * largura + x) * 3 + 3);
+    }
+  };
+  const digitos = String(numero).split("").map(Number);
+  const a = Math.max(10, Math.min(altura - 16, 36)), l = Math.round(a * 0.5), e = Math.max(3, Math.round(a / 8)), vao = Math.round(l * 0.35);
+  let x = Math.round((largura - (digitos.length * l + (digitos.length - 1) * vao)) / 2);
+  const y = Math.round((altura - a) / 2), meio = y + Math.round(a / 2);
+  for (const d of digitos) {
+    const s = SEGMENTOS[d] || "";
+    if (s.includes("a")) pinta(x, y, x + l - 1, y + e - 1);
+    if (s.includes("g")) pinta(x, meio - Math.floor(e / 2), x + l - 1, meio + Math.ceil(e / 2) - 1);
+    if (s.includes("d")) pinta(x, y + a - e, x + l - 1, y + a - 1);
+    if (s.includes("f")) pinta(x, y, x + e - 1, meio);
+    if (s.includes("b")) pinta(x + l - e, y, x + l - 1, meio);
+    if (s.includes("e")) pinta(x, meio, x + e - 1, y + a - 1);
+    if (s.includes("c")) pinta(x + l - e, meio, x + l - 1, y + a - 1);
+    x += l + vao;
+  }
+  return img;
+}
+
+/* Pura. Os nomes de cada faixa, pela ordem das faixas: pelo número que a IA
+   devolveu ("n") e, se ela não mandou número (ou mandou repetido), pela
+   posição. */
+export function nomesPorFaixa(bars, total) {
+  const lista = Array.isArray(bars) ? bars : [];
+  const porNumero = new Map();
+  let valem = true;
+  for (const b of lista) {
+    const n = Number(b?.n);
+    if (!Number.isInteger(n) || n < 1 || n > total || porNumero.has(n)) { valem = false; break; }
+    porNumero.set(n, b);
+  }
+  if (valem && porNumero.size) return Array.from({ length: total }, (_, i) => porNumero.get(i + 1) || null);
+  return Array.from({ length: total }, (_, i) => lista[i] || null);
 }
 
 /* Ícone sem nome que não deixa dúvida (o peixe fica embaixo do título
@@ -348,7 +396,8 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
   let dias = Array.isArray(j?.days) && j.days.length === 7 ? j.days.map((d) => diaDoPrint(d, base)) : null;
   const seguidos = dias && dias.every((d, i) => d != null && (!i || d - dias[i - 1] === DIA));
   if (!seguidos || dias[hoje] !== hojeDia) dias = Array.from({ length: 7 }, (_, i) => hojeDia + (i - hoje) * DIA);
-  const nomes = Array.isArray(j?.bars) ? j.bars : [];
+  const total = analises.reduce((t, an) => t + (an?.barras?.length || 0), 0);
+  const nomes = nomesPorFaixa(j?.bars, total);
   let k = 0;
   const porPrint = analises.map((an) => (an?.barras || []).map((b) => {
     const n = nomes[k++] || {};
@@ -378,7 +427,7 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
   }
   for (const e of todas.filter((x) => !x.nome)) {
     const pelo = e.assinatura && (nomeDoIconeParecido(e.assinatura, comIcone)
-      || nomeDoIconeParecido(e.assinatura, todas.filter((o) => o !== e && o.nome && o.assinatura)));
+      || nomeDoIconeParecido(e.assinatura, todas.filter((o) => o !== e && o.nome && o.assinatura && !o.peloIcone)));
     const achado = !pelo && NOME_PELO_ICONE.find(([r]) => r.test(e.icone));
     const nome = pelo || (achado ? achado[1] : "");
     if (nome) Object.assign(e, { nome, cortado: CORTADO.test(nome), peloIcone: true });
@@ -401,7 +450,7 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
   /* Para a memória: só o que a IA leu inteiro, nunca o que eu completei. */
   const aprendidos = [...new Map(inteiros.map((e) => [normal(e.nome), { nome: e.nome, assinatura: e.assinatura }])).values()];
   return {
-    agora: base, eventos, lidos: Math.min(nomes.length, k), esperados: k, aprendidos,
+    agora: base, eventos, lidos: nomes.filter(Boolean).length, esperados: k, aprendidos,
     completados: eventos.filter((e) => e.completado || (e.peloIcone && !e.soIcone && !e.cortado)).length,
   };
 }
