@@ -34,7 +34,8 @@ import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
-import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS } from "./eventos-jogo.js";
+import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO } from "./eventos-jogo.js";
+import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario } from "./calendario-jogo.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -10259,6 +10260,110 @@ async function lerEventoDaMensagem(inter) {
   };
   const token = guardarProposta(p);
   return inter.editReply(await cartaoDaProposta(token, p, idioma));
+}
+
+/* ---------------- 📅 "Ler calendário": o print do calendário do jogo ----------------
+
+   Ver calendario-jogo.js. O leitor de texto (Azure) não serve: o calendário
+   é feito de barras. Vai por um modelo que enxerga imagem, no Groq, com a
+   mesma chave da conversa (chaveDaIA). O primeiro modelo que o Groq
+   recusar por não existir mais (ele aposenta modelos) passa a vez ao
+   seguinte.
+
+   EM TESTE (21/11): o comando existe só no TOP e no painel, só o dono usa,
+   e ele só MOSTRA o que leu. Publicar na agenda vem depois de o dono ver a
+   leitura acertar. */
+const LER_CALENDARIO = "Ler calendário";
+const CALENDARIO_EM_TESTE = [/^\[TOP\]\s*Best Alliance/i];
+const MODELOS_DE_VISAO = ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"];
+const IMAGENS_POR_LEITURA = 5;
+
+/* Pura. Todas as imagens anexadas (o primeiro print sozinho não basta: o
+   calendário rola, e são 2 ou 3). */
+function imagensDaMensagem(msg) {
+  const anexos = msg?.attachments?.values ? [...msg.attachments.values()] : (msg?.attachments || []);
+  return anexos.filter((a) => ehImagemAnexo(a) && a.url).slice(0, IMAGENS_POR_LEITURA).map((a) => ({ url: a.url, id: String(a.id || a.url) }));
+}
+
+async function lerCalendarioComIA(imagem, buscar = fetch) {
+  const chave = await chaveDaIA();
+  if (!chave) throw Object.assign(new Error("sem chave do Groq"), { motivo: "chave" });
+  const pedido = pedidoDoCalendario([...new Set(EVENTOS_DO_JOGO.map((e) => e.nome))]);
+  const conteudo = [{ type: "text", text: pedido },
+    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imagem.toString("base64")}` } }];
+  let ultimo = "";
+  for (const modelo of MODELOS_DE_VISAO) {
+    const r = await buscar(`${IA_URL}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model: modelo, temperature: 0, max_completion_tokens: 2500,
+        response_format: { type: "json_object" }, messages: [{ role: "user", content: conteudo }] }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      return { texto: j?.choices?.[0]?.message?.content || "", modelo };
+    }
+    ultimo = `HTTP ${r.status}: ${String(await r.text().catch(() => "")).slice(0, 160)}`;
+    /* Modelo aposentado ou desconhecido: o próximo. Outro erro (chave, cota)
+       não melhora trocando de modelo. */
+    if (!(r.status === 404 || /model_(not_found|decommissioned)|does not exist|decommissioned/i.test(ultimo))) break;
+  }
+  throw new Error(`o Groq não leu o print (${ultimo})`);
+}
+
+async function lerCalendarioDaMensagem(inter) {
+  await inter.deferReply({ flags: 64 });
+  if (!(await ehDono(inter.user.id))) {
+    return inter.editReply({ content: "🧪 Em teste: por enquanto só o dono da CYRON usa a leitura do calendário." });
+  }
+  const imagens = imagensDaMensagem(inter.targetMessage);
+  if (!imagens.length) return inter.editReply({ content: "🖼️ Essa mensagem não tem print. Mande os prints do calendário do jogo numa mensagem e use aqui." });
+  const sharp = await carregarSharp();
+  const leituras = [];
+  const falhas = [];
+  let modelo = "";
+  for (const img of imagens) {
+    try {
+      const r = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
+      if (!r.ok) throw new Error(`baixar o print deu HTTP ${r.status}`);
+      let buf = Buffer.from(await r.arrayBuffer());
+      if (sharp) buf = await sharp(buf, { failOn: "none" }).resize({ width: 1280, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
+      const lido = await lerCalendarioComIA(buf);
+      modelo = lido.modelo;
+      const l = lerRespostaDoCalendario(lido.texto);
+      if (l) leituras.push(l); else falhas.push("o modelo respondeu fora do formato");
+    } catch (e) {
+      falhas.push(String(e?.message || e).slice(0, 200));
+    }
+  }
+  const eventos = juntarLeituras(leituras);
+  const agora = leituras[0]?.agora ?? Date.now();
+  const emoji = (nome) => (eventoDoJogo(nome)?.emoji) || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
+  const corpo = eventos.length ? resumoDoCalendario(eventos, agora, emoji) : "_Não consegui ler nenhum evento._";
+  return inter.editReply({ embeds: [{
+    color: COR,
+    title: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
+    description: (corpo + (falhas.length ? `\n\n⚠️ ${falhas.length} de ${imagens.length} prints falharam: ${falhas.join(" · ")}` : "")).slice(0, 4000),
+    footer: { text: `${modelo || "sem modelo"} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000) },
+  }] });
+}
+
+/* O comando do teste: só no TOP e no painel, até a leitura acertar. */
+async function calendarioNosServidores() {
+  const painel = await guildDoPainel().catch(() => "");
+  for (const guild of client.guilds.cache.values()) {
+    if (guild.id !== painel && !CALENDARIO_EM_TESTE.some((r) => r.test(guild.name))) continue;
+    try {
+      const tem = [...(await guild.commands.fetch()).values()].some((c) => c.name === LER_CALENDARIO);
+      if (tem) continue;
+      await guild.commands.create({ name: LER_CALENDARIO, type: 3, nameLocalizations: { "en-US": "Read calendar", "en-GB": "Read calendar" },
+        defaultMemberPermissions: PermissionFlagsBits.ManageGuild });
+      console.log(`calendario: "${LER_CALENDARIO}" (teste) em ${guild.name}`);
+    } catch (e) {
+      console.error(`calendario: não consegui pôr o comando em ${guild.name}:`, e?.message || e);
+    }
+  }
 }
 
 /* Os cliques do rascunho: os do leitor (leitor:) e os do painel (evsel:). */
@@ -25443,6 +25548,8 @@ async function comandoDeInteracao(inter) {
     return lerEventoDaMensagem(inter);
   }
 
+  if (nome === LER_CALENDARIO) return lerCalendarioDaMensagem(inter);
+
   if (nome === "Translate") {
     /* Pela mesma funcao da bandeira, e nao por `.content`.
        Aviso automatico chega com o corpo vazio e a mensagem inteira dentro do
@@ -28546,6 +28653,8 @@ client.once("clientReady", () => {
     .then((r) => { if (r !== "feito" && resta) setTimeout(() => faxina(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("livro: a faxina falhou:", e?.message || e));
   setTimeout(() => faxina(3), 8 * 60 * 1000);
+  /* "Ler calendário" (teste): o comando no TOP e no painel. */
+  setTimeout(() => calendarioNosServidores().catch((e) => console.log("calendario: falhou:", e?.message || e)), 2 * 60 * 1000);
   /* O 🔔 alertas entra na agenda: uma vez, três minutos depois de subir. */
   setTimeout(() => fundirAlertasNaAgenda().catch((e) => console.log("agenda: a fusão falhou:", e?.message || e)), 3 * 60 * 1000);
   /* E as salas vazias do alertas saem, só depois da fusão completa. */

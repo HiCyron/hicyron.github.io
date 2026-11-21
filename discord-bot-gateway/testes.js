@@ -16871,6 +16871,86 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("o botão chega ao clique", /customId\.startsWith\("jogo:como:"\)\) return await cliqueComoFunciona\(inter\)/.test(semComentarios(fonte)));
   }
 
+  /* 📅 "Ler calendário": o print do calendário do jogo lido por IA (teste) */
+  {
+    const C = await import("./calendario-jogo.js");
+    const pedido = C.pedidoDoCalendario(["Batalha do Castelo", "Vingança Viking"]);
+    verdade("o pedido explica as barras e pede JSON fechado", /BARS/.test(pedido) && /"utc_now"/.test(pedido) && /inclusive/.test(pedido));
+    verdade("e dá os nomes conhecidos, para nome cortado", /Batalha do Castelo; Vingança Viking/.test(pedido));
+    /* a semana do reino 2311, como o jogo mostrou em 20/11 */
+    const resposta = JSON.stringify({ utc_now: "2026-11-20 23:54", days: ["11/18", "11/19", "11/20", "11/21", "11/22", "11/23", "11/24"], events: [
+      { name: "Batalha do Santuário", section: "Eventos", start: "BEFORE", end: "11/20" },
+      { name: "Campeonato da Aliança", section: "Eventos", start: "BEFORE", end: "11/22" },
+      { name: "Vai com Tudo", section: "Eventos", start: "11/20", end: "11/21" },
+      { name: "", section: "Eventos", start: "11/21", end: "11/21", icon_only: true },
+      { name: "Mobili...", section: "Eventos", start: "11/23", end: "AFTER" },
+      { name: "Torneio de Pesca", section: "Torneio de Pesca", start: "11/24", end: "AFTER" },
+      { name: "Lixo", start: "ontem", end: "11/30" },
+      { name: "Ao contrário", start: "11/22", end: "11/20" },
+    ] });
+    const l = C.lerRespostaDoCalendario(resposta);
+    ok("lê os eventos válidos e descarta o que não tem data legível ou vai ao contrário", l.eventos.length, 6);
+    const santuario = l.eventos[0];
+    ok("começou antes do print: sem início", santuario.inicio, null);
+    ok("o fim é a virada do último dia (00:00 UTC do dia seguinte)", new Date(santuario.fim).toISOString(), "2026-11-21T00:00:00.000Z");
+    const vai = l.eventos.find((e) => e.nome === "Vai com Tudo");
+    ok("Vai com Tudo: sex 20 a sáb 21", [new Date(vai.inicio).toISOString().slice(0, 10), new Date(vai.fim).toISOString().slice(0, 10)].join(), "2026-11-20,2026-11-22");
+    ok("segue depois do print: sem fim", l.eventos.find((e) => e.nome === "Torneio de Pesca").fim, null);
+    ok("só ícone vira '?', marcado", JSON.stringify([l.eventos[3].nome, l.eventos[3].soIcone]), JSON.stringify(["?", true]));
+    ok("a hora do print vira o 'agora'", new Date(l.agora).toISOString(), "2026-11-20T23:54:00.000Z");
+    ok("resposta que não é JSON: nada (nunca adivinho)", C.lerRespostaDoCalendario("não sei"), null);
+    ok("JSON sem eventos: nada", C.lerRespostaDoCalendario("{}"), null);
+    ok("JSON em bloco de código também serve", C.lerRespostaDoCalendario("```json\n" + resposta + "\n```").eventos.length, 6);
+    const virada = C.lerRespostaDoCalendario({ utc_now: "2026-12-30 10:00", events: [{ name: "X", start: "12/30", end: "01/02" }] });
+    ok("virada de ano: janeiro é do ano seguinte", new Date(virada.eventos[0].fim).toISOString().slice(0, 10), "2027-01-03");
+
+    const juntos = C.juntarLeituras([l, C.lerRespostaDoCalendario(resposta), null]);
+    ok("dois prints com a mesma barra: uma vez só", juntos.length, 6);
+    verdade("em ordem: o que começou antes primeiro", juntos[0].inicio === null && juntos.at(-1).nome === "Torneio de Pesca");
+
+    const resumo = C.resumoDoCalendario(juntos, l.agora, (n) => (n === "Vai com Tudo" ? "🗡️" : "▫️"));
+    verdade("o resumo separa o que rola agora do que vem", /🔴 \*\*Agora\*\*/.test(resumo) && /⏭️ \*\*Vem aí\*\*/.test(resumo));
+    verdade("com o dia da semana e a data", /🗡️ \*\*Vai com Tudo\*\* · sex 20\/11 → sáb 21\/11/.test(resumo));
+    verdade("o que acabou antes de agora não aparece como agora", !/Batalha do Santuário/.test(resumo.split("⏭️")[0]) || /até sex 20\/11/.test(resumo));
+    verdade("o que segue depois do print termina em …", /Torneio de Pesca\*\* · ter 24\/11 → …/.test(resumo));
+
+    /* o Groq: modelo aposentado passa a vez; outro erro para */
+    const chamadas = [];
+    Object.assign(globalThis, { chaveDaIA: async () => "k", IA_URL: "https://api.groq.com/openai/v1", EVENTOS_DO_JOGO: [{ nome: "Batalha do Castelo" }],
+      pedidoDoCalendario: C.pedidoDoCalendario });
+    const { lerCalendarioComIA } = carregar(["MODELOS_DE_VISAO", "lerCalendarioComIA"]);
+    const respostaFalsa = (status, corpo) => ({ ok: status === 200, status, json: async () => corpo, text: async () => JSON.stringify(corpo) });
+    const lido = await lerCalendarioComIA(Buffer.from("x"), async (url, o) => {
+      const b = JSON.parse(o.body); chamadas.push(b.model);
+      return b.model.includes("scout") ? respostaFalsa(404, { error: { code: "model_not_found" } })
+        : respostaFalsa(200, { choices: [{ message: { content: resposta } }] });
+    });
+    ok("o primeiro modelo aposentado passa a vez ao seguinte", chamadas.length, 2);
+    verdade("e a resposta volta com o modelo que leu", /maverick/.test(lido.modelo) && lido.texto === resposta);
+    verdade("a imagem vai junto, como dado (sem endereço público)", await (async () => {
+      let corpo; await lerCalendarioComIA(Buffer.from("abc"), async (u, o) => { corpo = JSON.parse(o.body); return respostaFalsa(200, { choices: [{ message: { content: "{}" } }] }); });
+      return corpo.messages[0].content[1].image_url.url === "data:image/jpeg;base64,YWJj" && corpo.response_format.type === "json_object";
+    })());
+    let erro = "";
+    await lerCalendarioComIA(Buffer.from("x"), async () => respostaFalsa(401, { error: "chave" })).catch((e) => { erro = e.message; });
+    verdade("chave recusada: para na hora (trocar de modelo não ajuda)", /HTTP 401/.test(erro));
+    globalThis.chaveDaIA = async () => "";
+    let semChave = null;
+    await lerCalendarioComIA(Buffer.from("x"), async () => respostaFalsa(200, {})).catch((e) => { semChave = e.motivo; });
+    ok("sem chave do Groq: avisa, sem chamar", semChave, "chave");
+
+    /* em teste: só o dono, só no TOP e no painel */
+    const { imagensDaMensagem } = carregar(["IMAGENS_POR_LEITURA", "imagensDaMensagem"]);
+    const anexo = (i, tipo = "image/jpeg") => [String(i), { id: String(i), url: `https://cdn/${i}.jpg`, contentType: tipo, name: `${i}.jpg` }];
+    ok("pega todos os prints da mensagem (até 5), não só o primeiro", imagensDaMensagem({ attachments: new Map([1, 2, 3, 4, 5, 6].map((i) => anexo(i))) }).length, 5);
+    ok("o que não é imagem fica fora", imagensDaMensagem({ attachments: new Map([anexo(1, "application/pdf")].map(([k, v]) => [k, { ...v, name: "a.pdf", url: "https://cdn/a.pdf" }])) }).length, 0);
+    verdade("o comando é do teste: só no TOP e no painel", /CALENDARIO_EM_TESTE = \[\/\^\\\[TOP\\\]\\s\*Best Alliance\/i\]/.test(semComentarios(fonte)) &&
+      /guild\.id !== painel && !CALENDARIO_EM_TESTE\.some/.test(semComentarios(pedaco("calendarioNosServidores"))));
+    verdade("e só o dono usa", /if \(!\(await ehDono\(inter\.user\.id\)\)\)/.test(semComentarios(pedaco("lerCalendarioDaMensagem"))));
+    verdade("no teste ele só mostra: não cria evento nenhum", !/gravarEvento|sbPost/.test(pedaco("lerCalendarioDaMensagem")));
+    verdade("o menu Apps chega à leitura", /if \(nome === LER_CALENDARIO\) return lerCalendarioDaMensagem\(inter\)/.test(semComentarios(fonte)));
+  }
+
   /* o texto para o chat do jogo (como os R4 já escrevem lá à mão) */
   {
     verdade("dica: sem nenhum desses, só a tropa (guia do Urso; e é o que a aliança faz)",
