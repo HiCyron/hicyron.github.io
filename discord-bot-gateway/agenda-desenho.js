@@ -80,12 +80,13 @@ export function eventosDaJanela(eventos, agora, dias = 7) {
     .sort((a, b) => Math.max(a.inicio, ini) - Math.max(b.inicio, ini) || a.fim - b.fim || a.nome.localeCompare(b.nome));
 }
 
-/* Pura. As barras de UM evento da aliança (criado pela liderança — titulo,
-   quando em ms, repetir em minutos, duracao em segundos) que caem na janela
-   da semana (dono, 21/11: o urso "no calendário, junto com os demais"). Sem
-   repetição: só a primeira, se ainda não fechou. Com: todas as que começam
-   dentro da janela. Sem duração, a barra ganha 30m para aparecer. Até 10 por
-   evento (um evento não enche a imagem sozinho). */
+/* Pura. A LINHA de UM evento da aliança (criado pela liderança — titulo,
+   quando em ms, repetir em minutos, duracao em segundos) na semana (dono,
+   21/11: o urso "no calendário, junto com os demais"; "o urso 1 e o urso 2
+   têm que ser separados"). Uma linha por evento, com cada vez que ele
+   acontece nos 7 dias em `ocorrencias`. Sem repetição: só a primeira, se
+   ainda não fechou. Sem duração, cada vez ganha 30m para aparecer. Até 10
+   vezes. Nada na semana: []. */
 export function barrasDaAlianca({ titulo, quando, repetir = 0, duracao = 0 }, agora, dias = 7) {
   const q = typeof quando === "number" ? quando : Date.parse(quando);
   if (!Number.isFinite(q)) return [];
@@ -98,11 +99,18 @@ export function barrasDaAlianca({ titulo, quando, repetir = 0, duracao = 0 }, ag
   let t = q;
   if (passo > 0 && t + comprimento <= ini) t += Math.ceil((ini - t - comprimento) / passo) * passo;
   for (let i = 0; i < 80 && t < fim; i++) {
-    if (t + comprimento > agora) out.push({ nome, inicio: t, fim: t + comprimento, daAlianca: true });
+    if (t + comprimento > agora) out.push({ inicio: t, fim: t + comprimento });
     if (!(passo > 0)) break;
     t += passo;
   }
-  return out.slice(0, 10);
+  const ocorrencias = out.slice(0, 10);
+  if (!ocorrencias.length) return [];
+  return [{ nome, inicio: ocorrencias[0].inicio, fim: ocorrencias[ocorrencias.length - 1].fim, daAlianca: true, ocorrencias }];
+}
+
+/* "HH:MM" em UTC (o dia do jogo). */
+function horaCurta(ms) {
+  return new Date(ms).toISOString().slice(11, 16);
 }
 
 /* Brilhos de fundo (estrelinhas de 4 pontas, como na arte da CYRON), em
@@ -204,7 +212,56 @@ export function desenharSemana({ eventos, agora, reino, fonteTitulo, fonteTexto,
   return { svg: p.join("\n"), largura: LARGURA, altura, eventos: lista.length };
 }
 
+/* A linha de um evento da aliança: uma pílula verde em cada dia em que ele
+   acontece (o medalhão com o ícone e a hora), e o nome antes da primeira
+   pílula (ou depois da última, se antes não couber). */
+function desenharLinhaDaAlianca(p, e, y, { ini, fonteTexto, icones }) {
+  const yb = y + 7, r = BARRA / 2;
+  const porDia = new Map();
+  for (const o of e.ocorrencias) {
+    const c = Math.floor((diaDe(o.inicio) - ini) / DIA);
+    if (c >= 0 && c <= 6) porDia.set(c, [...(porDia.get(c) || []), horaCurta(o.inicio)]);
+  }
+  const dias = [...porDia.entries()].sort((a, b) => a[0] - b[0]);
+  if (!dias.length) return;
+  const icone = icones.get(e.nome);
+  const contorno = (d) => {
+    p.push(`<path d="${d}" fill="none" stroke="#0A0F24" stroke-opacity="0.85" stroke-width="4.5" stroke-linejoin="round"/>`);
+    p.push(`<path d="${d}" fill="#FFFFFF"/>`);
+  };
+  /* O nome: antes da primeira pílula; sem espaço, depois da última; sem
+     nenhum dos dois (evento todo dia), dentro da primeira pílula. */
+  const primeiro = dias[0][0], ultimo = dias[dias.length - 1][0];
+  const antes = [MARGEM + 8, MARGEM + primeiro * COLUNA - 6], depois = [MARGEM + (ultimo + 1) * COLUNA + 6, LARGURA - MARGEM - 8];
+  const tam = 20;
+  let nomeDentro = false;
+  if (antes[1] - antes[0] >= 120) {
+    const nome = caber(fonteTexto, e.nome, tam, antes[1] - antes[0] - 6);
+    contorno(caminho(fonteTexto, nome, antes[1] - 6 - largura(fonteTexto, nome, tam), yb + 31, tam));
+  } else if (depois[1] - depois[0] >= 120) {
+    contorno(caminho(fonteTexto, caber(fonteTexto, e.nome, tam, depois[1] - depois[0]), depois[0], yb + 31, tam));
+  } else nomeDentro = true;
+  for (const [i, [c, horas]] of dias.entries()) {
+    const x0 = MARGEM + c * COLUNA + 6, x1 = MARGEM + (c + 1) * COLUNA - 6;
+    const forma = `M${x0 + r},${yb} H${x1 - r} A${r},${r} 0 0 1 ${x1 - r},${yb + BARRA} H${x0 + r} A${r},${r} 0 0 1 ${x0 + r},${yb} Z`;
+    p.push(`<path d="${forma}" fill="url(#cor-alianca)" stroke="#000000" stroke-opacity="0.35" stroke-width="1.5" filter="url(#sombra)"/>`);
+    p.push(`<clipPath id="c${y}_${c}"><path d="${forma}"/></clipPath>`);
+    p.push(`<rect x="${x0}" y="${yb + 2}" width="${x1 - x0}" height="${BARRA * 0.42}" rx="${r * 0.8}" fill="#FFFFFF" fill-opacity="0.22" clip-path="url(#c${y}_${c})"/>`);
+    let xt = x0 + 14;
+    if (icone) {
+      const cx = x0 + 24, cy = yb + BARRA / 2;
+      p.push(`<circle cx="${cx}" cy="${cy}" r="23" fill="url(#anel)" filter="url(#sombra)"/>`);
+      p.push(`<circle cx="${cx}" cy="${cy}" r="19.5" fill="#0C1533"/>`);
+      p.push(`<image x="${cx - 23}" y="${cy - 26}" width="46" height="46" xlink:href="data:image/png;base64,${icone}" href="data:image/png;base64,${icone}"/>`);
+      xt = cx + 30;
+    }
+    const texto = nomeDentro && i === 0 ? e.nome : horas.join(" · ");
+    contorno(caminho(fonteTexto, caber(fonteTexto, texto, 18, x1 - xt - 10), xt, yb + 30, 18));
+  }
+}
+
 function desenharBarra(p, e, y, { ini, fonteTexto, icones, chaveDe }) {
+  if (e.ocorrencias) return desenharLinhaDaAlianca(p, e, y, { ini, fonteTexto, icones });
   const c0 = Math.max(0, Math.floor((diaDe(e.inicio) - ini) / DIA));
   const c1 = Math.min(6, Math.floor((Math.ceil(e.fim / DIA) * DIA - DIA - ini) / DIA));
   const antes = e.inicio < ini, depois = Math.ceil(e.fim / DIA) * DIA > ini + 7 * DIA;

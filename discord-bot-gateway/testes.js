@@ -17272,15 +17272,22 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("e o PNG sai do SVG (sharp)", await (async () => { const sh = (await import("sharp")).default; const png = await sh(Buffer.from(des.svg)).png().toBuffer(); const m = await sh(png).metadata(); return m.width === 1200 && m.height === des.altura; })());
         /* 🐻 a Armadilha do Urso (e os outros eventos da liderança) no calendário (dono, 21/11: "no calendário, junto com os demais") */
         const urso = Dz.barrasDaAlianca({ titulo: "Armadilha do Urso 1", quando: D(23, 11) + 30 * 60000, repetir: 2850, duracao: 1800 }, D(21, 18));
-        ok("o urso repete a cada 47h30m depois que fecha: 23, 25, 27 às 11:30", urso.map((b) => `${new Date(b.inicio).getUTCDate()}/${new Date(b.inicio).getUTCHours()}:${String(new Date(b.inicio).getUTCMinutes()).padStart(2, "0")}`).join(" "), "23/11:30 25/11:30 27/11:30");
-        ok("a barra dura o que o evento dura (30m)", (urso[0].fim - urso[0].inicio) / 60000, 30);
+        ok("uma linha só por evento (o urso 1 é uma linha, com cada vez dele dentro)", urso.length, 1);
+        ok("o urso repete a cada 47h30m depois que fecha: 23, 25, 27 às 11:30", urso[0].ocorrencias.map((b) => `${new Date(b.inicio).getUTCDate()}/${new Date(b.inicio).getUTCHours()}:${String(new Date(b.inicio).getUTCMinutes()).padStart(2, "0")}`).join(" "), "23/11:30 25/11:30 27/11:30");
+        ok("cada vez dura o que o evento dura (30m)", (urso[0].ocorrencias[0].fim - urso[0].ocorrencias[0].inicio) / 60000, 30);
+        ok("a linha vai da primeira à última vez", [new Date(urso[0].inicio).getUTCDate(), new Date(urso[0].fim).getUTCDate()].join(), "23,27");
         ok("sem repetição: só a primeira; e sem duração ganha 30m para aparecer",
-          Dz.barrasDaAlianca({ titulo: "X", quando: D(22, 10), duracao: 0 }, D(21, 18)).map((b) => `${new Date(b.inicio).getUTCDate()}:${(b.fim - b.inicio) / 60000}`).join(), "22:30");
+          Dz.barrasDaAlianca({ titulo: "X", quando: D(22, 10), duracao: 0 }, D(21, 18))[0].ocorrencias.map((b) => `${new Date(b.inicio).getUTCDate()}:${(b.fim - b.inicio) / 60000}`).join(), "22:30");
         ok("evento sem repetição que já fechou não entra; e quando inválido vazio",
           [Dz.barrasDaAlianca({ titulo: "X", quando: D(20, 10), duracao: 1800 }, D(21, 18)).length, Dz.barrasDaAlianca({ titulo: "X", quando: "lixo" }, D(21, 18)).length].join(), "0,0");
         verdade("o evento da aliança é verde e fica na seção de eventos", Dz.tipoDoEvento(urso[0]) === "alianca" && Dz.secaoDoEvento(urso[0]) === "eventos" && Dz.corDoEvento(urso[0]) === "#4ADE80");
         const comUrso = Dz.desenharSemana({ eventos: [...site.map((e) => ({ ...e, hora: S.horaDoSite(e) })), ...urso], agora: D(21, 18), reino: "2311", fonteTitulo, fonteTexto });
         verdade("o urso entra na imagem junto com os do reino (mais barras que só o site)", comUrso.eventos > Dz.eventosDaJanela(site, D(21, 18)).length);
+        const urso2 = Dz.barrasDaAlianca({ titulo: "Armadilha do Urso 2", quando: D(23, 21) + 30 * 60000, repetir: 2850, duracao: 1800 }, D(21, 18));
+        const doisUrsos = Dz.desenharSemana({ eventos: [...site, ...urso, ...urso2], agora: D(21, 18), reino: "2311", fonteTitulo, fonteTexto,
+          icones: new Map([["Armadilha do Urso 1", "URSOPNG"], ["Armadilha do Urso 2", "URSOPNG"]]) });
+        ok("o urso 1 e o urso 2 em linhas separadas, uma linha cada (não uma por dia)", doisUrsos.eventos - Dz.eventosDaJanela(site, D(21, 18)).length, 2);
+        ok("uma pílula com o urso em cada dia de cada armadilha (3 + 3)", (doisUrsos.svg.match(/xlink:href="data:image\/png;base64,URSOPNG"/g) || []).length, 6);
       }
       /* o ÍCONE FIXO de cada evento ("mas todos aqui têm emoji", 21/11) */
       {
@@ -17313,9 +17320,12 @@ function conferirCartao(onde, embed, componentes = []) {
         const pub = semComentarios(pedaco("agendaDoJogoNosCanais"));
         verdade("os eventos da liderança (o urso e os outros) entram na imagem e na chave da semana",
           /const daLideranca = \(await eventosDoServidor\(servidor\.id, agora\)/.test(pub) && /barrasDaAlianca\(\{ titulo: ev\.titulo, quando: ev\.quando, repetir: ev\.repetir_min, duracao: ev\.duracao_seg \}, agora\)\)/.test(pub) &&
-          /chaveDaSemana\(\[\.\.\.eventos, \.\.\.daLideranca\], agora\)/.test(pub) && /cargaDaSemana\(eventos, agora, alvo\.reino, sala\.idioma, motor, daLideranca\)/.test(pub));
+          /chaveDaSemana\(\[\.\.\.eventos, \.\.\.daLideranca\.flatMap/.test(pub) && /cargaDaSemana\(eventos, agora, alvo\.reino, sala\.idioma, motor, daLideranca\)/.test(pub));
         verdade("a imagem desenha o reino mais a liderança; o aviso do dia não (só o calendário)", /desenhoDaSemana\(\[\.\.\.daSala, \.\.\.extras\], agora, reino, t\)/.test(pedaco("cargaDaSemana")) && !/extras/.test(pedaco("cargaDoDia")));
-        verdade("o urso ganha o ícone no desenho", /iconeFixo\(nome\) \|\| iconeFixo\(site\) \|\| iconeDaAlianca\(nome\)/.test(fonte) && /urso\|bear\|armadilha\|hunting/.test(pedaco("iconeDaAlianca")));
+        verdade("o urso ganha o ícone do jogo no desenho (a cabeça da Caça ao Urso)", /iconeFixo\(nome\) \|\| iconeFixo\(site\) \|\| iconeDaAlianca\(nome\)/.test(fonte) &&
+          /urso\|bear\|armadilha\|hunting/.test(pedaco("iconeDaAlianca")) && /"ks_ev_bear"/.test(pedaco("iconeDaAlianca")) &&
+          (await import("node:fs")).existsSync(new URL("./img/eventos/ks_ev_bear.png", import.meta.url)));
+        verdade("a chave da semana olha cada vez de cada evento da liderança", /daLideranca\.flatMap\(\(l\) => l\.ocorrencias\.map\(\(o\) => \(\{ nome: l\.nome, \.\.\.o \}\)\)\)/.test(pub));
         verdade("a semana: edita a mensagem da sala; só manda nova quando ela sumiu", pub.indexOf("velha.edit") > 0 && pub.indexOf("velha.edit") < pub.indexOf("canal.send(carga)"));
         verdade("o id da mensagem nova é guardado na hora (reiniciar no meio não duplica)", /estado\.semana\[sala\.canal\] = nova\.id;\s*await salvar\(\)/.test(pub));
         const novoDia = pub.slice(pub.indexOf("if (estado.dia !== dia)"));
