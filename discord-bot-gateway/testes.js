@@ -17226,14 +17226,25 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o que já acabou não entra", !/Brew Workshop/.test(daSemana.description));
       verdade("o rodapé diz de onde vem e o fuso", /mightpulse\.com/.test(daSemana.footer.text) && /UTC/.test(daSemana.footer.text));
       const doDia = S.avisoDoDia(site, D(21, 4), { dica: (n) => (n === "Castle Battle" ? "Tome as torres primeiro." : "") });
-      verdade("o aviso do dia: o que começa hoje, com a dica e o contador até começar",
-        /🟢 \*\*Começa hoje\*\*\n▫️ \*\*Castle Battle\*\* · 12:00–17:00 UTC · começa <t:1795262400:R>\n↳ Tome as torres primeiro\./.test(doDia.description));
+      ok("o aviso do dia: o que começa hoje, com o contador até começar e a dica, ligados por galhos",
+        doDia.description.split("\n").slice(0, 4).join("\n"), "🟢 **Começa hoje**\n▫️ **Castle Battle** · 12:00–17:00 UTC\n├ ⏳ começa <t:1795262400:R>\n└ Tome as torres primeiro.");
+      const rolando = S.avisoDoDia(site, D(21, 13)).description;
+      verdade("rolando: quanto falta para acabar", /▫️ \*\*Castle Battle\*\* · 12:00–17:00 UTC\n└ 🔴 termina <t:1795280400:R>/.test(rolando));
+      verdade("acabou: sai do aviso (dono, 21/11: 'já passou das 17... ele deveria sair dali')", !/Castle Battle/.test(S.avisoDoDia(site, D(21, 18)).description) &&
+        /Último dia/.test(S.avisoDoDia(site, D(21, 18)).description));
+      ok("a chave do aviso: igual de madrugada e de manhã; muda quando começa e quando acaba",
+        [S.chaveDoAviso(site, D(21, 4)) === S.chaveDoAviso(site, D(21, 10)), S.chaveDoAviso(site, D(21, 10)) === S.chaveDoAviso(site, D(21, 13)),
+          S.chaveDoAviso(site, D(21, 13)) === S.chaveDoAviso(site, D(21, 18)), S.chaveDoAviso(site, D(21, 18)) === S.chaveDoAviso(site, D(22, 1))].join(), "true,false,false,false");
+      verdade("os enfeites do jogo, quando vêm (as chamas e os galhos)", (() => {
+        const x = S.avisoDoDia(site, D(21, 4), { enfeite: { comeca: "<:ks_fogo_raro:1>", ultimo: "<:ks_fogo_lendario:2>", galho: "<:ks_galho:3>", fim: "<:ks_galho_fim:4>" } }).description;
+        return x.startsWith("<:ks_fogo_raro:1> **Começa hoje**") && /<:ks_fogo_lendario:2> \*\*Último dia\*\*\n<:ks_galho:3> ▫️ Brewmaster Stall/.test(x) && /<:ks_galho_fim:4> ▫️ Voyage of Light/.test(x);
+      })());
       ok("a próxima virada do dia do jogo (00:00 UTC)", new Date(S.proximaVirada(D(21, 4))).toISOString(), "2026-11-22T00:00:00.000Z");
       ok("o contador da virada: conta sozinho no Discord de cada um, e a hora no fuso dele", S.linhaDaVirada(D(21, 4)), "⏳ **Novo dia do jogo** <t:1795305600:R> · <t:1795305600:t>");
       verdade("e vai no fim do aviso do dia", /⏳ \*\*Novo dia do jogo\*\* <t:1795305600:R>/.test(doDia.description));
       verdade("evento com hora que já começou: sem contador", !/começa <t:/.test(S.avisoDoDia(site, D(21, 13)).description));
       verdade("e em cima da imagem da semana", /description: virada, image:/.test(pedaco("cargaDaSemana")) && /linhaDaVirada\(agora/.test(pedaco("cargaDaSemana")));
-      verdade("e o último dia de cada um", /🏁 \*\*Último dia\*\*\n[^\n]*Governor Duel[^\n]*Voyage of Light/.test(doDia.description) && doDia.title === "☀️ Hoje no reino · sábado 21/11");
+      verdade("e o último dia de cada um, um por linha", /🏁 \*\*Último dia\*\*\n├ ▫️ Brewmaster Stall\n├ ▫️ Governor Duel\n└ ▫️ Voyage of Light/.test(doDia.description) && doDia.title === "☀️ Hoje no reino · sábado 21/11");
       ok("dia sem nada começando nem acabando: sem aviso", S.avisoDoDia(site, D(19, 4)), null);
       /* 🎨 o DESENHO da semana (o dono achou o cartão em texto feio, 21/11) */
       {
@@ -17277,9 +17288,10 @@ function conferirCartao(onde, embed, componentes = []) {
       }
       /* a PUBLICAÇÃO nas agendas (TOP e Kingdom #2311) */
       ok("os dias da semana na língua da sala", [S.diasDaSemanaEm("pt").join(" "), S.diasDaSemanaEm("en")[0], S.diasDaSemanaEm("tr")[0]].join(" | "), "DOM SEG TER QUA QUI SEX SÁB | SUN | PAZ");
-      const k1 = S.chaveDaSemana(site, D(21, 4)), k2 = S.chaveDaSemana(site, D(21, 20)), k3 = S.chaveDaSemana(site, D(22, 1)), k4 = S.chaveDaSemana(site.slice(1), D(21, 4));
+      const k1 = S.chaveDaSemana(site, D(21, 4)), k2 = S.chaveDaSemana(site, D(21, 10)), k3 = S.chaveDaSemana(site, D(22, 1)), k4 = S.chaveDaSemana(site.slice(1), D(21, 4));
       verdade("a chave da semana: muda com o dia e com o site, não com a hora", k1 === k2 && k1 !== k3 && k1 !== k4);
-      ok("o estado da agenda: estragado vira vazio", JSON.stringify(S.estadoDaAgenda("lixo")), JSON.stringify({ chave: "", dia: 0, semana: {}, avisos: {} }));
+      verdade("e quando um evento acaba no meio do dia (o castelo sai da imagem às 17:00)", S.chaveDaSemana(site, D(21, 16)) !== S.chaveDaSemana(site, D(21, 18)));
+      ok("o estado da agenda: estragado vira vazio", JSON.stringify(S.estadoDaAgenda("lixo")), JSON.stringify({ chave: "", dia: 0, aviso: "", semana: {}, avisos: {} }));
       ok("e o bom volta igual", S.estadoDaAgenda(JSON.stringify({ chave: "x", dia: 5, semana: { 1: "2" }, avisos: {} })).semana["1"], "2");
       const hist = S.historicoNovo([{ n: "All Out", i: D(13), f: D(15) }], [{ nome: "Vai com Tudo", site: "All Out", inicio: D(20), fim: D(22) }, { nome: "X", site: "All Out", inicio: D(20), fim: D(22) }]);
       ok("o histórico do reino: o novo na frente, sem repetir, pelo nome do site", hist.map((h) => `${h.n}@${new Date(h.i).getUTCDate()}`).join(), "All Out@20,All Out@13");
@@ -17288,7 +17300,15 @@ function conferirCartao(onde, embed, componentes = []) {
         const pub = semComentarios(pedaco("agendaDoJogoNosCanais"));
         verdade("a semana: edita a mensagem da sala; só manda nova quando ela sumiu", pub.indexOf("velha.edit") > 0 && pub.indexOf("velha.edit") < pub.indexOf("canal.send(carga)"));
         verdade("o id da mensagem nova é guardado na hora (reiniciar no meio não duplica)", /estado\.semana\[sala\.canal\] = nova\.id;\s*await salvar\(\)/.test(pub));
-        verdade("o aviso do dia: o de ontem sai antes do novo", pub.indexOf("estado.avisos[sala.canal]).catch") > 0 && pub.indexOf("estado.avisos[sala.canal]).catch") < pub.indexOf("cargaDoDia("));
+        const novoDia = pub.slice(pub.indexOf("if (estado.dia !== dia)"));
+        verdade("o aviso do dia: o de ontem sai antes do novo", novoDia.indexOf("estado.avisos[sala.canal]).catch") > 0 && novoDia.indexOf("estado.avisos[sala.canal]).catch") < novoDia.indexOf("cargaDoDia("));
+        const meio = pub.slice(pub.indexOf("estado.aviso !== chaveA"), pub.indexOf("if (estado.dia !== dia)"));
+        verdade("no meio do dia: o aviso é editado quando um evento começa ou acaba (e sai se não sobrou nada)",
+          /velho\.edit\(carga\)/.test(meio) && /if \(!carga\) \{\s*if \(velho\) await velho\.delete\(\)/.test(meio) && /estado\.aviso = chaveA;\s*await salvar\(\)/.test(meio));
+        verdade("a agenda confere de 5 em 5 minutos", /setInterval\(\(\) => agendaJogo\(0\), 5 \* 60 \* 1000\)/.test(fonte));
+        verdade("os botões do dia: só o que ainda não acabou", /x\.fim > dia/.test(pedaco("botoesDoDia")));
+        verdade("os enfeites do Kingshot no aviso (chamas e galhos), com reserva", /emojiKs\("ks_fogo_raro", "🟢"\)/.test(pedaco("enfeitesDoAviso")) &&
+          /emojiKs\("ks_galho_fim", "└"\)/.test(pedaco("enfeitesDoAviso")) && /enfeite: enfeitesDoAviso\(\)/.test(pedaco("cargaDoDia")));
         verdade("só na TOP e no Kingdom #2311", /TOP/.test(pedaco("AGENDA_DO_JOGO")) && /Kingdom/.test(pedaco("AGENDA_DO_JOGO")) && (pedaco("AGENDA_DO_JOGO").match(/guild:/g) || []).length === 2);
         verdade("na sala que não é em português, o nome oficial em inglês", /startsWith\("pt"\) \? eventos : eventos\.map\(\(e\) => \(\{ \.\.\.e, nome: e\.site \|\| e\.nome \}\)\)/.test(pedaco("eventosNaLingua")));
       }
@@ -17302,6 +17322,19 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("só no Kingdom #2311, e as duas salas", /Kingdom/.test(pedaco("SALAS_DO_JOGO")) && /urso/.test(pedaco("SALAS_DO_JOGO")) && /herois/.test(pedaco("SALAS_DO_JOGO")));
         verdade("a ficha do Urso e o livro também no 2311, esperando as cópias", /Kingdom[^\n]*esperaCopias: true/.test(pedaco("URSO_NO_CANAL")) && /Kingdom[^\n]*esperaCopias: true/.test(pedaco("LIVRO_NO_CANAL")));
         verdade("a TOP continua igual", /hunting-trap/.test(pedaco("URSO_NO_CANAL")) && /game-central/.test(pedaco("LIVRO_NO_CANAL")));
+        {
+          const L = carregar(["linguasCobertas"]);
+          const agenda = ["en", "en", "ar", "de", "es", "pt", "th", "tl", "tr"].map((idioma) => ({ idioma }));
+          const copias = ["en", "ar", "de", "es", "pt", "th", "tl", "tr"].map((idioma) => ({ idioma }));
+          verdade("a original apagada no servidor: as cópias de todas as línguas bastam", L.linguasCobertas(copias, agenda));
+          verdade("faltando uma língua: espera", !L.linguasCobertas(copias.slice(1), agenda) && !L.linguasCobertas([], []));
+          const urso = /\/\^urso\(-\|\$\)\//.test(pedaco("URSO_NO_CANAL")), livro = /\/\^herois\(-\|\$\)\//.test(pedaco("LIVRO_NO_CANAL"));
+          verdade("no 2311 a sala do Urso e a dos heróis são achadas pelas cópias (urso-th, herois-zh-cn)", urso && livro &&
+            /^urso(-|$)/.test("urso-th") && /^herois(-|$)/.test("herois-zh-cn") && !/^urso(-|$)/.test("ursos"));
+          verdade("as cópias delas não aparecem como 'cópias sem origem' para apagar", /!TIPOS_SEM_ORIGEM\.has\(r\.tipo\)/.test(pedaco("replicasOrfas")) &&
+            /new Set\(\["urso", "herois"\]\)/.test(pedaco("TIPOS_SEM_ORIGEM")));
+          verdade("e o estilo dos nomes vale para as cópias também", /for \(const r of await replicasDoIdioma\(servidor\.id\)\) ids\.add/.test(pedaco("padronizarNomes")));
+        }
         verdade("as cópias de cada língua nascem na hora (não esperam a varredura de 30 min)", /await sincronizarAgora\(guild\)/.test(criar) && criar.indexOf("sincronizarAgora(guild)") > criar.indexOf("discord_fonte_replica"));
       }
       /* os nomes no ESTILO do ranking ("・🏆┊ranking") no Kingdom #2311 */
@@ -17310,6 +17343,7 @@ function conferirCartao(onde, embed, componentes = []) {
         ok("o nome no estilo do ranking", ["⚙️-cyron", "🌐-idioma-language", "📢-anuncios-th", "📆-agenda"].map((n) => E.nomeNoEstilo(n)).join(" "),
           "・⚙️┊cyron ・🌐┊idioma-language ・📢┊anuncios-th ・📆┊agenda");
         ok("sem emoji na frente: o emoji dado", E.nomeNoEstilo("chat-th", "💬"), "・💬┊chat-th");
+        ok("as cópias do Urso e dos heróis no estilo", [E.nomeNoEstilo("🐻-urso-th"), E.nomeNoEstilo("📖-herois-zh-cn")].join(" "), "・🐻┊urso-th ・📖┊herois-zh-cn");
         ok("já no estilo: não muda (renomear de novo é inútil)", E.nomeNoEstilo("・⚙️┊cyron"), "・⚙️┊cyron");
         verdade("a CYRON reconhece a sala dela nos dois jeitos (senão criaria outra)", E.mesmoNome("・⚙️┊cyron", "⚙️-cyron") && E.mesmoNome("⚙️-cyron", "⚙️-cyron") && !E.mesmoNome("・📢┊anuncios", "⚙️-cyron"));
         ok("a cópia segue o estilo da original", E.nomeDaReplica("・📢┊anuncios", "evento", "th"), "・📢┊anuncios-th");
