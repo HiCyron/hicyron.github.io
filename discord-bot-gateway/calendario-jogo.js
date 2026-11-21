@@ -103,14 +103,19 @@ function dataCurta(ms) {
 export function resumoDoCalendario(eventos, agora = Date.now(), emoji = () => "▫️") {
   const doPrint = eventos.filter((e) => !e.previsto && !e.doSite), previstos = eventos.filter((e) => e.previsto);
   const soNoSite = eventos.filter((e) => e.doSite);
-  const agoraRola = doPrint.filter((e) => (e.inicio == null || e.inicio <= agora) && (e.fim == null || e.fim > agora));
-  const vem = doPrint.filter((e) => e.inicio != null && e.inicio > agora);
+  /* Com a hora do site, "agora" é pela hora (a Batalha do Castelo às 12:00
+     ainda não começou às 03:50); sem ela, pelo dia. */
+  const ini = (e) => e.inicioExato ?? e.inicio, fim = (e) => e.fimExato ?? e.fim;
+  const agoraRola = doPrint.filter((e) => (ini(e) == null || ini(e) <= agora) && (fim(e) == null || fim(e) > agora));
+  const vem = doPrint.filter((e) => ini(e) != null && ini(e) > agora);
   /* Sem _itálico_: o app mostra o texto cru e o "_" aparecia. */
   const linha = (e) => {
     const de = e.inicio == null ? "" : dataCurta(e.inicio);
     const ate = e.fim == null ? "" : dataCurta(e.fim - DIA);
     const quando = !de && !ate ? "a semana toda" : !ate ? `a partir de ${de}` : !de ? `até ${ate}` : de === ate ? de : `${de} → ${ate}`;
-    const marca = e.soIcone ? ` (${e.icone ? `ícone: ${e.icone}` : "só o ícone"})` : e.peloIcone && !e.peloSite ? " (pelo ícone)" : "";
+    /* Nome completado (pelo ícone, pela memória, pelo site) sai limpo: quem
+       lê o cartão quer o evento, não o caminho. O rodapé conta quantos. */
+    const marca = e.soIcone ? ` (${e.icone ? `ícone: ${e.icone}` : "só o ícone"})` : "";
     const hora = e.hora ? ` · ${e.hora}` : "";
     return e.soIcone ? `❓ **Evento sem nome**${marca} · ${quando}${hora}` : `${emoji(e.nome)} **${e.nome}**${marca} · ${quando}${hora}`;
   };
@@ -350,6 +355,12 @@ function nomeDoIconeParecido(assinatura, candidatos) {
   return melhor.nome;
 }
 
+/* Pura. Tira os nomes que são começo de outro da lista: "Fundo de Ascensão
+   do Heró" (a IA comeu o i uma vez) é o mesmo que "...do Herói". */
+function semPrefixos(nomes) {
+  return nomes.filter((n) => !nomes.some((m) => m !== n && normal(m).length > normal(n).length && normal(m).startsWith(normal(n))));
+}
+
 function normal(t) {
   return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 }
@@ -374,7 +385,9 @@ export function lerMemoria(valor) {
 }
 
 export function memoriaNova(memoria, aprendidos, teto = 60) {
-  const lista = [...aprendidos, ...memoria];
+  const todos = [...aprendidos, ...memoria];
+  const longos = new Set(semPrefixos(todos.map((m) => m.nome)).map(normal));
+  const lista = todos.filter((m) => longos.has(normal(m.nome)));
   const vistos = new Set(), fica = [];
   for (const m of lista) {
     const k = normal(m.nome);
@@ -395,8 +408,8 @@ export function pedidoDosNomes(n, imagensDeFaixas = 1) {
     "Image 1 is the top of the in-game EVENTS CALENDAR of the mobile game Kingshot (possibly in Portuguese): the current UTC time (\"Hora UTC YYYY-MM-DD HH:MM:SS\") and a row of 7 day columns, each with a weekday and a date as MM/DD.",
     `${onde} ${n} horizontal strips separated by white gaps, top to bottom${imagensDeFaixas > 1 ? " (continuing from one image to the next)" : ""}. Each strip is ONE event bar cut from that calendar: an icon and usually the event name (the name may be cut with "..."). ` +
       `Each strip has its NUMBER (1 to ${n}) in big black digits on the white margin at its left.`,
-    `Answer ONLY with JSON in this exact shape, with ONE item for EVERY strip number from 1 to ${n} (strips with only an icon too):`,
-    `{"utc_now":"YYYY-MM-DD HH:MM","days":["MM/DD",... 7 items],"bars":[{"n":1,"text":"the name exactly as written, letter by letter, or \\"\\" if the strip has only an icon","icon":"what the icon shows, in 1 to 3 words IN PORTUGUESE (e.g. \\"castelo com coroa\\", \\"peixe\\")"}, ... ${n} items]}`,
+    `Answer ONLY with JSON in this exact shape, with ONE item for EVERY strip number from 1 to ${n}. Never skip a strip, even if it looks like another one or has only an icon:`,
+    `{"utc_now":"YYYY-MM-DD HH:MM","days":["MM/DD",... 7 items],"bars":[{"n":1,"text":"the name exactly as written, letter by letter, or \\"\\" if the strip has only an icon","icon":"ONLY when the name is empty or cut with ...: what the icon shows, 1 to 3 words IN PORTUGUESE (e.g. \\"castelo com coroa\\"); otherwise \\"\\""}, ... ${n} items]}`,
   ].join("\n");
 }
 
@@ -502,7 +515,7 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
     if (prefixo.length < 3) continue;
     const comeca = (nome) => normal(nome).startsWith(prefixo) && normal(nome) !== prefixo;
     const pelo = e.assinatura && nomeDoIconeParecido(e.assinatura, comIcone.filter((c) => comeca(c.nome)));
-    const unicos = [...new Map(nomesConhecidos.filter(comeca).map((n) => [normal(n), n])).values()];
+    const unicos = semPrefixos([...new Map(nomesConhecidos.filter(comeca).map((n) => [normal(n), n])).values()]);
     const nome = pelo || (unicos.length === 1 ? unicos[0] : "");
     if (nome) Object.assign(e, { nome, cortado: false, completado: true });
   }
@@ -514,20 +527,26 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
     if (nome) Object.assign(e, { nome, cortado: CORTADO.test(nome), peloIcone: true });
   }
   for (const e of todas) { e.soIcone = !e.nome; if (!e.nome) e.nome = "?"; }
-  /* Prints que se sobrepõem (rolando a tela) repetem barras; dois eventos de
-     nome cortado igual ("Confr..." e "Confr...") no MESMO print são dois.
-     Fica, de cada evento, o maior número de vezes que ele aparece num print. */
-  const contagem = new Map();
+  /* Prints que se sobrepõem (rolando a tela) repetem barras. A mesma barra
+     é a de mesmas datas e mesmo ícone -- mesmo que num print a IA tenha lido
+     o nome e no outro não (o 5º teste, 21/11, deu "Confr..." e "?" para a
+     mesma barra). Sem ícone, vale o nome igual. Duas barras do MESMO print
+     são sempre duas ("Confr..." e "Confr..."). Fica o melhor nome. */
+  const nota = (e) => (e.lido ? 4 : e.soIcone ? 0 : e.cortado ? 1 : e.completado ? 3 : 2);
+  const mesma = (a, b) => a.inicio === b.inicio && a.fim === b.fim && (a.assinatura && b.assinatura
+    ? distanciaDosIcones(a.assinatura, b.assinatura) <= ICONE_IGUAL
+    : !a.soIcone && !b.soIcone && normal(a.nome) === normal(b.nome));
+  const juntos = [];
   for (const lista of porPrint) {
-    const aqui = new Map();
+    const usados = new Set();
     for (const e of lista) {
-      const chave = `${e.nome.toLowerCase()}|${e.inicio}|${e.fim}`;
-      aqui.set(chave, [...(aqui.get(chave) || []), e]);
+      const i = juntos.findIndex((j, n) => !usados.has(n) && mesma(j, e));
+      if (i < 0) { usados.add(juntos.length); juntos.push(e); continue; }
+      usados.add(i);
+      if (nota(e) > nota(juntos[i])) juntos[i] = e;
     }
-    for (const [chave, es] of aqui) if ((contagem.get(chave)?.length || 0) < es.length) contagem.set(chave, es);
   }
-  const eventos = [...contagem.values()].flat()
-    .sort((a, b) => (a.inicio ?? -Infinity) - (b.inicio ?? -Infinity) || a.nome.localeCompare(b.nome));
+  const eventos = juntos.sort((a, b) => (a.inicio ?? -Infinity) - (b.inicio ?? -Infinity) || a.nome.localeCompare(b.nome));
   /* Para a memória: só o que a IA leu inteiro, nunca o que eu completei. */
   const aprendidos = [...new Map(inteiros.map((e) => [normal(e.nome), { nome: e.nome, assinatura: e.assinatura }])).values()];
   return {

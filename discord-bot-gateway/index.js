@@ -10520,7 +10520,8 @@ async function calendarioDaMensagem(msg, guildId = msg?.guildId || null) {
       const cabeca = await sharp(p0.data, { raw: p0.info }).extract({ left: 0, top, width: p0.info.width, height: Math.min(330, p0.info.height - top) })
         .jpeg({ quality: 88 }).toBuffer();
       const { imagens: tiras, faixas } = await montarFaixas(sharp, comGrade);
-      const lido = await pedirAoGroqComImagens(pedidoDosNomes(faixas, tiras.length), [cabeca, ...tiras]);
+      /* 1200: 26 faixas com número, nome e (às vezes) o ícone passam de 900. */
+      const lido = await pedirAoGroqComImagens(pedidoDosNomes(faixas, tiras.length), [cabeca, ...tiras], fetch, 1200);
       modelo = lido.modelo;
       /* Os nomes inteiros que a CYRON já leu (com o ícone) completam os
          cortados; os nomes inteiros desta leitura entram na memória. */

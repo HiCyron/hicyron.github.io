@@ -100,7 +100,7 @@ function datasBatem(e, s, primeiroDia, ultimoDia) {
    eventos do site nas mesmas datas com nome parecido) se repartem. Devolve
    Map(índice do print -> evento do site). Sem certeza, não casa. */
 export function casarComOSite(eventos, doSite, { primeiroDia, ultimoDia, chaveDe = () => null, chavesPossiveis = () => null } = {}) {
-  const par = new Map(), livres = new Set(doSite.map((_, j) => j)), repartidos = new Set();
+  const par = new Map(), livres = new Set(doSite.map((_, j) => j)), repartidos = new Map();
   const candidatos = (i) => {
     const e = eventos[i];
     const pode = e.soIcone || CORTADO.test(e.nome) ? chavesPossiveis(e.nome) : null;
@@ -146,21 +146,24 @@ export function casarComOSite(eventos, doSite, { primeiroDia, ultimoDia, chaveDe
     const b = passo(() => true, true);
     if (!a && !b) break;
   }
-  /* Repetidos iguais: o mesmo nome e as mesmas datas, tantos quantos os do
-     site com nome parecido. Reparte na ordem (os nomes ficam certos como
-     conjunto; o emoji nunca nasce daqui, só de nome lido). */
+  /* Os que sobram em grupo: barras de mesmas datas que só podem ser os
+     mesmos N eventos do site, N barras para N eventos. "Confronto..." e
+     "Confronto entre..." (o Swordland e o Tri-Alliance Clash, as duas de
+     segunda em diante; ou uma delas lida e a outra que a IA pulou) e as
+     duas barras só com ícone de quarta (Desert Trial e Officer Project).
+     Reparte na ordem: cada linha sai certa (nome e datas vêm do mesmo evento
+     do site), só não sei qual ícone é de qual -- então nem emoji nasce daí. */
   const grupos = new Map();
   for (const i of soltos()) {
     const e = eventos[i];
-    if (e.soIcone) continue;
-    const k = `${normal(e.nome)}|${e.inicio}|${e.fim}`;
-    grupos.set(k, [...(grupos.get(k) || []), i]);
+    const cs = candidatos(i).filter((j) => e.soIcone || nomesParecem(e.nome, doSite[j].nome)).sort((x, y) => x - y);
+    if (!cs.length) continue;
+    const k = `${e.inicio}|${e.fim}|${cs.join(",")}`;
+    grupos.set(k, { cs, is: [...(grupos.get(k)?.is || []), i] });
   }
-  for (const is of grupos.values()) {
-    if (is.length < 2) continue;
-    const cs = candidatos(is[0]).filter((j) => nomesParecem(eventos[is[0]].nome, doSite[j].nome));
-    if (cs.length !== is.length) continue;
-    is.forEach((i, n) => { par.set(i, cs[n]); livres.delete(cs[n]); repartidos.add(i); });
+  for (const { cs, is } of grupos.values()) {
+    if (is.length < 2 || cs.length !== is.length) continue;
+    is.forEach((i, n) => { par.set(i, cs[n]); livres.delete(cs[n]); repartidos.set(i, cs); });
   }
   par.repartidos = repartidos;
   return par;
@@ -191,14 +194,18 @@ export function juntarComOSite(eventos, doSite, { primeiroDia, ultimoDia, chaveD
     if (!par.has(i)) return e;
     const s = doSite[par.get(i)];
     const semNome = e.soIcone || CORTADO.test(e.nome);
+    /* A ponta que o print não mostra (começou antes da 1ª coluna, segue depois
+       da última) vem do site: "qua 18/11 → sáb 21/11" em vez de "até sáb". */
     return {
       ...e, site: s.nome, hora: horaDoSite(s), peloSite: semNome, certo: !par.repartidos.has(i),
+      inicio: e.inicio ?? diaDe(s.inicio), fim: e.fim ?? viradaDe(s.fim), inicioExato: s.inicio, fimExato: s.fim,
       ...(semNome ? { nome: nomeEmPortugues(s.nome, { memoria, fichaDe }), soIcone: false, cortado: false } : {}),
     };
   });
   const usados = new Set(par.values());
   const depois = doSite.filter((s, j) => !usados.has(j) && s.inicio >= ultimoDia + DIA).map((s) => ({
     nome: nomeEmPortugues(s.nome, { memoria, fichaDe }), site: s.nome, inicio: diaDe(s.inicio), fim: viradaDe(s.fim), hora: horaDoSite(s), doSite: true,
+    inicioExato: s.inicio, fimExato: s.fim,
   }));
   const pares = [...par.entries()].sort((x, y) => x[0] - y[0]).filter(([i]) => eventos[i].lido).map(([i, j]) => ({ nome: eventos[i].nome, en: doSite[j].nome }));
   return { eventos: [...saida, ...depois], casados: par.size, pares };
