@@ -17212,6 +17212,18 @@ function conferirCartao(onde, embed, componentes = []) {
         site.filter((e) => /Swordland|Tri-Alliance/.test(e.nome)), { primeiroDia: D(18), ultimoDia: D(24), chaveDe: (n) => ficha(n)?.chave || null, fichaDe: ficha, chavesPossiveis: comecam });
       ok("barra lida e barra pulada, mesmas datas, mesmos dois eventos: reparte", mistos.eventos.map((e) => e.nome).sort().join(), "Swordland Showdown,Tri-Alliance Clash");
       verdade("sem certeza de qual ícone é qual: nenhum emoji nasce daí", mistos.eventos.every((e) => !e.certo));
+      /* a AGENDA DO JOGO: o cartão da semana e o aviso do dia */
+      const daSemana = S.cartaoDaSemana(site, D(21, 4), { reino: "2311", emoji: (n) => (n === "Castle Battle" ? "🏰" : "▫️") });
+      ok("o cartão: título com o reino", daSemana.title, "📅 Semana do reino #2311");
+      verdade("o que está rolando, com até quando", /🔴 \*\*Rolando agora\*\*\n[\s\S]*▫️ \*\*Governor Duel\*\* · até sáb 21\/11/.test(daSemana.description));
+      verdade("o que começa, dia a dia, com a hora quando não é o dia inteiro",
+        /⏭️ \*\*Sábado 21\/11\*\*\n🏰 \*\*Castle Battle\*\* · 12:00–17:00 UTC/.test(daSemana.description) && /⏭️ \*\*Segunda 23\/11\*\*/.test(daSemana.description));
+      verdade("o que já acabou não entra", !/Brew Workshop/.test(daSemana.description));
+      verdade("o rodapé diz de onde vem e o fuso", /mightpulse\.com/.test(daSemana.footer.text) && /UTC/.test(daSemana.footer.text));
+      const doDia = S.avisoDoDia(site, D(21, 4), { dica: (n) => (n === "Castle Battle" ? "Tome as torres primeiro." : "") });
+      verdade("o aviso do dia: o que começa hoje, com a dica", /🟢 \*\*Começa hoje\*\*\n▫️ \*\*Castle Battle\*\* · 12:00–17:00 UTC\n↳ Tome as torres primeiro\./.test(doDia.description));
+      verdade("e o último dia de cada um", /🏁 \*\*Último dia\*\*\n[^\n]*Governor Duel[^\n]*Voyage of Light/.test(doDia.description) && doDia.title === "☀️ Hoje no reino · sábado 21/11");
+      ok("dia sem nada começando nem acabando: sem aviso", S.avisoDoDia(site, D(19, 4)), null);
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */
