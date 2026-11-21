@@ -36,7 +36,7 @@ import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FIC
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
 import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO } from "./eventos-jogo.js";
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
-  analisarCalendario, pedidoDosNomes, eventosDoCalendario } from "./calendario-jogo.js";
+  analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova } from "./calendario-jogo.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -10391,6 +10391,11 @@ async function montarFaixas(sharp, prints) {
   return { imagens, faixas: usados.reduce((n, g) => n + g.length, 0) };
 }
 
+/* A memória dos nomes do calendário (calendario-jogo.js): os nomes inteiros
+   já lidos, com a assinatura do ícone. Uma para todos: o nome do evento é o
+   mesmo em todo reino da mesma língua. */
+const MEMORIA_DO_CALENDARIO = "calendario_memoria";
+
 async function calendarioDaMensagem(msg) {
   const imagens = imagensDaMensagem(msg);
   if (!imagens.length) return { erro: "sem-print" };
@@ -10410,7 +10415,7 @@ async function calendarioDaMensagem(msg) {
     }
   }
   const comGrade = prints.filter((p) => p.an?.barras?.length);
-  let eventos = [], agora = Date.now(), modelo = "", como = "";
+  let eventos = [], agora = Date.now(), modelo = "", como = "", completados = 0;
   try {
     if (comGrade.length) {
       /* As datas pelos pixels; a IA só lê o topo (hora e dias) e os nomes. */
@@ -10421,11 +10426,17 @@ async function calendarioDaMensagem(msg) {
       const { imagens: tiras, faixas } = await montarFaixas(sharp, comGrade);
       const lido = await pedirAoGroqComImagens(pedidoDosNomes(faixas, tiras.length), [cabeca, ...tiras]);
       modelo = lido.modelo;
-      const r = eventosDoCalendario(comGrade.map((p) => p.an), lido.texto);
+      /* Os nomes inteiros que a CYRON já leu (com o ícone) completam os
+         cortados; os nomes inteiros desta leitura entram na memória. */
+      const memoria = lerMemoria(await ajuste(MEMORIA_DO_CALENDARIO));
+      const r = eventosDoCalendario(comGrade.map((p) => p.an), lido.texto, Date.now(),
+        { memoria, conhecidos: [...new Set(EVENTOS_DO_JOGO.map((e) => e.nome))] });
       if (!r) falhas.push("o modelo respondeu fora do formato");
       else {
         eventos = r.eventos; agora = r.agora; como = "datas medidas no print";
+        completados = r.completados;
         if (r.lidos < r.esperados) falhas.push(`a IA leu ${r.lidos} de ${r.esperados} nomes`);
+        if (r.aprendidos.length) await porAjuste(MEMORIA_DO_CALENDARIO, memoriaNova(memoria, r.aprendidos)).catch(() => {});
       }
       const semGrade = prints.length - comGrade.length;
       if (semGrade) falhas.push(`${semGrade} print(s) não parecem o calendário do jogo`);
@@ -10448,7 +10459,8 @@ async function calendarioDaMensagem(msg) {
   return {
     titulo: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
     corpo: corpo.slice(0, 4000),
-    rodape: `${[modelo || "sem modelo", como].filter(Boolean).join(" · ")} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
+    rodape: `${[modelo || "sem modelo", como, completados ? `${completados} nome(s) completado(s) pelo ícone ou pelos nomes já vistos` : ""]
+      .filter(Boolean).join(" · ")} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
     eventos: eventos.length, prints: imagens.length, falhas: falhas.length,
   };
 }

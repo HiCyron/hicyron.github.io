@@ -16922,7 +16922,8 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("o resumo separa o que rola agora do que vem", /🔴 \*\*Agora\*\*/.test(resumo) && /⏭️ \*\*Vem aí\*\*/.test(resumo));
     verdade("com o dia da semana e a data", /🗡️ \*\*Vai com Tudo\*\* · sex 20\/11 → sáb 21\/11/.test(resumo));
     verdade("o que acabou antes de agora não aparece como agora", !/Batalha do Santuário/.test(resumo.split("⏭️")[0]) || /até sex 20\/11/.test(resumo));
-    verdade("o que segue depois do print termina em …", /Torneio de Pesca\*\* · ter 24\/11 → …/.test(resumo));
+    verdade("o que segue depois do print: 'a partir de'", /Torneio de Pesca\*\* · a partir de ter 24\/11/.test(resumo));
+    verdade("sem _itálico_ (o app mostrava o '_')", !/_/.test(resumo));
 
     /* o Groq: modelo aposentado passa a vez; outro erro para */
     const chamadas = [];
@@ -17014,11 +17015,13 @@ function conferirCartao(onde, embed, componentes = []) {
 
       /* os nomes da IA + as barras medidas */
       const resp = (bars, extra = {}) => JSON.stringify({ utc_now: "2026-11-20 23:54", days: ["11/18", "11/19", "11/20", "11/21", "11/22", "11/23", "11/24"], bars, ...extra });
-      const r = C.eventosDoCalendario([an], resp([{ text: "Voyage da Luz" }, { text: "Comp..." }, { text: "", icon: "castle" }, { text: "Vai co..." }]));
+      const r = C.eventosDoCalendario([an], resp([{ text: "Voyage da Luz" }, { text: "Comp..." }, { text: "", icon: "peixe" }, { text: "Vai co..." }]));
       const ver = (e) => `${e.nome}|${e.inicio == null ? "antes" : new Date(e.inicio).toISOString().slice(5, 10)}|${e.fim == null ? "depois" : new Date(e.fim - 86400000).toISOString().slice(5, 10)}`;
       ok("as datas saem das colunas medidas, não da IA", r.eventos.map(ver).join(" ; "),
-        "Voyage da Luz|antes|11-21 ; Vai co...|11-20|11-21 ; Batalha do Castelo|11-21|11-21 ; Comp...|11-23|depois");
-      verdade("ícone de castelo vira a Batalha do Castelo, marcado", r.eventos.find((e) => e.nome === "Batalha do Castelo").peloIcone);
+        "Voyage da Luz|antes|11-21 ; Vai co...|11-20|11-21 ; Torneio de Pesca|11-21|11-21 ; Comp...|11-23|depois");
+      verdade("ícone de peixe vira o Torneio de Pesca, marcado", r.eventos.find((e) => e.nome === "Torneio de Pesca").peloIcone);
+      const castelo = C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "B" }, { text: "", icon: "castelo com coroa" }, { text: "D" }]));
+      ok("castelo NÃO vira Batalha do Castelo (no 2311 era outro evento): fica sem nome", castelo.eventos.find((e) => e.soIcone)?.icone, "castelo com coroa");
       const dias = C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "B" }, { text: "C" }, { text: "D" }], { days: ["lixo"] }));
       ok("dias ilegíveis: vêm da hora UTC e da coluna de hoje", ver(dias.eventos.find((e) => e.nome === "B")), "B|11-23|depois");
       const poucos = C.eventosDoCalendario([an], resp([{ text: "A" }]));
@@ -17028,9 +17031,65 @@ function conferirCartao(onde, embed, componentes = []) {
         { text: "Confr..." }, { text: "Comp..." }, { text: "Confr..." }, { text: "X" }]));
       ok("repetição entre prints some; nome igual no mesmo print fica", dois.eventos.map((e) => e.nome).sort().join(), "Comp...,Confr...,Confr...,X");
       ok("resposta fora do formato: nada", C.eventosDoCalendario([an], "não sei"), null);
-      verdade("o resumo mostra o ícone de quem não tem nome", /_\(ícone: soldiers\)_/.test(C.resumoDoCalendario(
+      verdade("o resumo mostra o ícone de quem não tem nome", /❓ \*\*Evento sem nome\*\* \(ícone: soldiers\)/.test(C.resumoDoCalendario(
         C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "B" }, { text: "", icon: "soldiers" }, { text: "D" }])).eventos, Date.parse("2026-11-20T23:54Z"))));
       verdade("o pedido dos nomes diz quantas faixas e pede os dias", /4 horizontal strips/.test(C.pedidoDosNomes(4)) && /"days"/.test(C.pedidoDosNomes(4)));
+      verdade("e o ícone em português", /IN PORTUGUESE/.test(C.pedidoDosNomes(4)));
+    }
+
+    /* o ÍCONE: nome cortado ou só ícone se completa pelo ícone igual, pelo começo do nome e pela memória */
+    {
+      const W = 1080, H = 1500, C3 = 3, L = 18, R = 1061, w = (R - L + 1) / 7;
+      const img = Buffer.alloc(W * H * C3);
+      const pinta = (x0, y0, x1, y1, [r, g, b]) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = (y * W + x) * C3; img[i] = r; img[i + 1] = g; img[i + 2] = b; } };
+      const col = (c) => Math.round(L + c * w);
+      pinta(0, 0, W - 1, H - 1, [120, 100, 80]);
+      pinta(L, 540, R, H - 1, [235, 222, 206]);
+      pinta(col(2), 540, col(3) - 1, H - 1, [153, 214, 209]);
+      const amarelo = [242, 204, 71];
+      const bandeira = (x, y) => { pinta(x, y + 10, x + 69, y + 70, [200, 30, 30]); pinta(x + 20, y + 25, x + 49, y + 55, [30, 60, 200]); };
+      const escudo = (x, y) => { pinta(x, y + 10, x + 69, y + 70, [20, 150, 20]); pinta(x + 10, y + 30, x + 59, y + 40, [250, 250, 250]); };
+      const texto = (x, y, larg) => { for (let i = 0; i < larg; i += 14) pinta(x + i, y + 30, x + i + 8, y + 50, [255, 255, 255]); };
+      pinta(L, 800, col(4) - 2, 880, amarelo); bandeira(L + 40, 800); texto(L + 140, 800, 220);          // "Rally do Herói" (inteiro)
+      pinta(col(5), 950, R + 3, 1030, amarelo); bandeira(col(5) + 20, 950); texto(col(5) + 120, 950, 40); // "Rally ..." (cortado)
+      pinta(col(3), 1100, col(4) - 2, 1180, amarelo); escudo(col(3) + 20, 1100); texto(col(3) + 110, 1100, 20); // "Camp..."
+      pinta(col(6), 1250, R + 3, 1330, amarelo); bandeira(col(6) + 20, 1250);                            // só o ícone
+      const an = C.analisarCalendario(img, W, H, C3);
+      ok("4 barras, cada uma com a assinatura do ícone", an.barras.map((b) => (b.assinatura ? b.assinatura.length : 0)).join(), "192,192,192,192");
+      const [a0, a1, a2, a3] = an.barras.map((b) => b.assinatura);
+      verdade("o mesmo ícone em barras diferentes: perto", C.distanciaDosIcones(a0, a1) <= C.ICONE_IGUAL && C.distanciaDosIcones(a0, a3) <= C.ICONE_IGUAL);
+      verdade("ícones diferentes: longe", C.distanciaDosIcones(a0, a2) > 2 * C.ICONE_IGUAL);
+      ok("barra sem desenho nenhum: sem assinatura", C.analisarCalendario((() => { pinta(col(3), 1100, col(4) - 2, 1180, amarelo); return img; })(), W, H, C3).barras[2].assinatura, null);
+      escudo(col(3) + 20, 1100); texto(col(3) + 110, 1100, 20);
+
+      const resp = (bars) => JSON.stringify({ utc_now: "2026-11-20 23:54", days: ["11/18", "11/19", "11/20", "11/21", "11/22", "11/23", "11/24"], bars });
+      const nomes = [{ text: "Rally do Herói" }, { text: "Rally ..." }, { text: "Camp..." }, { text: "", icon: "bandeira" }];
+      const r = C.eventosDoCalendario([an], resp(nomes), Date.now(), { conhecidos: ["Campeonato da Aliança", "Batalha do Santuário", "Batalha do Castelo"] });
+      const nome = (i) => r.eventos.find((e) => e.inicio === (i === 0 ? null : Date.UTC(2026, 10, 18 + [0, 5, 3, 6][i])))?.nome;
+      ok("cortado com o ícone de um nome inteiro: completa", nome(1), "Rally do Herói");
+      ok("cortado sem ícone igual: o único nome conhecido que começa assim", nome(2), "Campeonato da Aliança");
+      ok("só o ícone, igual ao de um nome inteiro: o nome, marcado 'pelo ícone'", JSON.stringify([nome(3), r.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 24)).peloIcone]), JSON.stringify(["Rally do Herói", true]));
+      ok("e conta quantos completou", r.completados, 3);
+      ok("a memória guarda só o que a IA leu inteiro (nunca o que eu completei)", r.aprendidos.map((e) => e.nome).join(), "Rally do Herói");
+      const ambiguo = C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "Batalha do..." }, { text: "B" }, { text: "" , icon: "x" }]), Date.now(),
+        { conhecidos: ["Batalha do Santuário", "Batalha do Castelo"] });
+      ok("começo que serve para dois nomes: fica cortado (sem adivinhar)", ambiguo.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 23)).nome, "Batalha do...");
+      const curto = C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "Ca..." }, { text: "B" }, { text: "C" }]), Date.now(), { conhecidos: ["Campeonato da Aliança"] });
+      ok("começo curto demais (menos de 3 letras): não completa", curto.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 23)).nome, "Ca...");
+
+      /* a memória: o nome inteiro de uma semana completa o cortado da outra */
+      const guardado = C.memoriaNova([{ nome: "Velho", assinatura: null }, { nome: "rally do herói", assinatura: null }], r.aprendidos);
+      const memoria = C.lerMemoria(guardado);
+      ok("memória: o novo na frente, sem repetir nome", memoria.map((m) => m.nome).join(), "Rally do Herói,Velho");
+      ok("e a assinatura volta igual", JSON.stringify(memoria[0].assinatura), JSON.stringify(a0));
+      ok("memória com teto", JSON.parse(C.memoriaNova(Array.from({ length: 80 }, (_, i) => ({ nome: `E${i}` })), [], 60)).length, 60);
+      ok("memória estragada: vazia (nunca quebra a leitura)", JSON.stringify([C.lerMemoria("lixo"), C.lerMemoria(""), C.lerMemoria('{"n":1}')]), "[[],[],[]]");
+      const outraSemana = C.eventosDoCalendario([an], resp([{ text: "Oficina" }, { text: "Rally ..." }, { text: "Camp..." }, { text: "" }]), Date.now(), { memoria });
+      ok("outra semana sem o nome inteiro no print: a memória completa", outraSemana.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 23)).nome, "Rally do Herói");
+
+      ok("o resumo: o que vai a semana toda", /\*\*X\*\* · a semana toda/.test(C.resumoDoCalendario([{ nome: "X", inicio: null, fim: null }], Date.now())), true);
+    }
+    {
     }
 
     /* em teste: só o dono, só no TOP e no painel */
