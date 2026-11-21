@@ -35,7 +35,8 @@ import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FIC
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
 import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO } from "./eventos-jogo.js";
-import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario } from "./calendario-jogo.js";
+import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
+  analisarCalendario, pedidoDosNomes, eventosDoCalendario } from "./calendario-jogo.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -10306,24 +10307,27 @@ async function modelosDeImagemDoGroq(chave, tentados, buscar = fetch) {
   return (j?.data || []).map((m) => String(m?.id || "")).filter((id) => id && !tentados.has(id) && PARECE_DE_IMAGEM.test(id));
 }
 
-async function lerCalendarioComIA(imagem, buscar = fetch) {
+/* Um pedido ao Groq com imagens (JPEG). Modelo que sumiu passa a vez; 429
+   com "tente de novo em Xs" (o teto por minuto do plano grátis) espera e
+   tenta de novo, uma vez, se a espera for curta. */
+async function pedirAoGroqComImagens(pedido, imagens, buscar = fetch, maxTokens = 900, esperar = (ms) => new Promise((r) => setTimeout(r, ms))) {
   const chave = await chaveDaIA();
   if (!chave) throw Object.assign(new Error("sem chave do Groq"), { motivo: "chave" });
-  const pedido = pedidoDoCalendario([...new Set(EVENTOS_DO_JOGO.map((e) => e.nome))]);
   const conteudo = [{ type: "text", text: pedido },
-    { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imagem.toString("base64")}` } }];
+    ...imagens.map((b) => ({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${b.toString("base64")}` } }))];
   const tentados = new Set();
   let ultimo = "";
   const tentar = async (modelo) => {
     tentados.add(modelo);
+    let esperou = false;
     /* Modelo que pensa antes de responder (o Qwen) põe o pensamento junto da
        resposta, e o JSON não fecha: "hidden" esconde. Modelo que não aceita
        a opção recusa com 400 falando dela -- aí vai sem. */
-    for (const esconder of [true, false]) {
+    for (let esconder = true; ;) {
       const r = await buscar(`${IA_URL}/chat/completions`, {
         method: "POST",
         headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model: modelo, temperature: 0, max_completion_tokens: 2500,
+        body: JSON.stringify({ model: modelo, temperature: 0, max_completion_tokens: maxTokens,
           ...(esconder ? { reasoning_format: "hidden" } : {}),
           response_format: { type: "json_object" }, messages: [{ role: "user", content: conteudo }] }),
         signal: AbortSignal.timeout(90000),
@@ -10333,53 +10337,118 @@ async function lerCalendarioComIA(imagem, buscar = fetch) {
         return { texto: j?.choices?.[0]?.message?.content || "", modelo };
       }
       ultimo = `HTTP ${r.status}: ${String(await r.text().catch(() => "")).slice(0, 160)}`;
-      if (!(esconder && r.status === 400 && /reasoning/i.test(ultimo))) break;
+      if (esconder && r.status === 400 && /reasoning/i.test(ultimo)) { esconder = false; continue; }
+      const segundos = Number(ultimo.match(/try again in (\d+(?:\.\d+)?)s/i)?.[1]);
+      if (r.status === 429 && !esperou && segundos > 0 && segundos <= 30) { esperou = true; await esperar((segundos + 1) * 1000); continue; }
+      return null;
     }
-    return null;
   };
   for (const modelo of MODELOS_DE_VISAO) {
     const lido = await tentar(modelo);
     if (lido) return lido;
-    if (!modeloSumiu(Number(ultimo.match(/HTTP (\d+)/)?.[1]), ultimo)) throw new Error(`o Groq não leu o print (${ultimo})`);
+    if (!modeloSumiu(Number(ultimo.match(/HTTP (\d+)/)?.[1]), ultimo)) throw new Error(`o Groq não leu (${ultimo})`);
   }
   for (const modelo of await modelosDeImagemDoGroq(chave, tentados, buscar)) {
     const lido = await tentar(modelo);
     if (lido) return lido;
     if (!modeloSumiu(Number(ultimo.match(/HTTP (\d+)/)?.[1]), ultimo)) break;
   }
-  throw new Error(`o Groq não leu o print (${ultimo})`);
+  throw new Error(`o Groq não leu (${ultimo})`);
+}
+
+/* O jeito antigo, para print que não parece o calendário do jogo (a grade
+   não foi achada): a IA lê o print inteiro, datas e tudo. */
+async function lerCalendarioComIA(imagem, buscar = fetch) {
+  return pedirAoGroqComImagens(pedidoDoCalendario([...new Set(EVENTOS_DO_JOGO.map((e) => e.nome))]), [imagem], buscar, 1500);
+}
+
+/* As faixas das barras, uma embaixo da outra, para a IA ler só os nomes:
+   cada faixa é o começo da barra (ícone e nome), até 640 de largura. Mais de
+   2400 de altura vira uma segunda imagem (o Groq aceita 3 por pedido: o
+   topo e até 2 de faixas). */
+const LARGURA_DAS_FAIXAS = 640;
+const ALTURA_DAS_FAIXAS = 2400;
+async function montarFaixas(sharp, prints) {
+  const grupos = [[]];
+  let altura = 0;
+  for (const p of prints) {
+    for (const b of p.an.barras) {
+      const left = Math.max(0, b.x0 - 8), top = Math.max(0, b.y0 - 6);
+      const width = Math.min(LARGURA_DAS_FAIXAS, p.info.width - left), height = Math.min(b.y1 - b.y0 + 12, p.info.height - top);
+      const input = await sharp(p.data, { raw: p.info }).extract({ left, top, width, height }).png().toBuffer();
+      if (altura + height > ALTURA_DAS_FAIXAS && grupos.at(-1).length) { grupos.push([]); altura = 0; }
+      grupos.at(-1).push({ input, top: altura, left: 0, height });
+      altura += height + 14;
+    }
+  }
+  const usados = grupos.slice(0, 2);
+  const imagens = [];
+  for (const g of usados) {
+    const alto = g.reduce((m, f) => Math.max(m, f.top + f.height), 0) + 10;
+    imagens.push(await sharp({ create: { width: LARGURA_DAS_FAIXAS, height: alto, channels: 3, background: "#ffffff" } })
+      .composite(g.map(({ input, top, left }) => ({ input, top, left }))).jpeg({ quality: 88 }).toBuffer());
+  }
+  return { imagens, faixas: usados.reduce((n, g) => n + g.length, 0) };
 }
 
 async function calendarioDaMensagem(msg) {
   const imagens = imagensDaMensagem(msg);
   if (!imagens.length) return { erro: "sem-print" };
   const sharp = await carregarSharp();
-  const leituras = [];
+  const prints = [];
   const falhas = [];
-  let modelo = "";
   for (const img of imagens) {
     try {
       const r = await fetch(img.url, { signal: AbortSignal.timeout(15000) });
       if (!r.ok) throw new Error(`baixar o print deu HTTP ${r.status}`);
-      let buf = Buffer.from(await r.arrayBuffer());
-      if (sharp) buf = await sharp(buf, { failOn: "none" }).resize({ width: 1280, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer();
-      const lido = await lerCalendarioComIA(buf);
-      modelo = lido.modelo;
-      const l = lerRespostaDoCalendario(lido.texto);
-      if (l) leituras.push(l); else falhas.push("o modelo respondeu fora do formato");
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (!sharp) { prints.push({ buf }); continue; }
+      const { data, info } = await sharp(buf, { failOn: "none" }).resize({ width: 1080 }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+      prints.push({ buf, data, info, an: analisarCalendario(data, info.width, info.height, info.channels) });
     } catch (e) {
       falhas.push(String(e?.message || e).slice(0, 200));
     }
   }
-  const eventos = juntarLeituras(leituras);
-  const agora = leituras[0]?.agora ?? Date.now();
+  const comGrade = prints.filter((p) => p.an?.barras?.length);
+  let eventos = [], agora = Date.now(), modelo = "", como = "";
+  try {
+    if (comGrade.length) {
+      /* As datas pelos pixels; a IA só lê o topo (hora e dias) e os nomes. */
+      const p0 = comGrade[0];
+      const top = Math.max(0, p0.an.topo - 210);
+      const cabeca = await sharp(p0.data, { raw: p0.info }).extract({ left: 0, top, width: p0.info.width, height: Math.min(330, p0.info.height - top) })
+        .jpeg({ quality: 88 }).toBuffer();
+      const { imagens: tiras, faixas } = await montarFaixas(sharp, comGrade);
+      const lido = await pedirAoGroqComImagens(pedidoDosNomes(faixas, tiras.length), [cabeca, ...tiras]);
+      modelo = lido.modelo;
+      const r = eventosDoCalendario(comGrade.map((p) => p.an), lido.texto);
+      if (!r) falhas.push("o modelo respondeu fora do formato");
+      else {
+        eventos = r.eventos; agora = r.agora; como = "datas medidas no print";
+        if (r.lidos < r.esperados) falhas.push(`a IA leu ${r.lidos} de ${r.esperados} nomes`);
+      }
+      const semGrade = prints.length - comGrade.length;
+      if (semGrade) falhas.push(`${semGrade} print(s) não parecem o calendário do jogo`);
+    } else if (prints.length) {
+      /* Nenhum print com a grade do calendário: o jeito antigo, no primeiro. */
+      const p0 = prints[0];
+      const buf = sharp ? await sharp(p0.buf, { failOn: "none" }).resize({ width: 1280, withoutEnlargement: true }).jpeg({ quality: 85 }).toBuffer() : p0.buf;
+      const lido = await lerCalendarioComIA(buf);
+      modelo = lido.modelo;
+      const l = lerRespostaDoCalendario(lido.texto);
+      if (l) { eventos = juntarLeituras([l]); agora = l.agora; como = "datas lidas pela IA (não achei a grade)"; }
+      else falhas.push("o modelo respondeu fora do formato");
+    }
+  } catch (e) {
+    falhas.push(String(e?.message || e).slice(0, 200));
+  }
   const emoji = (nome) => (eventoDoJogo(nome)?.emoji) || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
   const corpo = (eventos.length ? resumoDoCalendario(eventos, agora, emoji) : "_Não consegui ler nenhum evento._") +
-    (falhas.length ? `\n\n⚠️ ${falhas.length} de ${imagens.length} prints falharam: ${falhas.join(" · ")}` : "");
+    (falhas.length ? `\n\n⚠️ ${falhas.join(" · ")}` : "");
   return {
     titulo: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
     corpo: corpo.slice(0, 4000),
-    rodape: `${modelo || "sem modelo"} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
+    rodape: `${[modelo || "sem modelo", como].filter(Boolean).join(" · ")} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
     eventos: eventos.length, prints: imagens.length, falhas: falhas.length,
   };
 }
