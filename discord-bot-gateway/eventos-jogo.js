@@ -214,3 +214,29 @@ export function fichaDoEvento(ev, { t, como, dicas, nome = ev.nome, e = (n, r) =
     footer: { text: `CYRON · ${t.aviso}`.slice(0, 2000) },
   };
 }
+
+/* O ÍCONE de cada evento, recortado dos prints do calendário do reino 2311
+   (21/11) e guardado em img/eventos/ks_ev_*.png: sobe como emoji da CYRON
+   junto com os outros do Kingshot. O dono (21/11): "mas todos aqui têm
+   emoji" -- no jogo, todo evento tem ícone; a CYRON não precisa esperar uma
+   leitura para mostrar. Vale o nome em inglês (o do site) e o em português
+   (o do jogo). O par que o print não separa foi resolvido assim: o Desert
+   Trial é o da caçada aos Dreadwolves (o lobo), o Officer Project o punho; o
+   Swordland é o do Swordshrine (a torre) e o "Confronto entre..." do jogo em
+   português é o Tri-Alliance Clash (as espadas). */
+const ICONES_FIXOS = [
+  [/brewmaster|banca do mestre/, "ks_ev_brewmaster"], [/brew workshop|oficina de poc/, "ks_ev_workshop"],
+  [/fishing|torneio de pesca/, "ks_ev_fishing"], [/hero ascension|fundo de ascensao/, "ks_ev_hero_fund"],
+  [/hero rally|rally do heroi/, "ks_ev_hero_rally"], [/voyage/, "ks_ev_voyage"], [/champagne|^feira\b/, "ks_ev_champagne"],
+  [/sanctuary|santuario/, "ks_ev_sanctuary"], [/alliance championship|campeonato da alianca/, "ks_ev_championship"],
+  [/governors? duel|duelo dos governadores/, "ks_ev_duel"], [/^all out|vai com tudo/, "ks_ev_all_out"],
+  [/strongest governor|governador mais forte/, "ks_ev_strongest"], [/castle battle|batalha do castelo/, "ks_ev_castle"],
+  [/armament|competicao de armamentos/, "ks_ev_armament"], [/swordland/, "ks_ev_swordland"], [/tri.?alliance/, "ks_ev_tri_alliance"],
+  [/mobiliz/, "ks_ev_mobilization"], [/desert trial/, "ks_ev_desert_trial"], [/officer project/, "ks_ev_officer"],
+];
+
+/* Pura. O nome do emoji fixo do evento (ks_ev_...), ou "". */
+export function iconeFixo(nome) {
+  const t = normalizado(nome);
+  return ICONES_FIXOS.find(([r]) => r.test(t))?.[1] || "";
+}
