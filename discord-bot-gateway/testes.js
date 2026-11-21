@@ -16910,6 +16910,7 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("resposta que não é JSON: nada (nunca adivinho)", C.lerRespostaDoCalendario("não sei"), null);
     ok("JSON sem eventos: nada", C.lerRespostaDoCalendario("{}"), null);
     ok("JSON em bloco de código também serve", C.lerRespostaDoCalendario("```json\n" + resposta + "\n```").eventos.length, 6);
+    ok("modelo que pensa em voz alta antes do JSON: vale o JSON", C.lerRespostaDoCalendario("<think>vou {ler}</think>\nAqui: " + resposta + " pronto").eventos.length, 6);
     const virada = C.lerRespostaDoCalendario({ utc_now: "2026-12-30 10:00", events: [{ name: "X", start: "12/30", end: "01/02" }] });
     ok("virada de ano: janeiro é do ano seguinte", new Date(virada.eventos[0].fim).toISOString().slice(0, 10), "2027-01-03");
 
@@ -16927,15 +16928,35 @@ function conferirCartao(onde, embed, componentes = []) {
     const chamadas = [];
     Object.assign(globalThis, { chaveDaIA: async () => "k", IA_URL: "https://api.groq.com/openai/v1", EVENTOS_DO_JOGO: [{ nome: "Batalha do Castelo" }],
       pedidoDoCalendario: C.pedidoDoCalendario });
-    const { lerCalendarioComIA } = carregar(["MODELOS_DE_VISAO", "lerCalendarioComIA"]);
+    const { lerCalendarioComIA } = carregar(["MODELOS_DE_VISAO", "PARECE_DE_IMAGEM", "modeloSumiu", "modelosDeImagemDoGroq", "lerCalendarioComIA"]);
     const respostaFalsa = (status, corpo) => ({ ok: status === 200, status, json: async () => corpo, text: async () => JSON.stringify(corpo) });
     const lido = await lerCalendarioComIA(Buffer.from("x"), async (url, o) => {
       const b = JSON.parse(o.body); chamadas.push(b.model);
-      return b.model.includes("scout") ? respostaFalsa(404, { error: { code: "model_not_found" } })
+      return b.model === "qwen/qwen3.8-27b" ? respostaFalsa(404, { error: { message: "The model does not exist" } })
         : respostaFalsa(200, { choices: [{ message: { content: resposta } }] });
     });
-    ok("o primeiro modelo aposentado passa a vez ao seguinte", chamadas.length, 2);
-    verdade("e a resposta volta com o modelo que leu", /maverick/.test(lido.modelo) && lido.texto === resposta);
+    ok("o modelo de imagem de hoje primeiro (o Qwen 3.8; os Llama 4 saíram do Groq)", chamadas[0], "qwen/qwen3.8-27b");
+    ok("sumiu: o seguinte da lista", JSON.stringify(chamadas), JSON.stringify(["qwen/qwen3.8-27b", "meta-models/muse-spark-open"]));
+    verdade("e a resposta volta com o modelo que leu", lido.modelo === "meta-models/muse-spark-open" && lido.texto === resposta);
+    /* a lista inteira aposentada: pergunta ao Groq o que existe e tenta o que parece de imagem */
+    chamadas.length = 0;
+    const descoberto = await lerCalendarioComIA(Buffer.from("x"), async (url, o) => {
+      if (url.endsWith("/models")) return respostaFalsa(200, { data: [{ id: "openai/gpt-oss-120b" }, { id: "qwen/qwen4.0-32b" }, { id: "qwen/qwen3.8-27b" }] });
+      const b = JSON.parse(o.body); chamadas.push(b.model);
+      return b.model === "qwen/qwen4.0-32b" ? respostaFalsa(200, { choices: [{ message: { content: "{}" } }] })
+        : respostaFalsa(404, { error: { code: "model_decommissioned" } });
+    });
+    ok("a lista toda sumiu: acha no Groq o modelo novo de imagem (e não tenta o de texto nem repete)", JSON.stringify(chamadas),
+      JSON.stringify(["qwen/qwen3.8-27b", "meta-models/muse-spark-open", "qwen/qwen4.0-32b"]));
+    ok("e lê com ele", descoberto.modelo, "qwen/qwen4.0-32b");
+    /* o pensamento escondido: modelo que não aceita a opção vai sem */
+    const corpos = [];
+    await lerCalendarioComIA(Buffer.from("x"), async (url, o) => {
+      const b = JSON.parse(o.body); corpos.push(b.reasoning_format ?? "sem");
+      return b.reasoning_format ? respostaFalsa(400, { error: { message: "reasoning_format is not supported with this model" } })
+        : respostaFalsa(200, { choices: [{ message: { content: "{}" } }] });
+    });
+    ok("pede para esconder o pensamento; recusou a opção: vai sem, no mesmo modelo", JSON.stringify(corpos), JSON.stringify(["hidden", "sem"]));
     verdade("a imagem vai junto, como dado (sem endereço público)", await (async () => {
       let corpo; await lerCalendarioComIA(Buffer.from("abc"), async (u, o) => { corpo = JSON.parse(o.body); return respostaFalsa(200, { choices: [{ message: { content: "{}" } }] }); });
       return corpo.messages[0].content[1].image_url.url === "data:image/jpeg;base64,YWJj" && corpo.response_format.type === "json_object";

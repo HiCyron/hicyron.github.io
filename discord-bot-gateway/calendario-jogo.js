@@ -52,7 +52,14 @@ function diaDoPrint(mmdd, base) {
    a virada do jogo). O que não tem nome nem dia legível sai. */
 export function lerRespostaDoCalendario(texto, agora = Date.now()) {
   let j;
-  try { j = typeof texto === "string" ? JSON.parse(String(texto).replace(/^```(?:json)?|```$/g, "").trim()) : texto; } catch { return null; }
+  /* Modelo que pensa em voz alta (<think>...</think>) ou embrulha em ```json:
+     vale o primeiro objeto JSON da resposta. */
+  const limpo = (t) => {
+    const sem = String(t).replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/```(?:json)?/g, "").trim();
+    const a = sem.indexOf("{"), b = sem.lastIndexOf("}");
+    return a >= 0 && b > a ? sem.slice(a, b + 1) : sem;
+  };
+  try { j = typeof texto === "string" ? JSON.parse(limpo(texto)) : texto; } catch { return null; }
   if (!j || !Array.isArray(j.events)) return null;
   const topo = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(j.utc_now || ""));
   const base = topo ? Date.UTC(+topo[1], +topo[2] - 1, +topo[3], +topo[4], +topo[5]) : agora;
