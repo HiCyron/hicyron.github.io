@@ -228,7 +228,7 @@ export const TEXTOS_DA_AGENDA = {
   semana: "Semana do reino", agora: "Rolando agora", ate: "até", hoje: "Hoje no reino", comeca: "Começa hoje",
   ultimo: "Último dia", rodape: "Do calendário do jogo (mightpulse.com) · horário UTC: o dia do jogo vira às 00:00 UTC",
   comoFunciona: "Como funciona cada evento…",
-  virada: "Novo dia do jogo", comeca2: "começa",
+  virada: "Novo dia do jogo", comeca2: "começa", termina: "termina",
 };
 
 /* Pura. A próxima virada do dia do jogo (00:00 UTC). */
@@ -275,24 +275,53 @@ export function cartaoDaSemana(eventos, agora, { reino, emoji = () => "▫️", 
 /* Pura. O aviso do dia `dia` (00:00 UTC): o que começa hoje (com a primeira
    dica da ficha, quando a CYRON tem) e o que tem hoje como último dia. Dia
    sem nada começando nem terminando: null (sem aviso, sem barulho). */
-export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => "", t = TEXTOS_DA_AGENDA } = {}) {
+/* Os enfeites do aviso, sem os emojis do jogo (o index troca pelos do
+   Kingshot: as chamas e os galhos dourados). */
+export const ENFEITES_DO_AVISO = { comeca: "🟢", ultimo: "🏁", galho: "├", fim: "└" };
+
+/* Pura. Os eventos do aviso do dia que ainda valem: o que começa hoje e o
+   que tem hoje como último dia. O que já acabou sai (dono, 21/11: "o evento
+   do castelo já acabou, pois já passou das 17... ele deveria sair dali"). */
+function doAviso(eventos, agora) {
+  const d = diaDe(agora);
+  const vivos = eventos.filter((e) => e.fim > agora);
+  return {
+    comeca: vivos.filter((e) => diaDe(e.inicio) === d).sort((a, b) => a.inicio - b.inicio || a.nome.localeCompare(b.nome)),
+    acaba: vivos.filter((e) => viradaDe(e.fim) - DIA === d && diaDe(e.inicio) !== d).sort((a, b) => a.nome.localeCompare(b.nome)),
+  };
+}
+
+/* Pura. A chave do aviso do dia: muda quando um evento com hora começa ou
+   acaba (aí o aviso é editado no meio do dia), e com o dia. */
+export function chaveDoAviso(eventos, agora) {
+  const { comeca, acaba } = doAviso(eventos, agora);
+  return `${diaDe(agora)}|` + [...comeca, ...acaba].map((e) => `${e.site || e.nome}@${e.inicio > agora ? "antes" : "agora"}`).sort().join(",");
+}
+
+export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => "", t = TEXTOS_DA_AGENDA, enfeite = {} } = {}) {
+  const f = { ...ENFEITES_DO_AVISO, ...enfeite };
   const d = diaDe(dia);
-  const comeca = eventos.filter((e) => diaDe(e.inicio) === d).sort((a, b) => a.inicio - b.inicio || a.nome.localeCompare(b.nome));
-  const acaba = eventos.filter((e) => viradaDe(e.fim) - DIA === d && diaDe(e.inicio) !== d).sort((a, b) => a.nome.localeCompare(b.nome));
+  const { comeca, acaba } = doAviso(eventos, dia);
   if (!comeca.length && !acaba.length) return null;
+  const s = (ms) => Math.floor(ms / 1000);
+  /* Os galhos ligam cada linha de baixo ao evento: ├ no meio, └ na última. */
+  const ramos = (linhas) => linhas.map((x, i) => `${i === linhas.length - 1 ? f.fim : f.galho} ${x}`);
   const partes = [];
   if (comeca.length) {
-    partes.push(`🟢 **${t.comeca}**`);
+    partes.push(`${f.comeca} **${t.comeca}**`);
     for (const e of comeca) {
       const hora = horaDoSite(e);
-      /* Com hora: o contador até começar, no relógio de cada um. */
-      const falta = hora && e.inicio > dia ? ` · ${t.comeca2 || TEXTOS_DA_AGENDA.comeca2} <t:${Math.floor(e.inicio / 1000)}:R>` : "";
-      partes.push(`${emoji(e.nome)} **${e.nome}**${hora ? ` · ${hora}${falta}` : ` · ${t.ate} ${curto(viradaDe(e.fim) - DIA)}`}`);
+      partes.push(`${emoji(e.nome)} **${e.nome}** · ${hora || `${t.ate} ${curto(viradaDe(e.fim) - DIA)}`}`);
+      const sub = [];
+      /* Com hora: quanto falta para começar e, rolando, para acabar -- no
+         relógio de cada um. */
+      if (hora) sub.push(e.inicio > dia ? `⏳ ${t.comeca2 || TEXTOS_DA_AGENDA.comeca2} <t:${s(e.inicio)}:R>` : `🔴 ${t.termina || TEXTOS_DA_AGENDA.termina} <t:${s(e.fim)}:R>`);
       const dc = dica(e.nome);
-      if (dc) partes.push(`↳ ${dc}`);
+      if (dc) sub.push(dc);
+      partes.push(...ramos(sub));
     }
   }
-  if (acaba.length) partes.push("", `🏁 **${t.ultimo}**`, acaba.map((e) => `${emoji(e.nome)} ${e.nome}`).join(" · "));
+  if (acaba.length) partes.push("", `${f.ultimo} **${t.ultimo}**`, ...ramos(acaba.map((e) => `${emoji(e.nome)} ${e.nome}`)));
   partes.push("", linhaDaVirada(d, t.virada || TEXTOS_DA_AGENDA.virada));
   const nome = DIAS_DA_SEMANA[new Date(d).getUTCDay()];
   return {
@@ -324,7 +353,9 @@ export function diasDaSemanaEm(idioma) {
 /* Pura. A chave da semana: o dia e o que o site diz. Mudou a chave, a imagem
    é refeita (uma vez por dia, ou quando o site muda no meio do dia). */
 export function chaveDaSemana(eventos, agora) {
-  const texto = eventos.map((e) => `${e.site || e.nome}|${e.inicio}|${e.fim}`).sort().join(";");
+  /* Só o que ainda não acabou: o evento que acaba no meio do dia (o castelo
+     às 17:00) sai da imagem na hora, não só na virada. */
+  const texto = eventos.filter((e) => e.fim > agora).map((e) => `${e.site || e.nome}|${e.inicio}|${e.fim}`).sort().join(";");
   let h = 5381;
   for (let i = 0; i < texto.length; i++) h = ((h * 33) ^ texto.charCodeAt(i)) >>> 0;
   return `${diaDe(agora)}|${h.toString(36)}`;
@@ -334,8 +365,8 @@ export function chaveDaSemana(eventos, agora) {
 export function estadoDaAgenda(valor) {
   try {
     const j = JSON.parse(String(valor || "{}"));
-    return { chave: String(j.chave || ""), dia: Number(j.dia) || 0, semana: { ...(j.semana || {}) }, avisos: { ...(j.avisos || {}) } };
-  } catch { return { chave: "", dia: 0, semana: {}, avisos: {} }; }
+    return { chave: String(j.chave || ""), dia: Number(j.dia) || 0, aviso: String(j.aviso || ""), semana: { ...(j.semana || {}) }, avisos: { ...(j.avisos || {}) } };
+  } catch { return { chave: "", dia: 0, aviso: "", semana: {}, avisos: {} }; }
 }
 
 /* Pura. O HISTÓRICO do reino, para a previsão: cada evento que o site mostrou

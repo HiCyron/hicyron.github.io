@@ -39,7 +39,7 @@ import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCa
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
 import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite,
-  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada } from "./calendario-site.js";
+  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada, chaveDoAviso } from "./calendario-site.js";
 import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -7637,8 +7637,13 @@ async function replicasOrfas(guild, servidor) {
   const comOrigem = new Set(fontes.map((f) => f.tipo));
   const replicas = await sb(
     `discord_canal_idioma?servidor_id=eq.${servidor.id}&select=id,tipo,canal_id`) || [];
-  return replicas.filter((r) => !comOrigem.has(r.tipo) && guild.channels.cache.has(r.canal_id));
+  return replicas.filter((r) => !comOrigem.has(r.tipo) && !TIPOS_SEM_ORIGEM.has(r.tipo) && guild.channels.cache.has(r.canal_id));
 }
+
+/* As salas do jogo (Urso e heróis) vivem só nas cópias de cada língua quando
+   o servidor apaga a original: não são "cópias sem origem" para o painel
+   oferecer apagar. */
+const TIPOS_SEM_ORIGEM = new Set(["urso", "herois"]);
 
 /* Os controles do painel.
 
@@ -13182,7 +13187,7 @@ const URSO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /hunting-tra
   /* O Kingdom #2311 (dono, 21/11: "vamos colocar a aba do urso e dos heróis
      no 2311 também"): a sala nasce em criarSalasDoJogo; a ficha espera as
      cópias de todas as línguas existirem (esperaCopias). */
-  { guild: /^Kingdom\s*#?\s*2311\b/i, canal: /^urso$/, marca: "urso_no_canal:k2311:1", esperaCopias: true }];
+  { guild: /^Kingdom\s*#?\s*2311\b/i, canal: /^urso(-|$)/, marca: "urso_no_canal:k2311:1", esperaCopias: true }];
 
 /* Pura. A minha ficha do Urso entre as mensagens da sala: minha, com cartão,
    e o cartão começa com o emoji do urso. */
@@ -13210,7 +13215,16 @@ function salasDoUrso(nomeDoCanal, replicas, fontes, padrao) {
 async function copiasProntas(guild, servidor, salas) {
   const agenda = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
     await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), SALA_DA_AGENDA);
-  return salas.length >= Math.max(2, agenda.length);
+  return linguasCobertas(salas, agenda);
+}
+
+/* Pura. Toda língua da agenda tem a sua sala? Conta LÍNGUAS, não salas: no
+   Kingdom #2311 a sala original do Urso e a dos heróis foram apagadas no
+   servidor (21/11, ficaram só as cópias de cada língua, "na aba de traduzir"),
+   e a ficha vai nas cópias. */
+function linguasCobertas(salas, agenda) {
+  const tem = new Set(salas.map((s) => s.idioma));
+  return salas.length >= 2 && agenda.every((s) => tem.has(s.idioma));
 }
 
 /* As salas ORIGINAIS da CYRON no estilo do ranking: a ⚙️ da administração,
@@ -13225,6 +13239,9 @@ async function padronizarNomes() {
     const servidor = await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
     const ids = new Set([...(await fontesReplica(servidor.id)).keys()]);
+    /* As cópias também: as do Urso e dos heróis ficaram sem a original (que
+       acertaria o nome delas), e as outras já estão no estilo (não mudam). */
+    for (const r of await replicasDoIdioma(servidor.id)) ids.add(String(r.canal_id));
     if (servidor.canal_config) ids.add(String(servidor.canal_config));
     for (const c of guild.channels.cache.values()) {
       if (c.type === ChannelType.GuildText && (mesmoNome(c.name, CANAL_CONFIG) || mesmoNome(c.name, CANAL_PORTA))) ids.add(c.id);
@@ -13365,7 +13382,7 @@ async function ursoNosCanais() {
    sala (como a dica saía). Os ids das páginas ficam na marca, para apagar
    mesmo que a conversa tenha passado de 50 mensagens. */
 const LIVRO_NO_CANAL = [{ guild: /^\[TOP\]\s*Best Alliance/i, canal: /game-central/, marca: "livro_no_canal:top" },
-  { guild: /^Kingdom\s*#?\s*2311\b/i, canal: /^herois$/, marca: "livro_no_canal:k2311", esperaCopias: true }];
+  { guild: /^Kingdom\s*#?\s*2311\b/i, canal: /^herois(-|$)/, marca: "livro_no_canal:k2311", esperaCopias: true }];
 /* Texto da ficha mudou, versão nova: a página do dia é refeita na hora, sem
    esperar a virada. 2 -- as dicas de líder e de joiner ficaram claras (17/11). */
 const VERSAO_DO_LIVRO = "2";
@@ -13672,7 +13689,7 @@ function listaDoComoFunciona(eventos, placeholder) {
 function botoesDoDia(eventos, dia) {
   const DIA = 86400000, d = Math.floor(dia / DIA) * DIA;
   const vistos = new Map();
-  for (const e of eventos.filter((x) => Math.floor(x.inicio / DIA) * DIA === d)) {
+  for (const e of eventos.filter((x) => Math.floor(x.inicio / DIA) * DIA === d && x.fim > dia)) {
     const ev = eventoDoJogo(e.nome) || eventoDoJogo(e.site || "");
     if (ev && !vistos.has(ev.chave)) vistos.set(ev.chave, { ev, nome: e.nome });
   }
@@ -13837,8 +13854,17 @@ async function cargaDoDia(eventos, agora, idioma, motor) {
     const d = (eventoDoJogo(e.nome) || eventoDoJogo(e.site || ""))?.dicas?.[0];
     if (d && !dicas.has(e.nome)) dicas.set(e.nome, await textoDoJogo(d, idioma, motor));
   }
-  const aviso = avisoDoDia(daSala, agora, { emoji: (n) => emojiDoEvento(n, daSala.find((e) => e.nome === n)?.site || ""), dica: (n) => dicas.get(n) || "", t: ta });
+  const aviso = avisoDoDia(daSala, agora, { emoji: (n) => emojiDoEvento(n, daSala.find((e) => e.nome === n)?.site || ""), dica: (n) => dicas.get(n) || "", t: ta,
+    enfeite: enfeitesDoAviso() });
   return aviso ? { embeds: [aviso], components: botoesDoDia(daSala, agora), allowedMentions: { parse: [] } } : null;
+}
+
+/* Os enfeites do jogo no aviso (dono, 21/11: "temos esses emojis que podemos
+   utilizar também, os de enfeite e liga"): a chama azul no que começa, a
+   laranja no último dia e os galhos dourados ligando cada linha ao evento.
+   Sem o emoji carregado, o desenho comum. */
+function enfeitesDoAviso() {
+  return { comeca: emojiKs("ks_fogo_raro", "🟢"), ultimo: emojiKs("ks_fogo_lendario", "🏁"), galho: emojiKs("ks_galho", "├"), fim: emojiKs("ks_galho_fim", "└") };
 }
 
 async function agendaDoJogoNosCanais(agora = Date.now()) {
@@ -13886,9 +13912,36 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
       const marcaH = HISTORICO_DO_REINO(alvo.reino);
       await porAjuste(marcaH, JSON.stringify(historicoNovo((() => { try { return JSON.parse(a[marcaH] || "[]"); } catch { return []; } })(), eventos))).catch(() => {});
     }
-    /* O aviso do dia: uma vez por dia; o de ontem sai. */
+    /* O aviso do dia: um por dia (o de ontem sai) e, no meio do dia, editado
+       quando um evento com hora começa ou acaba (dono, 21/11: "o evento do
+       castelo já acabou... ele deveria sair dali"). */
+    const chaveA = chaveDoAviso(eventos, agora);
+    if (estado.dia === dia && estado.aviso !== chaveA) {
+      estado.aviso = chaveA;
+      await salvar();
+      let aqui = 0;
+      for (const sala of salas) {
+        const canal = await canalDe(sala.canal);
+        if (typeof canal?.send !== "function") continue;
+        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => undefined);
+        if (carga === undefined) continue;
+        const velho = estado.avisos[sala.canal] && await canal.messages?.fetch?.(estado.avisos[sala.canal]).catch(() => null);
+        if (!carga) {
+          if (velho) await velho.delete().catch(() => {});
+          delete estado.avisos[sala.canal];
+          aqui++;
+          continue;
+        }
+        if (velho && await velho.edit(carga).then(() => true).catch(() => false)) { aqui++; continue; }
+        const nova = await canal.send(carga).catch((e) => { console.error(`agenda do jogo: aviso do dia falhou em #${canal.name}:`, e?.message || e); return null; });
+        if (nova) { estado.avisos[sala.canal] = nova.id; await salvar(); aqui++; }
+      }
+      await salvar();
+      if (aqui) console.log(`agenda do jogo: aviso do dia refeito em ${aqui} de ${salas.length} salas de ${guild.name} (um evento começou ou acabou)`);
+    }
     if (estado.dia !== dia) {
       estado.dia = dia;
+      estado.aviso = chaveA;
       await salvar();
       let aqui = 0;
       for (const sala of salas) {
@@ -29327,7 +29380,8 @@ client.once("clientReady", () => {
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => agendaJogo(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("agenda do jogo: falhou:", e?.message || e));
   setTimeout(() => agendaJogo(2), 6 * 60 * 1000);
-  setInterval(() => agendaJogo(0), 15 * 60 * 1000);
+  /* De 5 em 5 minutos: o evento que acaba sai da agenda logo. */
+  setInterval(() => agendaJogo(0), 5 * 60 * 1000);
   const urso = (resta) => ursoNosCanais()
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));
