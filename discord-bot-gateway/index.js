@@ -10312,13 +10312,11 @@ async function lerCalendarioComIA(imagem, buscar = fetch) {
   throw new Error(`o Groq não leu o print (${ultimo})`);
 }
 
-async function lerCalendarioDaMensagem(inter) {
-  await inter.deferReply({ flags: 64 });
-  if (!(await ehDono(inter.user.id))) {
-    return inter.editReply({ content: "🧪 Em teste: por enquanto só o dono da CYRON usa a leitura do calendário." });
-  }
-  const imagens = imagensDaMensagem(inter.targetMessage);
-  if (!imagens.length) return inter.editReply({ content: "🖼️ Essa mensagem não tem print. Mande os prints do calendário do jogo numa mensagem e use aqui." });
+/* A leitura de uma mensagem com os prints: o comando (Apps) e o app do dono
+   usam a mesma. Devolve o que leu, ou { erro } quando não há print. */
+async function calendarioDaMensagem(msg) {
+  const imagens = imagensDaMensagem(msg);
+  if (!imagens.length) return { erro: "sem-print" };
   const sharp = await carregarSharp();
   const leituras = [];
   const falhas = [];
@@ -10340,13 +10338,24 @@ async function lerCalendarioDaMensagem(inter) {
   const eventos = juntarLeituras(leituras);
   const agora = leituras[0]?.agora ?? Date.now();
   const emoji = (nome) => (eventoDoJogo(nome)?.emoji) || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
-  const corpo = eventos.length ? resumoDoCalendario(eventos, agora, emoji) : "_Não consegui ler nenhum evento._";
-  return inter.editReply({ embeds: [{
-    color: COR,
-    title: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
-    description: (corpo + (falhas.length ? `\n\n⚠️ ${falhas.length} de ${imagens.length} prints falharam: ${falhas.join(" · ")}` : "")).slice(0, 4000),
-    footer: { text: `${modelo || "sem modelo"} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000) },
-  }] });
+  const corpo = (eventos.length ? resumoDoCalendario(eventos, agora, emoji) : "_Não consegui ler nenhum evento._") +
+    (falhas.length ? `\n\n⚠️ ${falhas.length} de ${imagens.length} prints falharam: ${falhas.join(" · ")}` : "");
+  return {
+    titulo: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
+    corpo: corpo.slice(0, 4000),
+    rodape: `${modelo || "sem modelo"} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
+    eventos: eventos.length, prints: imagens.length, falhas: falhas.length,
+  };
+}
+
+async function lerCalendarioDaMensagem(inter) {
+  await inter.deferReply({ flags: 64 });
+  if (!(await ehDono(inter.user.id))) {
+    return inter.editReply({ content: "🧪 Em teste: por enquanto só o dono da CYRON usa a leitura do calendário." });
+  }
+  const r = await calendarioDaMensagem(inter.targetMessage);
+  if (r.erro) return inter.editReply({ content: "🖼️ Essa mensagem não tem print. Mande os prints do calendário do jogo numa mensagem e use aqui." });
+  return inter.editReply({ embeds: [{ color: COR, title: r.titulo, description: r.corpo, footer: { text: r.rodape } }] });
 }
 
 /* O comando do teste: só no TOP e no painel, até a leitura acertar. */
@@ -28873,7 +28882,9 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    estar aberta quando o Fly conferir; antes do Discord responder, a lista de
    servidores so' vem vazia. O app vive em repo proprio (TiagoFernando113/Appcyron);
    o bot so' empresta o motor. */
-ligarVisao({ client, ehDono, numerosDoDono, listarPrivados });
+/* O app do dono também lê o calendário: ele não é ADM no TOP, e o comando
+   de Apps só aparece para ADM (dono, 21/11: "pelo app da CYRON eu consigo?"). */
+ligarVisao({ client, ehDono, numerosDoDono, listarPrivados, lerCalendario: calendarioDaMensagem });
 
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);

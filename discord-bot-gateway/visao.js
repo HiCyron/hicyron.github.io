@@ -615,6 +615,30 @@ async function atender(req, res) {
     }, cab);
   }
 
+  /* "Ler calendário" pelo app: o dono toca no botão de uma mensagem com os
+     prints do calendário do jogo, e a CYRON lê (calendario-jogo.js). O index
+     entrega a função; sem ela, a rota não existe. */
+  if (rota === "POST /visao/calendario") {
+    if (typeof d.lerCalendario !== "function") return responder(res, 404, { erro: "nao existe" }, cab);
+    let corpo;
+    try { corpo = await lerCorpo(req); }
+    catch { return responder(res, 413, { erro: "pedido grande demais" }, cab); }
+    if (!ehId(corpo?.m)) return responder(res, 400, { erro: "qual mensagem?" }, cab);
+    const canal = await canalDeTexto(corpo?.c);
+    if (!canal) return responder(res, 404, { erro: "canal nao encontrado" }, cab);
+    const msg = await canal.messages.fetch(corpo.m).catch(() => null);
+    if (!msg) return responder(res, 404, { erro: "mensagem nao encontrada" }, cab);
+    try {
+      const r = await d.lerCalendario(msg);
+      if (r?.erro) return responder(res, 400, { erro: "essa mensagem nao tem print" }, cab);
+      console.log(`visao: o dono ${dono} leu o calendario (${r.prints} prints, ${r.eventos} eventos)`);
+      return responder(res, 200, r, cab);
+    } catch (e) {
+      console.error("visao: nao consegui ler o calendario:", e?.message || e);
+      return responder(res, 503, { erro: "nao consegui ler agora; tente de novo" }, cab);
+    }
+  }
+
   if (rota === "POST /visao/enviar") {
     let corpo;
     try { corpo = await lerCorpo(req); }
