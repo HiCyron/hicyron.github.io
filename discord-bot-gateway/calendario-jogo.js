@@ -103,12 +103,13 @@ function dataCurta(ms) {
 export function resumoDoCalendario(eventos, agora = Date.now(), emoji = () => "▫️") {
   const agoraRola = eventos.filter((e) => (e.inicio == null || e.inicio <= agora) && (e.fim == null || e.fim > agora));
   const vem = eventos.filter((e) => e.inicio != null && e.inicio > agora);
+  /* Sem _itálico_: o app mostra o texto cru e o "_" aparecia. */
   const linha = (e) => {
     const de = e.inicio == null ? "" : dataCurta(e.inicio);
-    const ate = e.fim == null ? "…" : dataCurta(e.fim - DIA);
-    const quando = de && de === ate ? de : de ? `${de} → ${ate}` : `até ${ate}`;
-    const marca = e.soIcone ? ` _(${e.icone ? `ícone: ${e.icone}` : "só o ícone"})_` : e.peloIcone ? " _(pelo ícone)_" : "";
-    return `${emoji(e.nome)} **${e.nome}**${marca} · ${quando}`;
+    const ate = e.fim == null ? "" : dataCurta(e.fim - DIA);
+    const quando = !de && !ate ? "a semana toda" : !ate ? `a partir de ${de}` : !de ? `até ${ate}` : de === ate ? de : `${de} → ${ate}`;
+    const marca = e.soIcone ? ` (${e.icone ? `ícone: ${e.icone}` : "só o ícone"})` : e.peloIcone ? " (pelo ícone)" : "";
+    return e.soIcone ? `❓ **Evento sem nome**${marca} · ${quando}` : `${emoji(e.nome)} **${e.nome}**${marca} · ${quando}`;
   };
   return [
     ...(agoraRola.length ? ["🔴 **Agora**", ...agoraRola.map(linha)] : []),
@@ -194,8 +195,115 @@ export function analisarCalendario(data, W, H, C = 3) {
     ini: Math.min(6, Math.max(0, Math.floor((b.x0 - L + 0.08 * w) / w))),
     fim: Math.min(6, Math.max(0, Math.floor((b.x1 - L - 0.06 * w) / w))),
     depois: b.x1 >= R - 0.1 * w,
+    assinatura: assinaturaDoIcone(px, b),
   }));
   return { topo, L, R, w, hoje, barras };
+}
+
+/* ---------------- o ÍCONE de cada barra ----------------
+
+   O jogo corta o nome da barra curta ("Rally ...", "Camp...") e às vezes só
+   mostra o ícone. Mas o mesmo evento tem o mesmo ícone: o "Rally ..." de
+   segunda tem a bandeira do "Rally do Herói", o "Camp..." tem o escudo do
+   "Campeonato da Aliança". Então a CYRON tira uma ASSINATURA do ícone e
+   compara. O ícone é o primeiro desenho da barra, da esquerda para a direita
+   (o nome vem depois de um vão); a assinatura é um mosaico 8x8 das cores
+   dele, com a cor da barra trocada por cinza. Nos 3 prints do reino 2311, o
+   mesmo ícone deu distância até 5,5 e ícones diferentes, 17 ou mais. */
+const LADO = 8;
+export const ICONE_IGUAL = 9;
+function assinaturaDoIcone(px, b) {
+  const h = b.y1 - b.y0, ys = [];
+  for (let y = b.y0 + Math.round(h * 0.2); y <= b.y1 - Math.round(h * 0.2); y++) ys.push(y);
+  const amostra = [];
+  for (const y of ys) for (let x = b.x0; x <= b.x1; x += 3) amostra.push(px(x, y));
+  const med = (k) => amostra.map((p) => p[k]).sort((a, c) => a - c)[Math.floor(amostra.length / 2)];
+  const cor = [med(0), med(1), med(2)];
+  const longe = (p) => Math.abs(p[0] - cor[0]) + Math.abs(p[1] - cor[1]) + Math.abs(p[2] - cor[2]) > 90;
+  let ini = -1, fim = -1, vazio = 0;
+  for (let x = b.x0 + 4; x <= b.x1; x++) {
+    let n = 0;
+    for (const y of ys) if (longe(px(x, y))) n++;
+    if (n >= 0.12 * ys.length) { if (ini < 0) ini = x; fim = x; vazio = 0; }
+    else if (ini >= 0 && ++vazio > 8) break;
+    if (ini >= 0 && x - ini > 1.3 * h) break;
+  }
+  if (ini < 0 || fim - ini < 10) return null;
+  const larg = fim - ini + 1, ass = [];
+  for (let gy = 0; gy < LADO; gy++) {
+    for (let gx = 0; gx < LADO; gx++) {
+      const s = [0, 0, 0];
+      let n = 0;
+      const ya = b.y0 + Math.floor(gy * h / LADO), yb = Math.max(b.y0 + Math.floor((gy + 1) * h / LADO), ya + 1);
+      const xa = ini + Math.floor(gx * larg / LADO), xb = Math.max(ini + Math.floor((gx + 1) * larg / LADO), xa + 1);
+      for (let y = ya; y < yb; y++) {
+        for (let x = xa; x < xb; x++) {
+          const p = px(x, y), q = longe(p) ? p : [128, 128, 128];
+          s[0] += q[0]; s[1] += q[1]; s[2] += q[2]; n++;
+        }
+      }
+      ass.push(Math.round(s[0] / n), Math.round(s[1] / n), Math.round(s[2] / n));
+    }
+  }
+  return ass;
+}
+
+/* Pura. A diferença média entre dois ícones (0 = iguais). */
+export function distanciaDosIcones(a, b) {
+  if (!a || !b || a.length !== b.length) return Infinity;
+  let s = 0;
+  for (let i = 0; i < a.length; i++) s += Math.abs(a[i] - b[i]);
+  return s / a.length;
+}
+
+/* O nome do ícone mais parecido, se ele for claramente o mesmo: perto o
+   bastante, e sem outro nome quase tão perto. */
+function nomeDoIconeParecido(assinatura, candidatos) {
+  const porNome = new Map();
+  for (const c of candidatos) {
+    const d = distanciaDosIcones(assinatura, c.assinatura);
+    const k = normal(c.nome);
+    if (!porNome.has(k) || d < porNome.get(k).d) porNome.set(k, { nome: c.nome, d });
+  }
+  const [melhor, segundo] = [...porNome.values()].sort((a, b) => a.d - b.d);
+  if (!melhor || melhor.d > ICONE_IGUAL || (segundo && segundo.d < melhor.d + 4)) return null;
+  return melhor.nome;
+}
+
+function normal(t) {
+  return String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+const CORTADO = /\s*(\.{2,}|…)\s*$/;
+
+/* ---------------- a MEMÓRIA dos nomes ----------------
+
+   O nome inteiro de um evento aparece na semana em que a barra dele é
+   comprida; na outra semana, a barra curta mostra "Confr...". A CYRON guarda
+   os nomes inteiros que já leu, com o ícone, e usa nas próximas leituras: o
+   R4 não precisa ensinar nada. Fica no banco como texto (cyron_ajuste), com
+   a assinatura em base64. */
+export function lerMemoria(valor) {
+  try {
+    const lista = JSON.parse(String(valor || "[]"));
+    if (!Array.isArray(lista)) return [];
+    return lista.filter((m) => m && typeof m.n === "string" && m.n.trim()).map((m) => {
+      const bytes = typeof m.a === "string" && m.a ? [...Buffer.from(m.a, "base64")] : [];
+      return { nome: m.n, assinatura: bytes.length === LADO * LADO * 3 ? bytes : null };
+    });
+  } catch { return []; }
+}
+
+export function memoriaNova(memoria, aprendidos, teto = 60) {
+  const lista = [...aprendidos, ...memoria];
+  const vistos = new Set(), fica = [];
+  for (const m of lista) {
+    const k = normal(m.nome);
+    if (!k || vistos.has(k)) continue;
+    vistos.add(k);
+    fica.push({ n: m.nome, ...(m.assinatura ? { a: Buffer.from(m.assinatura).toString("base64") } : {}) });
+    if (fica.length >= teto) break;
+  }
+  return JSON.stringify(fica);
 }
 
 /* O pedido dos NOMES: a imagem 1 é o topo do calendário (hora UTC e os 7
@@ -206,20 +314,27 @@ export function pedidoDosNomes(n, imagensDeFaixas = 1) {
     "Image 1 is the top of the in-game EVENTS CALENDAR of the mobile game Kingshot (possibly in Portuguese): the current UTC time (\"Hora UTC YYYY-MM-DD HH:MM:SS\") and a row of 7 day columns, each with a weekday and a date as MM/DD.",
     `${onde} ${n} horizontal strips separated by white gaps, top to bottom${imagensDeFaixas > 1 ? " (continuing from one image to the next)" : ""}. Each strip is ONE event bar cut from that calendar: an icon and usually the event name (the name may be cut with "...").`,
     "Answer ONLY with JSON in this exact shape:",
-    `{"utc_now":"YYYY-MM-DD HH:MM","days":["MM/DD",... 7 items],"bars":[{"text":"the name exactly as written, or \\"\\" if the strip has only an icon","icon":"the icon in 1 to 3 English words"}, ... exactly ${n} items, in order]}`,
+    `{"utc_now":"YYYY-MM-DD HH:MM","days":["MM/DD",... 7 items],"bars":[{"text":"the name exactly as written, letter by letter, or \\"\\" if the strip has only an icon","icon":"what the icon shows, in 1 to 3 words IN PORTUGUESE (e.g. \\"castelo com coroa\\", \\"peixe\\")"}, ... exactly ${n} items, in order]}`,
   ].join("\n");
 }
 
-/* Ícone sem nome que não deixa dúvida. O resto fica com o ícone escrito, para
-   o R4 conferir. */
-const NOME_PELO_ICONE = [[/castle|fort|palace/i, "Batalha do Castelo"], [/fish|rod|hook/i, "Torneio de Pesca"]];
+/* Ícone sem nome que não deixa dúvida (o peixe fica embaixo do título
+   "Torneio de Pesca"). O castelo NÃO entra: no print do reino 2311, o
+   "castelo" que a IA viu era o ícone da "Batalha do...", e o castelo com
+   coroa era outro evento. O resto fica com o ícone escrito, para o R4. */
+const NOME_PELO_ICONE = [[/fish|peixe|pesca|anzol|\brod\b|\bhook\b/i, "Torneio de Pesca"]];
 
 /* Pura. A resposta dos nomes + as barras medidas = os eventos com data. A
    data de cada coluna vem dos dias que o modelo leu; se eles não fecham (não
    são 7 dias seguidos, ou hoje não cai na coluna verde-água), vem da hora
    UTC e da coluna de hoje. Barra que começa na 1ª coluna: começou ali ou
-   antes (o print não diz) -- vira "até ...". */
-export function eventosDoCalendario(analises, texto, agora = Date.now()) {
+   antes (o print não diz) -- vira "até ...".
+
+   Nome cortado ("Rally ...") ou só ícone: completa pelo ícone igual ao de
+   um nome inteiro (desta leitura ou da memória) e, se não, pelo começo do
+   nome, quando só um nome conhecido começa assim. `conhecidos` são os nomes
+   dos eventos que a CYRON já explica. Sem certeza, fica como está. */
+export function eventosDoCalendario(analises, texto, agora = Date.now(), { memoria = [], conhecidos = [] } = {}) {
   let j;
   try {
     const sem = String(texto || "").replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/```(?:json)?/g, "");
@@ -237,16 +352,38 @@ export function eventosDoCalendario(analises, texto, agora = Date.now()) {
   let k = 0;
   const porPrint = analises.map((an) => (an?.barras || []).map((b) => {
     const n = nomes[k++] || {};
-    let nome = String(n.text || "").replace(/\s+/g, " ").trim().slice(0, 80);
-    const icone = String(n.icon || "").trim().slice(0, 40);
-    let peloIcone = false;
-    if (!nome) { const achado = NOME_PELO_ICONE.find(([r]) => r.test(icone)); if (achado) { nome = achado[1]; peloIcone = true; } }
+    const nome = String(n.text || "").replace(/\s+/g, " ").trim().slice(0, 80);
     return {
-      nome: nome || "?", icone, soIcone: !nome, peloIcone,
+      nome, icone: String(n.icon || "").trim().slice(0, 40), assinatura: b.assinatura || null,
+      cortado: CORTADO.test(nome), lido: !!nome && !CORTADO.test(nome), peloIcone: false, completado: false,
       inicio: b.ini === 0 ? null : dias[b.ini],
       fim: b.depois ? null : dias[b.fim] + DIA,
     };
   }));
+  const todas = porPrint.flat();
+  const inteiros = todas.filter((e) => e.lido);
+  const comIcone = [...inteiros.filter((e) => e.assinatura), ...memoria.filter((m) => m.assinatura)];
+  const nomesConhecidos = [...inteiros, ...memoria].map((e) => e.nome).concat(conhecidos);
+  /* 1º os cortados (o ícone igual, e o começo tem que bater; ou o único nome
+     conhecido que começa assim), depois os sem nome (o ícone igual ao de
+     qualquer barra com nome, mesmo cortado: "Batalha do..." é melhor que "?"). */
+  for (const e of todas.filter((x) => x.cortado)) {
+    const prefixo = normal(e.nome.replace(CORTADO, ""));
+    if (prefixo.length < 3) continue;
+    const comeca = (nome) => normal(nome).startsWith(prefixo) && normal(nome) !== prefixo;
+    const pelo = e.assinatura && nomeDoIconeParecido(e.assinatura, comIcone.filter((c) => comeca(c.nome)));
+    const unicos = [...new Map(nomesConhecidos.filter(comeca).map((n) => [normal(n), n])).values()];
+    const nome = pelo || (unicos.length === 1 ? unicos[0] : "");
+    if (nome) Object.assign(e, { nome, cortado: false, completado: true });
+  }
+  for (const e of todas.filter((x) => !x.nome)) {
+    const pelo = e.assinatura && (nomeDoIconeParecido(e.assinatura, comIcone)
+      || nomeDoIconeParecido(e.assinatura, todas.filter((o) => o !== e && o.nome && o.assinatura)));
+    const achado = !pelo && NOME_PELO_ICONE.find(([r]) => r.test(e.icone));
+    const nome = pelo || (achado ? achado[1] : "");
+    if (nome) Object.assign(e, { nome, cortado: CORTADO.test(nome), peloIcone: true });
+  }
+  for (const e of todas) { e.soIcone = !e.nome; if (!e.nome) e.nome = "?"; }
   /* Prints que se sobrepõem (rolando a tela) repetem barras; dois eventos de
      nome cortado igual ("Confr..." e "Confr...") no MESMO print são dois.
      Fica, de cada evento, o maior número de vezes que ele aparece num print. */
@@ -261,5 +398,10 @@ export function eventosDoCalendario(analises, texto, agora = Date.now()) {
   }
   const eventos = [...contagem.values()].flat()
     .sort((a, b) => (a.inicio ?? -Infinity) - (b.inicio ?? -Infinity) || a.nome.localeCompare(b.nome));
-  return { agora: base, eventos, lidos: Math.min(nomes.length, k), esperados: k };
+  /* Para a memória: só o que a IA leu inteiro, nunca o que eu completei. */
+  const aprendidos = [...new Map(inteiros.map((e) => [normal(e.nome), { nome: e.nome, assinatura: e.assinatura }])).values()];
+  return {
+    agora: base, eventos, lidos: Math.min(nomes.length, k), esperados: k, aprendidos,
+    completados: eventos.filter((e) => e.completado || (e.peloIcone && !e.soIcone && !e.cortado)).length,
+  };
 }
