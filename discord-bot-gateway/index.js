@@ -41,7 +41,7 @@ import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCa
 import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite,
   diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada, chaveDoAviso } from "./calendario-site.js";
 import { TEXTOS_DO_CODIGO, codigoLimpo, codigosDoAnuncio, validadeDe, pareceKingshot, salasDoCodigo, cartaoDoCodigo, botoesDoCodigo,
-  codigoDoBotao, estadoDoCodigo, MARCA_DO_CODIGO } from "./codigos-jogo.js";
+  codigoDoBotao, estadoDoCodigo, MARCA_DO_CODIGO, SITE_DOS_CODIGOS, codigosDoSite, decisaoDoSite } from "./codigos-jogo.js";
 import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -14140,10 +14140,54 @@ async function canalDosCodigos() {
   if (!guild) return;
   if (guild.channels.cache.some((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, CANAL_DOS_CODIGOS))) return;
   await guild.channels.create({ name: CANAL_DOS_CODIGOS, type: ChannelType.GuildText,
-    topic: "Siga aqui o canal de anúncios do Kingshot (botão Seguir): código novo que chegar, eu espalho.",
+    topic: "Os códigos de presente do Kingshot: aqui eu conto o que achei e espalhei sozinha.",
     reason: "CYRON: códigos de presente do Kingshot" })
     .then((c) => console.log(`códigos: criei #${c.name} em ${guild.name}`))
     .catch((e) => console.error("códigos: não criei o canal dos anúncios:", e?.message || e));
+}
+
+/* A busca SOZINHA (dono, 21/11: "mas eu não quero fazer isso manual"): de
+   meia em meia hora a página de códigos do kingshotguide.org (o robots.txt
+   deles libera). Código ATIVO que ainda não foi vira aviso em todos os
+   servidores; código enviado que a página passou a dar como vencido vira
+   "expirou" na hora. Página fora do ar ou sem nenhum cartão: nada (nunca
+   adivinho). O dono fica sabendo pelo canal dos códigos no painel. */
+async function buscarCodigosNoSite(buscar = fetch) {
+  if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  const r = await buscar(SITE_DOS_CODIGOS, { headers: { "User-Agent": "CYRON Discord bot" }, signal: AbortSignal.timeout(20000) }).catch(() => null);
+  if (!r?.ok) { console.log(`códigos: a página de códigos não respondeu (${r?.status || "rede"}); tento depois`); return "sem-site"; }
+  const lista = codigosDoSite(await r.text().catch(() => ""));
+  if (!lista.length) { console.log("códigos: a página não trouxe nenhum código (mudou de formato?); não mando nada"); return "vazio"; }
+  const estados = Object.fromEntries(lista.map((x) => [x.codigo, estadoDoCodigo(a[MARCA_DO_CODIGO(x.codigo)])]));
+  const { novos, demais, vencidos } = decisaoDoSite(lista, estados);
+  if (demais) {
+    console.log("códigos: a página trouxe códigos novos demais de uma vez; não mando (confira)");
+    await avisoDosCodigos("⚠️ A página de códigos trouxe muitos códigos novos de uma vez; não mandei nada. Confira e mande pelo /admin se estiverem certos.");
+  }
+  for (const x of novos) {
+    await porAjuste(MARCA_DO_CODIGO(x.codigo), JSON.stringify({ codigo: x.codigo, premio: x.premio, ate: x.ate, estado: "rascunho", enviados: {} }));
+    const feito = await espalharCodigo(x.codigo);
+    await avisoDosCodigos(`${feito.texto}\n-# achei sozinha na página de códigos (kingshotguide.org)`);
+  }
+  for (const codigo of vencidos) {
+    const est = estados[codigo];
+    est.ate = Date.now();
+    await porAjuste(MARCA_DO_CODIGO(codigo), JSON.stringify(est));
+  }
+  if (vencidos.length) {
+    await expirarCodigos();
+    await avisoDosCodigos(`⌛ ${vencidos.map((c) => `**${c}**`).join(", ")}: a página diz que acabou; marquei como expirado nos servidores.`);
+  }
+  return novos.length ? "enviado" : "nada";
+}
+
+/* Uma linha no canal dos códigos do painel (o dono acompanha por ali). */
+async function avisoDosCodigos(texto) {
+  const gid = await guildDoPainel().catch(() => "");
+  const canal = gid && client.guilds.cache.get(gid)?.channels.cache.find((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, CANAL_DOS_CODIGOS));
+  if (canal) await canal.send({ content: String(texto).slice(0, 1900), allowedMentions: { parse: [] } }).catch(() => {});
 }
 
 /* Código com validade que venceu: cada mensagem vira "expirou", sem botões. */
@@ -29615,6 +29659,10 @@ client.once("clientReady", () => {
   /* Os códigos de presente: o canal dos anúncios no painel e a validade. */
   setTimeout(() => canalDosCodigos().catch((e) => console.log("códigos: canal falhou:", e?.message || e)), 2 * 60 * 1000);
   setInterval(() => expirarCodigos().catch((e) => console.log("códigos: validade falhou:", e?.message || e)), 60 * 60 * 1000);
+  /* E a busca sozinha, de meia em meia hora (a primeira depois dos emojis). */
+  const buscaCodigos = () => buscarCodigosNoSite().catch((e) => console.log("códigos: a busca falhou:", e?.message || e));
+  setTimeout(buscaCodigos, 5 * 60 * 1000);
+  setInterval(buscaCodigos, 30 * 60 * 1000);
   const urso = (resta) => ursoNosCanais()
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));

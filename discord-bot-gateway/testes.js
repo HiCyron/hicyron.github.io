@@ -17408,6 +17408,27 @@ function conferirCartao(onde, embed, componentes = []) {
           /mesmoNome\(msg\.channel\?\.name \|\| "", CANAL_DOS_CODIGOS\) && msg\.author\?\.id !== client\.user\?\.id && await ehOPainel/.test(fonte));
         verdade("o copiar responde só para quem tocou, só o código", /customId\.startsWith\("codigo:copiar:"\)\) \{\s*return await inter\.reply\(\{ flags: 64, content: codigoDoBotao/.test(fonte));
         verdade("a validade que vence vira 'expirou' (de hora em hora)", /expirarCodigos\(\)/.test(fonte) && /expirado: true/.test(pedaco("expirarCodigos")));
+        /* a busca SOZINHA ("mas eu não quero fazer isso manual") */
+        const paginaK = '<script>self.__next_f.push([1,"[\\"$\\",\\"$L2a\\",\\"1\\",{\\"code\\":\\"FORTHEKINGDOM\\",\\"expiresAt\\":null,\\"isActive\\":true,\\"statusLabel\\":\\"Active\\",\\"description\\":\\"500 gems\\"}]' +
+          '{\\"code\\":\\"KS0715\\",\\"expiresAt\\":null,\\"isActive\\":false,\\"stat"])</script><script>self.__next_f.push([1,"usLabel\\":\\"Expired\\",\\"compact\\":true}' +
+          '{\\"code\\":\\"NOVO2026\\",\\"expiresAt\\":\\"2026-12-31T23:59:00.000Z\\",\\"isActive\\":true,\\"statusLabel\\":\\"Active\\"}' +
+          '{\\"code\\":\\"NOVO2026\\",\\"expiresAt\\":null,\\"isActive\\":false,\\"statusLabel\\":\\"Limit Reached\\"}' +
+          '{\\"code\\":\\"FORTHEKINGDOM\\",\\"createdAt\\":\\"2026-11-05T11:00:08.585Z\\",\\"source\\":\\"auto-scan\\"}"])</script>';
+        const doSiteK = K.codigosDoSite(paginaK);
+        ok("a página: cada cartão, mesmo quebrado entre dois <script>; ativo, vencido e o prêmio",
+          doSiteK.map((x) => `${x.codigo}:${x.ativo ? "ativo" : x.rotulo}${x.premio ? `:${x.premio}` : ""}`).join(" "), "FORTHEKINGDOM:ativo:500 gems KS0715:Expired NOVO2026:Limit Reached");
+        ok("página sem cartão nenhum (mudou de formato): nada", K.codigosDoSite("<html>outra coisa</html>").length, 0);
+        const decK = K.decisaoDoSite(doSiteK, { KS0715: { estado: "enviado" } });
+        ok("a decisão: o ativo ainda não enviado vai; o enviado que venceu vira expirado",
+          `${decK.novos.map((x) => x.codigo).join()}|${decK.vencidos.join()}|${decK.demais}`, "FORTHEKINGDOM|KS0715|false");
+        ok("já enviado não vai de novo", K.decisaoDoSite(doSiteK, { FORTHEKINGDOM: { estado: "enviado" } }).novos.length, 0);
+        const muitos = Array.from({ length: 6 }, (_, i) => ({ codigo: `CODE${i}X`, ativo: true }));
+        verdade("muitos novos de uma vez (página estranha): não manda nada", K.decisaoDoSite(muitos, {}).novos.length === 0 && K.decisaoDoSite(muitos, {}).demais);
+        const busca = semComentarios(pedaco("buscarCodigosNoSite"));
+        verdade("a busca: o nome da CYRON no pedido, prazo, e página ruim não manda nada",
+          /"User-Agent": "CYRON Discord bot"/.test(busca) && /AbortSignal\.timeout/.test(busca) && /if \(!lista\.length\)[^\n]*return "vazio"/.test(busca) && /espalharCodigo\(x\.codigo\)/.test(busca));
+        verdade("de meia em meia hora, e o dono fica sabendo no painel", /setInterval\(buscaCodigos, 30 \* 60 \* 1000\)/.test(fonte) && /avisoDosCodigos\(/.test(busca));
+        ok("só da página de códigos do kingshotguide (o robots.txt deles libera; a API do kingshot.net não)", K.SITE_DOS_CODIGOS, "https://www.kingshotguide.org/gift-codes");
       }
 
       /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */

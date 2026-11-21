@@ -139,3 +139,47 @@ export function estadoDoCodigo(valor) {
 }
 
 export const MARCA_DO_CODIGO = (codigo) => `codigo_ks:${codigo}`;
+
+/* ---- a busca SOZINHA (dono, 21/11: "mas eu não quero fazer isso manual") ----
+
+   A página de códigos do kingshotguide.org: o robots.txt deles libera
+   /gift-codes, e os termos deles aceitam robô onde o robots.txt deixa. A
+   CYRON lê de meia em meia hora, com o nome dela no pedido, e só o que a
+   página marca como ATIVO vira aviso. (A API do kingshot.net seria mais
+   fácil, mas o robots.txt deles proíbe robô em /api/.) */
+export const SITE_DOS_CODIGOS = "https://www.kingshotguide.org/gift-codes";
+
+/* Pura. Os códigos da página: { codigo, ativo, ate, premio, rotulo }. Os
+   dados vêm no JSON da página (Next.js), quebrado em pedaços de <script>:
+   junta os pedaços, tira o escape e lê cada cartão (o que tem "isActive").
+   Se o mesmo código aparece ativo num lugar e vencido em outro, vale o
+   vencido (melhor não avisar que avisar código morto). Página que não tem
+   nenhum cartão: [] (mudou de formato -- nunca adivinho). */
+export function codigosDoSite(html) {
+  const t = String(html ?? "")
+    .replace(/"\]\)<\/script><script>self\.__next_f\.push\(\[1,"/g, "")
+    .replace(/\\"/g, '"');
+  const porCodigo = new Map();
+  for (const m of t.matchAll(/\{"code":"([A-Za-z0-9]{4,24})"[^{}]*\}/g)) {
+    let j = null;
+    try { j = JSON.parse(m[0]); } catch { continue; }
+    if (typeof j.isActive !== "boolean") continue;
+    const ate = j.expiresAt ? Date.parse(j.expiresAt) || null : null;
+    const novo = { codigo: j.code, ativo: j.isActive, ate, premio: typeof j.description === "string" ? j.description.trim().slice(0, 200) : "",
+      rotulo: String(j.statusLabel || "") };
+    const velho = porCodigo.get(j.code);
+    porCodigo.set(j.code, velho ? { ...velho, ativo: velho.ativo && novo.ativo, ate: velho.ate || novo.ate, premio: velho.premio || novo.premio,
+      rotulo: novo.ativo ? velho.rotulo : novo.rotulo } : novo);
+  }
+  return [...porCodigo.values()];
+}
+
+/* Pura. O que fazer com a leitura do site: os ativos que ainda não foram
+   enviados (novos) e os enviados que o site agora diz vencidos. Muitos
+   novos de uma vez é sinal de página estranha: não manda (teto). */
+export function decisaoDoSite(doSite, estados, { teto = 4 } = {}) {
+  const ja = (c) => ["enviado", "enviando", "expirado"].includes(estados[c]?.estado);
+  const novos = doSite.filter((x) => x.ativo && !ja(x.codigo));
+  const vencidos = doSite.filter((x) => !x.ativo && estados[x.codigo]?.estado === "enviado").map((x) => x.codigo);
+  return { novos: novos.length > teto ? [] : novos, demais: novos.length > teto, vencidos };
+}
