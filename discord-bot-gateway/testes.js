@@ -17107,6 +17107,42 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o número sai desenhado (sem fonte), branco com preto", px1.length === 56 * 80 * 3 && pretos(px1) > 50 && pretos(px1) < 56 * 80 / 2);
       verdade("dois dígitos cabem sem encostar na borda", pretos(px2) > pretos(px1) && !borda(px2, 56, 80));
       verdade("o pedido fala do número da faixa e pede um item por número", /NUMBER/.test(C.pedidoDosNomes(4)) && /"n":1/.test(C.pedidoDosNomes(4)));
+
+      /* o ícone vira EMOJI: o quadrado do ícone e o nome do emoji */
+      const b0 = an.barras[0], corte = C.recorteDoIcone(b0, W, H);
+      verdade("o recorte é um quadrado dentro do print, com o ícone no meio, acima da sombra da barra",
+        corte.width === corte.height && corte.left >= 0 && corte.top >= 0 && corte.left + corte.width <= W && corte.top + corte.height <= H &&
+        corte.left <= b0.icone.x0 && corte.left + corte.width >= b0.icone.x1 &&
+        corte.top + corte.height < b0.y1 && corte.top + corte.height >= b0.y1 - 0.1 * (b0.y1 - b0.y0));
+      ok("barra sem ícone: sem recorte", C.recorteDoIcone({ y0: 0, y1: 80, icone: null }, W, H), null);
+      ok("o nome do emoji: ev_ + o nome sem acento", C.nomeDoEmojiDoEvento("Mobilização da Aliança"), "ev_mobilizacao_da_alianca");
+      verdade("nome comprido: até 32, sem _ no fim", (() => { const n = C.nomeDoEmojiDoEvento("Fundo de Ascensão do Herói Lendário Supremo"); return n.length <= 32 && !n.endsWith("_") && n.startsWith("ev_fundo"); })());
+      ok("sem nome: sem emoji", [C.nomeDoEmojiDoEvento("?"), C.nomeDoEmojiDoEvento("")].join("|"), "|");
+      {
+        /* fundo transparente: bege em cima, a barra embaixo, a bolinha vermelha no canto, o desenho com contorno no meio */
+        const w = 60, h = 60, rgb = Buffer.alloc(w * h * 3);
+        const cor = (x, y) => (x >= 20 && x < 40 && y >= 20 && y < 45 ? (x === 20 || x === 39 || y === 20 || y === 44 ? [40, 30, 20] : [60, 200, 90])
+          : (x - 4) ** 2 + (y - 4) ** 2 < 12 ? [228, 40, 40] : y === 24 ? [250, 225, 120] : y > 24 ? [242, 204, 71] : [235, 222, 206]);
+        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) rgb.set(cor(x, y), (y * w + x) * 3);
+        const rgba = C.emojiSemFundo(rgb, w, h, [242, 204, 71], 24);
+        const alfa = (x, y) => rgba[(y * w + x) * 4 + 3];
+        ok("o desenho fica; o bege, a barra, a bolinha e a linha da barra somem",
+          [alfa(30, 30), alfa(21, 21), alfa(5, 50), alfa(55, 5), alfa(4, 4), alfa(10, 24)].join(), "255,255,0,0,0,0");
+      }
+
+      /* a SEQUÊNCIA: o que volta pelo ciclo depois do print */
+      const D = (d) => Date.UTC(2026, 10, d);
+      const doPrint = [{ nome: "Campeonato da Aliança", inicio: D(23), fim: D(30) }, { nome: "Mobili...", inicio: D(23), fim: null },
+        { nome: "O Governador mais Forte", inicio: null, fim: D(23) }, { nome: "?", inicio: D(21), fim: D(22), soIcone: true }];
+      const ciclo = (n) => (/campeonato/i.test(n) ? 7 : /governador|mobiliza|\?/i.test(n) ? 28 : 0);
+      const prev = C.previstosPeloCiclo(doPrint, { cicloDe: ciclo, depoisDe: D(25), ate: D(25) + 7 * 86400000 });
+      ok("pelo ciclo: o Campeonato da semana seguinte, com a mesma duração", prev.map((e) => `${e.nome}|${new Date(e.inicio).getUTCDate()}|${new Date(e.fim).getUTCDate()}|${e.previsto}`).join(),
+        "Campeonato da Aliança|30|7|true");
+      verdade("nome cortado, sem começo no print ou sem nome: não prevê", prev.length === 1);
+      ok("o que o print já mostra não repete", C.previstosPeloCiclo([...doPrint, { nome: "Campeonato da Aliança", inicio: D(30), fim: D(37) }],
+        { cicloDe: ciclo, depoisDe: D(25), ate: D(25) + 7 * 86400000 }).length, 0);
+      verdade("o resumo mostra a previsão separada, marcada", /🔮 \*\*Depois do print \(pelo ciclo, confirme no jogo\)\*\*\n▫️ \*\*Campeonato da Aliança\*\* · seg 30\/11 → dom 06\/12/.test(
+        C.resumoDoCalendario([...doPrint, ...prev], D(21))));
     }
     {
     }

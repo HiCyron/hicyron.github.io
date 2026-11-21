@@ -20,6 +20,13 @@
    jogo em português corta o nome no calendário ("Confr..."), e eu não
    invento tradução. Em português; o index.js traduz para quem tocou. */
 
+/* `ciclo`: de quantos em quantos dias o evento volta, SÓ onde os guias
+   concordam (kingshotmastery.com/guides/event-calendar, kingshotguide.org/calendar,
+   kingshotpro.com/events-guide.html, 21/11): o Campeonato toda semana; a
+   Tri-Aliança, o Governador mais Forte e a Mobilização no ciclo de 4 semanas.
+   O Swordland fica sem: uns guias dizem 14 dias, outros 28. É o que a CYRON
+   usa para prever a sequência quando o R4 não manda os prints novos
+   (calendario-jogo.js, previstosPeloCiclo). */
 export const EVENTOS_DO_JOGO = [
   {
     chave: "santuario", emoji: "🏛️", nome: "Batalha do Santuário",
@@ -61,7 +68,7 @@ export const EVENTOS_DO_JOGO = [
     ],
   },
   {
-    chave: "tri", emoji: "🛡️", nome: "Tri-Alliance Clash",
+    chave: "tri", emoji: "🛡️", nome: "Tri-Alliance Clash", ciclo: 28,
     nomes: /tri.?alian|tri.?alliance|tres aliancas|three alliance/,
     como: "Três alianças no mesmo mapa. A batalha vai por fases: tomar construções, depois as guarnições e, no fim, o Templo. " +
       "A energia serve para andar, atacar e recuperar tropa, e volta mais rápido para quem está numa construção da aliança.",
@@ -74,7 +81,7 @@ export const EVENTOS_DO_JOGO = [
     ],
   },
   {
-    chave: "governador", emoji: "👑", nome: "O Governador mais Forte",
+    chave: "governador", emoji: "👑", nome: "O Governador mais Forte", ciclo: 28,
     nomes: /governador mais forte|strongest governor/,
     como: "Evento de 7 dias, com um tema por dia (construção, heróis, habilidades, treino de tropa...). " +
       "Você pontua com o que gasta no tema do dia, e há prêmios por meta e por ranking.",
@@ -85,7 +92,7 @@ export const EVENTOS_DO_JOGO = [
     ],
   },
   {
-    chave: "campeonato", emoji: "🏆", nome: "Campeonato da Aliança",
+    chave: "campeonato", emoji: "🏆", nome: "Campeonato da Aliança", ciclo: 7,
     nomes: /campeonato|alliance championship/,
     como: "Seis alianças, cinco rodadas. Cada rodada é disputada em três pistas de até 20 membros; quem ganha duas pistas ganha a rodada.",
     dicas: [
@@ -117,7 +124,7 @@ export const EVENTOS_DO_JOGO = [
     ],
   },
   {
-    chave: "mobilizacao", emoji: "📋", nome: "Mobilização da Aliança",
+    chave: "mobilizacao", emoji: "📋", nome: "Mobilização da Aliança", ciclo: 28,
     nomes: /mobiliza/,
     como: "Missões que somam pontos para a aliança inteira; quando a aliança bate a meta, todo mundo ganha os prêmios. " +
       "Cada membro tem um número limitado de missões, e a vaga de 200% dobra os pontos de uma missão.",

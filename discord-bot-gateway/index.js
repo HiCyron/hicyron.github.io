@@ -36,7 +36,8 @@ import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FIC
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
 import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO } from "./eventos-jogo.js";
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
-  analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels } from "./calendario-jogo.js";
+  analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
+  recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -10404,6 +10405,45 @@ async function montarFaixas(sharp, prints) {
    mesmo em todo reino da mesma língua. */
 const MEMORIA_DO_CALENDARIO = "calendario_memoria";
 
+const DIA_EM_MS = 86400000;
+
+/* O emoji do evento: o ícone do próprio jogo (ev_..., criado na leitura do
+   calendário), senão o emoji da ficha, senão um quadradinho. */
+function emojiDoEvento(nome) {
+  return emojiKs(nomeDoEmojiDoEvento(nome), "") || eventoDoJogo(nome)?.emoji || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
+}
+
+/* Os ícones dos eventos viram emojis do aplicativo (o pedido do dono, 21/11:
+   "usar as imagens de cada evento como emoji"). Só de nome que a IA leu
+   inteiro: nome completado pode estar errado, e emoji com nome errado fica.
+   Um por nome (ev_...), uma vez só; emoji do aplicativo vale em todo
+   servidor da CYRON. */
+const EMOJIS_NOVOS_POR_LEITURA = 12;
+async function emojisDosEventos(sharp, prints, eventos) {
+  if (!sharp || !SUBIDA_DOS_EMOJIS.pronta) return 0;
+  let novos = 0;
+  for (const e of eventos) {
+    if (!e.lido || !e.origem || novos >= EMOJIS_NOVOS_POR_LEITURA) continue;
+    const nome = nomeDoEmojiDoEvento(e.nome);
+    if (!nome || EMOJIS_DA_CYRON.has(nome)) continue;
+    const p = prints[e.origem.p], b = p?.an?.barras?.[e.origem.b];
+    const corte = b && recorteDoIcone(b, p.info.width, p.info.height);
+    if (!corte) continue;
+    try {
+      const rgb = await sharp(p.data, { raw: p.info }).extract(corte).raw().toBuffer();
+      const rgba = emojiSemFundo(rgb, corte.width, corte.height, b.cor, b.y0 - corte.top);
+      const png = await sharp(rgba, { raw: { width: corte.width, height: corte.height, channels: 4 } }).resize(128, 128).png().toBuffer();
+      const criado = await client.application.emojis.create({ attachment: `data:image/png;base64,${png.toString("base64")}`, name: nome });
+      EMOJIS_DA_CYRON.set(nome, { id: criado.id, name: criado.name, animated: false });
+      novos++;
+    } catch (err) {
+      console.log(`calendário: não consegui criar o emoji ${nome}:`, err?.message || err);
+      break;
+    }
+  }
+  return novos;
+}
+
 async function calendarioDaMensagem(msg) {
   const imagens = imagensDaMensagem(msg);
   if (!imagens.length) return { erro: "sem-print" };
@@ -10423,7 +10463,7 @@ async function calendarioDaMensagem(msg) {
     }
   }
   const comGrade = prints.filter((p) => p.an?.barras?.length);
-  let eventos = [], agora = Date.now(), modelo = "", como = "", completados = 0;
+  let eventos = [], agora = Date.now(), modelo = "", como = "", completados = 0, emojisNovos = 0;
   try {
     if (comGrade.length) {
       /* As datas pelos pixels; a IA só lê o topo (hora e dias) e os nomes. */
@@ -10441,10 +10481,14 @@ async function calendarioDaMensagem(msg) {
         { memoria, conhecidos: [...new Set(EVENTOS_DO_JOGO.map((e) => e.nome))] });
       if (!r) falhas.push("o modelo respondeu fora do formato");
       else {
-        eventos = r.eventos; agora = r.agora; como = "datas medidas no print";
+        agora = r.agora; como = "datas medidas no print";
         completados = r.completados;
+        /* A sequência: o que volta pelo ciclo, na semana depois do print. */
+        eventos = [...r.eventos, ...previstosPeloCiclo(r.eventos, {
+          cicloDe: (nome) => eventoDoJogo(nome)?.ciclo, depoisDe: r.ultimoDia + DIA_EM_MS, ate: r.ultimoDia + 8 * DIA_EM_MS })];
         if (r.lidos < r.esperados) falhas.push(`a IA leu ${r.lidos} de ${r.esperados} nomes`);
         if (r.aprendidos.length) await porAjuste(MEMORIA_DO_CALENDARIO, memoriaNova(memoria, r.aprendidos)).catch(() => {});
+        emojisNovos = await emojisDosEventos(sharp, comGrade, r.eventos);
       }
       const semGrade = prints.length - comGrade.length;
       if (semGrade) falhas.push(`${semGrade} print(s) não parecem o calendário do jogo`);
@@ -10461,13 +10505,14 @@ async function calendarioDaMensagem(msg) {
   } catch (e) {
     falhas.push(String(e?.message || e).slice(0, 200));
   }
-  const emoji = (nome) => (eventoDoJogo(nome)?.emoji) || (/urso|bear/i.test(nome) ? "🐻" : "▫️");
+  const emoji = (nome) => emojiDoEvento(nome);
   const corpo = (eventos.length ? resumoDoCalendario(eventos, agora, emoji) : "_Não consegui ler nenhum evento._") +
     (falhas.length ? `\n\n⚠️ ${falhas.join(" · ")}` : "");
   return {
     titulo: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
     corpo: corpo.slice(0, 4000),
-    rodape: `${[modelo || "sem modelo", como, completados ? `${completados} nome(s) completado(s) pelo ícone ou pelos nomes já vistos` : ""]
+    rodape: `${[modelo || "sem modelo", como, completados ? `${completados} nome(s) completado(s) pelo ícone ou pelos nomes já vistos` : "",
+      emojisNovos ? `${emojisNovos} emoji(s) novo(s) com o ícone do evento` : ""]
       .filter(Boolean).join(" · ")} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
     eventos: eventos.length, prints: imagens.length, falhas: falhas.length,
   };
