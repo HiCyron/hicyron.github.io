@@ -10275,7 +10275,13 @@ async function lerEventoDaMensagem(inter) {
    leitura acertar. */
 const LER_CALENDARIO = "Ler calendário";
 const CALENDARIO_EM_TESTE = [/^\[TOP\]\s*Best Alliance/i];
-const MODELOS_DE_VISAO = ["meta-llama/llama-4-scout-17b-16e-instruct", "meta-llama/llama-4-maverick-17b-128e-instruct"];
+/* O Groq aposenta modelo de imagem com frequência: os Llama 4 (Scout e
+   Maverick) saíram em março e julho de 2026, e o primeiro teste do dono
+   (21/11) bateu nos dois. Hoje é o Qwen 3.8. Se todos da lista sumirem, o
+   bot pergunta ao Groq quais modelos existem e tenta os que parecem de
+   imagem, antes de desistir. */
+const MODELOS_DE_VISAO = ["qwen/qwen3.8-27b", "meta-models/muse-spark-open"];
+const PARECE_DE_IMAGEM = /qwen\d*(?:\.\d+)?-\d+b|muse|vision|[-/]vl\b|scout|maverick|gemma-?3|pixtral|llava/i;
 const IMAGENS_POR_LEITURA = 5;
 
 /* Pura. Todas as imagens anexadas (o primeiro print sozinho não basta: o
@@ -10285,35 +10291,65 @@ function imagensDaMensagem(msg) {
   return anexos.filter((a) => ehImagemAnexo(a) && a.url).slice(0, IMAGENS_POR_LEITURA).map((a) => ({ url: a.url, id: String(a.id || a.url) }));
 }
 
+/* Pura. O modelo não existe (aposentado, ou a chave não alcança): o próximo
+   pode servir. Outro erro (chave, cota, imagem grande) não melhora trocando. */
+function modeloSumiu(status, texto) {
+  return status === 404 || /model_(not_found|decommissioned)|does not exist|decommissioned|not support(?:ed)? .*image/i.test(String(texto || ""));
+}
+
+/* Os modelos que o Groq diz ter agora e que parecem de imagem, fora os já
+   tentados. Falhou a pergunta: nenhum. */
+async function modelosDeImagemDoGroq(chave, tentados, buscar = fetch) {
+  const r = await buscar(`${IA_URL}/models`, { headers: { Authorization: `Bearer ${chave}` }, signal: AbortSignal.timeout(15000) }).catch(() => null);
+  if (!r?.ok) return [];
+  const j = await r.json().catch(() => null);
+  return (j?.data || []).map((m) => String(m?.id || "")).filter((id) => id && !tentados.has(id) && PARECE_DE_IMAGEM.test(id));
+}
+
 async function lerCalendarioComIA(imagem, buscar = fetch) {
   const chave = await chaveDaIA();
   if (!chave) throw Object.assign(new Error("sem chave do Groq"), { motivo: "chave" });
   const pedido = pedidoDoCalendario([...new Set(EVENTOS_DO_JOGO.map((e) => e.nome))]);
   const conteudo = [{ type: "text", text: pedido },
     { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imagem.toString("base64")}` } }];
+  const tentados = new Set();
   let ultimo = "";
-  for (const modelo of MODELOS_DE_VISAO) {
-    const r = await buscar(`${IA_URL}/chat/completions`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: modelo, temperature: 0, max_completion_tokens: 2500,
-        response_format: { type: "json_object" }, messages: [{ role: "user", content: conteudo }] }),
-      signal: AbortSignal.timeout(60000),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      return { texto: j?.choices?.[0]?.message?.content || "", modelo };
+  const tentar = async (modelo) => {
+    tentados.add(modelo);
+    /* Modelo que pensa antes de responder (o Qwen) põe o pensamento junto da
+       resposta, e o JSON não fecha: "hidden" esconde. Modelo que não aceita
+       a opção recusa com 400 falando dela -- aí vai sem. */
+    for (const esconder of [true, false]) {
+      const r = await buscar(`${IA_URL}/chat/completions`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${chave}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: modelo, temperature: 0, max_completion_tokens: 2500,
+          ...(esconder ? { reasoning_format: "hidden" } : {}),
+          response_format: { type: "json_object" }, messages: [{ role: "user", content: conteudo }] }),
+        signal: AbortSignal.timeout(90000),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        return { texto: j?.choices?.[0]?.message?.content || "", modelo };
+      }
+      ultimo = `HTTP ${r.status}: ${String(await r.text().catch(() => "")).slice(0, 160)}`;
+      if (!(esconder && r.status === 400 && /reasoning/i.test(ultimo))) break;
     }
-    ultimo = `HTTP ${r.status}: ${String(await r.text().catch(() => "")).slice(0, 160)}`;
-    /* Modelo aposentado ou desconhecido: o próximo. Outro erro (chave, cota)
-       não melhora trocando de modelo. */
-    if (!(r.status === 404 || /model_(not_found|decommissioned)|does not exist|decommissioned/i.test(ultimo))) break;
+    return null;
+  };
+  for (const modelo of MODELOS_DE_VISAO) {
+    const lido = await tentar(modelo);
+    if (lido) return lido;
+    if (!modeloSumiu(Number(ultimo.match(/HTTP (\d+)/)?.[1]), ultimo)) throw new Error(`o Groq não leu o print (${ultimo})`);
+  }
+  for (const modelo of await modelosDeImagemDoGroq(chave, tentados, buscar)) {
+    const lido = await tentar(modelo);
+    if (lido) return lido;
+    if (!modeloSumiu(Number(ultimo.match(/HTTP (\d+)/)?.[1]), ultimo)) break;
   }
   throw new Error(`o Groq não leu o print (${ultimo})`);
 }
 
-/* A leitura de uma mensagem com os prints: o comando (Apps) e o app do dono
-   usam a mesma. Devolve o que leu, ou { erro } quando não há print. */
 async function calendarioDaMensagem(msg) {
   const imagens = imagensDaMensagem(msg);
   if (!imagens.length) return { erro: "sem-print" };
