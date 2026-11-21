@@ -13816,6 +13816,9 @@ const AGENDA_DO_JOGO = [
   { guild: /^Kingdom\s*#?\s*2311\b/i, reino: "2311", marca: "agenda_jogo:k2311" },
 ];
 const SALA_DA_AGENDA = /agenda/;
+/* A versão do DESENHO entra na chave da semana: desenho novo (o urso numa
+   linha só, 21/11) = imagem refeita sozinha, mesmo com os mesmos eventos. */
+const VERSAO_DO_DESENHO = "2";
 const HISTORICO_DO_REINO = (reino) => `calendario_historico:${reino}`;
 
 function eventosNaLingua(eventos, idioma) {
@@ -13910,7 +13913,7 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
        É por servidor; o reino é o mesmo, a agenda da liderança não. */
     const daLideranca = (await eventosDoServidor(servidor.id, agora).catch(() => []))
       .flatMap((ev) => barrasDaAlianca({ titulo: ev.titulo, quando: ev.quando, repetir: ev.repetir_min, duracao: ev.duracao_seg }, agora)).slice(0, 20);
-    const chave = chaveDaSemana([...eventos, ...daLideranca.flatMap((l) => l.ocorrencias.map((o) => ({ nome: l.nome, ...o })))], agora),
+    const chave = `v${VERSAO_DO_DESENHO}|` + chaveDaSemana([...eventos, ...daLideranca.flatMap((l) => l.ocorrencias.map((o) => ({ nome: l.nome, ...o })))], agora),
       dia = Math.floor(agora / 86400000) * 86400000;
     const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
     /* A semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
