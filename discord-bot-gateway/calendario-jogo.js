@@ -101,7 +101,8 @@ function dataCurta(ms) {
 /* Pura. O resumo para conferir: o que está rolando e o que vem, com o
    intervalo em dias do jogo (UTC). `emoji(nome)` dá o emoji do evento. */
 export function resumoDoCalendario(eventos, agora = Date.now(), emoji = () => "▫️") {
-  const doPrint = eventos.filter((e) => !e.previsto), previstos = eventos.filter((e) => e.previsto);
+  const doPrint = eventos.filter((e) => !e.previsto && !e.doSite), previstos = eventos.filter((e) => e.previsto);
+  const soNoSite = eventos.filter((e) => e.doSite);
   const agoraRola = doPrint.filter((e) => (e.inicio == null || e.inicio <= agora) && (e.fim == null || e.fim > agora));
   const vem = doPrint.filter((e) => e.inicio != null && e.inicio > agora);
   /* Sem _itálico_: o app mostra o texto cru e o "_" aparecia. */
@@ -109,12 +110,14 @@ export function resumoDoCalendario(eventos, agora = Date.now(), emoji = () => "�
     const de = e.inicio == null ? "" : dataCurta(e.inicio);
     const ate = e.fim == null ? "" : dataCurta(e.fim - DIA);
     const quando = !de && !ate ? "a semana toda" : !ate ? `a partir de ${de}` : !de ? `até ${ate}` : de === ate ? de : `${de} → ${ate}`;
-    const marca = e.soIcone ? ` (${e.icone ? `ícone: ${e.icone}` : "só o ícone"})` : e.peloIcone ? " (pelo ícone)" : "";
-    return e.soIcone ? `❓ **Evento sem nome**${marca} · ${quando}` : `${emoji(e.nome)} **${e.nome}**${marca} · ${quando}`;
+    const marca = e.soIcone ? ` (${e.icone ? `ícone: ${e.icone}` : "só o ícone"})` : e.peloIcone && !e.peloSite ? " (pelo ícone)" : "";
+    const hora = e.hora ? ` · ${e.hora}` : "";
+    return e.soIcone ? `❓ **Evento sem nome**${marca} · ${quando}${hora}` : `${emoji(e.nome)} **${e.nome}**${marca} · ${quando}${hora}`;
   };
   return [
     ...(agoraRola.length ? ["🔴 **Agora**", ...agoraRola.map(linha)] : []),
     ...(vem.length ? ["", "⏭️ **Vem aí**", ...vem.map(linha)] : []),
+    ...(soNoSite.length ? ["", "🌐 **Mais à frente (mightpulse.com)**", ...soNoSite.map(linha)] : []),
     ...(previstos.length ? ["", "🔮 **Depois do print (pelo ciclo, confirme no jogo)**", ...previstos.map(linha)] : []),
   ].join("\n").trim();
 }
@@ -365,7 +368,7 @@ export function lerMemoria(valor) {
     if (!Array.isArray(lista)) return [];
     return lista.filter((m) => m && typeof m.n === "string" && m.n.trim()).map((m) => {
       const bytes = typeof m.a === "string" && m.a ? [...Buffer.from(m.a, "base64")] : [];
-      return { nome: m.n, assinatura: bytes.length === LADO * LADO * 3 ? bytes : null };
+      return { nome: m.n, assinatura: bytes.length === LADO * LADO * 3 ? bytes : null, en: typeof m.en === "string" ? m.en : "" };
     });
   } catch { return []; }
 }
@@ -377,7 +380,8 @@ export function memoriaNova(memoria, aprendidos, teto = 60) {
     const k = normal(m.nome);
     if (!k || vistos.has(k)) continue;
     vistos.add(k);
-    fica.push({ n: m.nome, ...(m.assinatura ? { a: Buffer.from(m.assinatura).toString("base64") } : {}) });
+    const en = m.en || memoria.find((v) => normal(v.nome) === k)?.en || "";
+    fica.push({ n: m.nome, ...(m.assinatura ? { a: Buffer.from(m.assinatura).toString("base64") } : {}), ...(en ? { en } : {}) });
     if (fica.length >= teto) break;
   }
   return JSON.stringify(fica);
@@ -527,7 +531,7 @@ export function eventosDoCalendario(analises, texto, agora = Date.now(), { memor
   /* Para a memória: só o que a IA leu inteiro, nunca o que eu completei. */
   const aprendidos = [...new Map(inteiros.map((e) => [normal(e.nome), { nome: e.nome, assinatura: e.assinatura }])).values()];
   return {
-    agora: base, eventos, lidos: nomes.filter(Boolean).length, esperados: k, aprendidos, ultimoDia: dias[6],
+    agora: base, eventos, lidos: nomes.filter(Boolean).length, esperados: k, aprendidos, primeiroDia: dias[0], ultimoDia: dias[6],
     completados: eventos.filter((e) => e.completado || (e.peloIcone && !e.soIcone && !e.cortado)).length,
   };
 }

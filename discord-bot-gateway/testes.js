@@ -17144,6 +17144,68 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o resumo mostra a previsão separada, marcada", /🔮 \*\*Depois do print \(pelo ciclo, confirme no jogo\)\*\*\n▫️ \*\*Campeonato da Aliança\*\* · seg 30\/11 → dom 06\/12/.test(
         C.resumoDoCalendario([...doPrint, ...prev], D(21))));
     }
+
+    /* 🌐 o site do reino (mightpulse): os eventos, o par de cada barra, a hora e o que vem depois */
+    {
+      const S = await import("./calendario-site.js");
+      const { eventoDoJogo: ficha } = await import("./eventos-jogo.js");
+      const D = (d, h = 0) => Date.UTC(2026, 10, d, h);
+      const ev = (name, b, e, id = name) => ({ id, name, begin_ts: b / 1000, end_ts: e / 1000 });
+      const json = { ok: true, kid: 2311, categories: [
+        { name: "Deals", events: [ev("Voyage of Light", D(17), D(22)), ev("Champagne Fair", D(23), D(25))] },
+        { name: "Alchemy Junction", events: [ev("Brewmaster Stall", D(18), D(22)), ev("Brew Workshop", D(18), D(21))] },
+        { name: "Events", events: [ev("Governor Duel", D(15), D(22)), ev("Hero Rally", D(9), D(23)), ev("Alliance Championship", D(16), D(23)),
+          ev("Castle Battle", D(21, 12), D(21, 17)), ev("Swordland Showdown", D(23), D(30)), ev("Tri-Alliance Clash", D(23), D(29)),
+          ev("Sanctuary Battle", D(24), D(28)), ev("Desert Trial", D(25), D(28)), ev("", D(25), D(26)), ev("Ao contrário", D(26), D(25)),
+          ev("Desert Trial", D(25), D(28))] },
+      ] };
+      const site = S.eventosDoSite(json);
+      ok("o site: os eventos válidos, sem repetir, em ordem", site.length, 12);
+      verdade("em ordem de começo", site.every((e, i) => !i || site[i - 1].inicio <= e.inicio));
+      ok("resposta estranha do site: nada (nunca adivinho)", JSON.stringify([S.eventosDoSite({ ok: false }), S.eventosDoSite(null), S.eventosDoSite({ ok: true })]), "[null,null,null]");
+      ok("o endereço só com o número do reino", [S.urlDoSite("2311"), S.urlDoSite("abc"), S.urlDoSite("23 11")].join(" | "),
+        "https://mightpulse.com/api/kingdoms/2311/events |  | ");
+      ok("a hora só quando não é o dia inteiro", [S.horaDoSite(site.find((e) => e.nome === "Castle Battle")), S.horaDoSite(site[0])].join("|"), "12:00–17:00 UTC|");
+
+      const doPrint = [
+        { nome: "Voyage da Luz", inicio: null, fim: D(22), lido: true }, { nome: "Banca do Mestre das...", inicio: null, fim: D(22) },
+        { nome: "Oficina de Poções", inicio: null, fim: D(21), lido: true }, { nome: "Batalha do...", inicio: null, fim: D(21) },
+        { nome: "Duelo dos Governadores", inicio: null, fim: D(22), lido: true }, { nome: "Fundo de Ascensão do Herói", inicio: null, fim: D(23), lido: true },
+        { nome: "Rally do Herói", inicio: null, fim: D(23), lido: true }, { nome: "Campeonato da Aliança", inicio: null, fim: D(23), lido: true },
+        { nome: "?", soIcone: true, inicio: D(21), fim: D(22) }, { nome: "Confr...", inicio: D(23), fim: null }, { nome: "Confr...", inicio: D(23), fim: null },
+        { nome: "Feira ...", inicio: D(23), fim: null }, { nome: "Batalha do...", inicio: D(24), fim: null, peloIcone: true },
+      ];
+      const sem = (t) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+      const comecam = (nome) => { const p = sem(nome.replace(/\s*(\.{2,}|…)\s*$/, "")).trim(); return p.length < 3 ? null : new Set(["Batalha do Santuário", "Batalha do Castelo"].filter((n) => sem(n).startsWith(p)).map((n) => ficha(n).chave)); };
+      const j = S.juntarComOSite(doPrint, site, { primeiroDia: D(18), ultimoDia: D(24), chaveDe: (n) => ficha(n)?.chave || null, fichaDe: ficha, chavesPossiveis: comecam });
+      const par = (i) => `${j.eventos[i].nome}=${j.eventos[i].site || "—"}`;
+      ok("cada barra com o seu evento do site; o nome cortado ganha o inteiro (o que o site não tem fica sem par)", doPrint.map((_, i) => par(i)).join(" ; "),
+        "Voyage da Luz=Voyage of Light ; Brewmaster Stall=Brewmaster Stall ; Oficina de Poções=Brew Workshop ; Batalha do...=— ; " +
+        "Duelo dos Governadores=Governor Duel ; Fundo de Ascensão do Herói=— ; Rally do Herói=Hero Rally ; Campeonato da Aliança=Alliance Championship ; " +
+        "Batalha do Castelo=Castle Battle ; Swordland Showdown=Swordland Showdown ; Tri-Alliance Clash=Tri-Alliance Clash ; Champagne Fair=Champagne Fair ; Batalha do Santuário=Sanctuary Battle");
+      ok("o castelo com coroa: Batalha do Castelo, com a hora", [j.eventos[8].hora, j.eventos[8].soIcone, j.eventos[8].certo].join(), "12:00–17:00 UTC,false,true");
+      verdade("os dois 'Confr...' repartidos não contam como certeza (o emoji não nasce daí)", !j.eventos[9].certo && !j.eventos[10].certo);
+      ok("e o que vem depois do print, só no site", j.eventos.filter((e) => e.doSite).map((e) => `${e.nome}|${new Date(e.inicio).getUTCDate()}`).join(), "Desert Trial|25");
+      ok("os pares para a memória: só de nome lido inteiro", j.pares.map((p) => `${p.nome}>${p.en}`).join(" ; "),
+        "Voyage da Luz>Voyage of Light ; Oficina de Poções>Brew Workshop ; Duelo dos Governadores>Governor Duel ; Rally do Herói>Hero Rally ; Campeonato da Aliança>Alliance Championship");
+      ok("o nome do site em português: a memória, senão a ficha, senão o inglês",
+        [S.nomeEmPortugues("Voyage of Light", { memoria: [{ nome: "Voyage da Luz", en: "Voyage of Light" }] }), S.nomeEmPortugues("Castle Battle", { fichaDe: ficha }),
+          S.nomeEmPortugues("Desert Trial", { fichaDe: ficha })].join("|"), "Voyage da Luz|Batalha do Castelo|Desert Trial");
+      const r = C.resumoDoCalendario(j.eventos, D(20, 23));
+      verdade("o resumo: a hora do castelo e a seção do site", /Batalha do Castelo\*\* · sáb 21\/11 · 12:00–17:00 UTC/.test(r) && /🌐 \*\*Mais à frente \(mightpulse\.com\)\*\*\n▫️ \*\*Desert Trial\*\* · qua 25\/11 → sex 27\/11/.test(r));
+      ok("a memória guarda o nome em inglês do site", C.lerMemoria(C.memoriaNova([], [{ nome: "Voyage da Luz", assinatura: null, en: "Voyage of Light" }]))[0].en, "Voyage of Light");
+
+      /* o pedido ao site: meia hora de memória; erro vira motivo, nunca quebra a leitura */
+      Object.assign(globalThis, { urlDoSite: S.urlDoSite, eventosDoSite: S.eventosDoSite });
+      const { calendarioDoSite } = carregar(["SITE_DO_CALENDARIO", "calendarioDoSite"]);
+      let pedidos = 0, cabecalho = null;
+      const buscar = async (url, o) => { pedidos++; cabecalho = o.headers; return { ok: true, status: 200, json: async () => json }; };
+      const a1 = await calendarioDoSite("2311", buscar), a2 = await calendarioDoSite("2311", buscar);
+      ok("pede uma vez e guarda", [a1.eventos.length, a2.eventos.length, pedidos].join(), "12,12,1");
+      verdade("sem dado pessoal no pedido: só o nome do bot", /^CYRON/.test(cabecalho["User-Agent"]) && Object.keys(cabecalho).length === 2);
+      ok("site fora do ar: o motivo, sem quebrar", (await calendarioDoSite("1234", async () => ({ ok: false, status: 503 }))).erro, "HTTP 503");
+      ok("reino que não é número: nem pede", await calendarioDoSite("x", async () => { throw new Error("não devia"); }), null);
+    }
     {
     }
 

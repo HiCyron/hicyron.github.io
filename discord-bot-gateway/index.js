@@ -38,6 +38,7 @@ import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
+import { urlDoSite, eventosDoSite, juntarComOSite } from "./calendario-site.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -10423,7 +10424,7 @@ async function emojisDosEventos(sharp, prints, eventos) {
   if (!sharp || !SUBIDA_DOS_EMOJIS.pronta) return 0;
   let novos = 0;
   for (const e of eventos) {
-    if (!e.lido || !e.origem || novos >= EMOJIS_NOVOS_POR_LEITURA) continue;
+    if (!(e.lido || (e.peloSite && e.certo)) || !e.origem || novos >= EMOJIS_NOVOS_POR_LEITURA) continue;
     const nome = nomeDoEmojiDoEvento(e.nome);
     if (!nome || EMOJIS_DA_CYRON.has(nome)) continue;
     const p = prints[e.origem.p], b = p?.an?.barras?.[e.origem.b];
@@ -10444,7 +10445,54 @@ async function emojisDosEventos(sharp, prints, eventos) {
   return novos;
 }
 
-async function calendarioDaMensagem(msg) {
+/* O reino do calendário: o da aliança ligada ao servidor. Fora de servidor
+   (a mensagem no privado, pelo app), o reino do servidor do teste. */
+async function reinoDoCalendario(guildId) {
+  const daAlianca = async (id) => {
+    const r = await sb(`alianca_discord?guild_id=eq.${encodeURIComponent(id)}&select=aliancas(servidor)`).catch(() => null);
+    return String(r?.[0]?.aliancas?.servidor || "").trim();
+  };
+  if (guildId) return (await daAlianca(guildId)) || "";
+  for (const guild of client.guilds.cache.values()) {
+    if (!CALENDARIO_EM_TESTE.some((r) => r.test(guild.name))) continue;
+    const reino = await daAlianca(guild.id);
+    if (reino) return reino;
+  }
+  return "";
+}
+
+/* O calendário do reino no mightpulse.com (calendario-site.js). Meia hora
+   de memória: a leitura de vários prints seguidos não pede o site de novo.
+   Sem dado pessoal no pedido: só o número do reino. */
+const SITE_DO_CALENDARIO = new Map();
+async function calendarioDoSite(reino, buscar = fetch) {
+  const url = urlDoSite(reino);
+  if (!url) return null;
+  const guardado = SITE_DO_CALENDARIO.get(url);
+  if (guardado && Date.now() - guardado.em < 30 * 60 * 1000) return guardado;
+  try {
+    const r = await buscar(url, { headers: { "User-Agent": "CYRON Discord bot", Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const eventos = eventosDoSite(await r.json());
+    if (!eventos) throw new Error("resposta estranha");
+    const novo = { eventos, em: Date.now() };
+    SITE_DO_CALENDARIO.set(url, novo);
+    return novo;
+  } catch (e) {
+    return { erro: String(e?.message || e).slice(0, 80) };
+  }
+}
+
+/* Os eventos da ficha cujo nome começa como o nome cortado ("Batalha do..."
+   = Santuário ou Castelo). */
+function chavesQueComecamAssim(nome) {
+  const semAcento = (t) => String(t).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const p = semAcento(String(nome).replace(/\s*(\.{2,}|…)\s*$/, "")).trim();
+  if (p.length < 3) return null;
+  return new Set(EVENTOS_DO_JOGO.filter((e) => semAcento(e.nome).startsWith(p)).map((e) => e.chave));
+}
+
+async function calendarioDaMensagem(msg, guildId = msg?.guildId || null) {
   const imagens = imagensDaMensagem(msg);
   if (!imagens.length) return { erro: "sem-print" };
   const sharp = await carregarSharp();
@@ -10463,7 +10511,7 @@ async function calendarioDaMensagem(msg) {
     }
   }
   const comGrade = prints.filter((p) => p.an?.barras?.length);
-  let eventos = [], agora = Date.now(), modelo = "", como = "", completados = 0, emojisNovos = 0;
+  let eventos = [], agora = Date.now(), modelo = "", como = "", completados = 0, emojisNovos = 0, site = "";
   try {
     if (comGrade.length) {
       /* As datas pelos pixels; a IA só lê o topo (hora e dias) e os nomes. */
@@ -10483,12 +10531,29 @@ async function calendarioDaMensagem(msg) {
       else {
         agora = r.agora; como = "datas medidas no print";
         completados = r.completados;
-        /* A sequência: o que volta pelo ciclo, na semana depois do print. */
-        eventos = [...r.eventos, ...previstosPeloCiclo(r.eventos, {
-          cicloDe: (nome) => eventoDoJogo(nome)?.ciclo, depoisDe: r.ultimoDia + DIA_EM_MS, ate: r.ultimoDia + 8 * DIA_EM_MS })];
+        eventos = r.eventos;
+        let aprendidos = r.aprendidos;
+        /* O site do reino (mightpulse): o nome do que o jogo cortou, a hora e
+           o que vem depois do print. Sem o site, a sequência pelo ciclo. */
+        const reino = await reinoDoCalendario(guildId);
+        const doSite = reino ? await calendarioDoSite(reino) : null;
+        if (doSite?.eventos?.length) {
+          const j = juntarComOSite(r.eventos, doSite.eventos, {
+            primeiroDia: r.primeiroDia, ultimoDia: r.ultimoDia, memoria,
+            chaveDe: (nome) => eventoDoJogo(nome)?.chave || null, fichaDe: (nome) => eventoDoJogo(nome),
+            chavesPossiveis: (nome) => chavesQueComecamAssim(nome) });
+          eventos = j.eventos;
+          site = `nomes e horários conferidos no mightpulse.com, reino ${reino} (${j.casados} de ${r.eventos.length})`;
+          const pelaLingua = new Map(j.pares.map((p) => [p.nome, p.en]));
+          aprendidos = aprendidos.map((a) => ({ ...a, en: pelaLingua.get(a.nome) || "" }));
+        } else {
+          if (reino && doSite?.erro) falhas.push(`o mightpulse não respondeu (${doSite.erro})`);
+          eventos = [...r.eventos, ...previstosPeloCiclo(r.eventos, {
+            cicloDe: (nome) => eventoDoJogo(nome)?.ciclo, depoisDe: r.ultimoDia + DIA_EM_MS, ate: r.ultimoDia + 8 * DIA_EM_MS })];
+        }
         if (r.lidos < r.esperados) falhas.push(`a IA leu ${r.lidos} de ${r.esperados} nomes`);
-        if (r.aprendidos.length) await porAjuste(MEMORIA_DO_CALENDARIO, memoriaNova(memoria, r.aprendidos)).catch(() => {});
-        emojisNovos = await emojisDosEventos(sharp, comGrade, r.eventos);
+        if (aprendidos.length) await porAjuste(MEMORIA_DO_CALENDARIO, memoriaNova(memoria, aprendidos)).catch(() => {});
+        emojisNovos = await emojisDosEventos(sharp, comGrade, eventos.filter((e) => !e.doSite && !e.previsto));
       }
       const semGrade = prints.length - comGrade.length;
       if (semGrade) falhas.push(`${semGrade} print(s) não parecem o calendário do jogo`);
@@ -10512,7 +10577,7 @@ async function calendarioDaMensagem(msg) {
     titulo: `🧪 Leitura do calendário (teste) · ${eventos.length} eventos`,
     corpo: corpo.slice(0, 4000),
     rodape: `${[modelo || "sem modelo", como, completados ? `${completados} nome(s) completado(s) pelo ícone ou pelos nomes já vistos` : "",
-      emojisNovos ? `${emojisNovos} emoji(s) novo(s) com o ícone do evento` : ""]
+      emojisNovos ? `${emojisNovos} emoji(s) novo(s) com o ícone do evento` : "", site]
       .filter(Boolean).join(" · ")} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
     eventos: eventos.length, prints: imagens.length, falhas: falhas.length,
   };
