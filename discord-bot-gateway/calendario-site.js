@@ -228,7 +228,22 @@ export const TEXTOS_DA_AGENDA = {
   semana: "Semana do reino", agora: "Rolando agora", ate: "até", hoje: "Hoje no reino", comeca: "Começa hoje",
   ultimo: "Último dia", rodape: "Do calendário do jogo (mightpulse.com) · horário UTC: o dia do jogo vira às 00:00 UTC",
   comoFunciona: "Como funciona cada evento…",
+  virada: "Novo dia do jogo", comeca2: "começa",
 };
+
+/* Pura. A próxima virada do dia do jogo (00:00 UTC). */
+export function proximaVirada(agora) {
+  return diaDe(agora) + DIA;
+}
+
+/* Pura. O contador até a virada (dono, 21/11: "um contador de quanto tempo
+   falta para as 00 UTC"). O marcador <t:...:R> do Discord conta sozinho no
+   aparelho de cada um ("em 6 horas", "em 5 horas"...), na língua do Discord
+   dele; o <t:...:t> mostra a hora da virada no fuso de cada um. */
+export function linhaDaVirada(agora, rotulo = TEXTOS_DA_AGENDA.virada) {
+  const s = Math.floor(proximaVirada(agora) / 1000);
+  return `⏳ **${rotulo}** <t:${s}:R> · <t:${s}:t>`;
+}
 
 /* Pura. O cartão da semana: o que está rolando e o que começa nos próximos
    7 dias, dia a dia. `emoji(nome)` dá o emoji; `t` os textos (traduzidos). */
@@ -270,12 +285,15 @@ export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => 
     partes.push(`🟢 **${t.comeca}**`);
     for (const e of comeca) {
       const hora = horaDoSite(e);
-      partes.push(`${emoji(e.nome)} **${e.nome}**${hora ? ` · ${hora}` : ` · ${t.ate} ${curto(viradaDe(e.fim) - DIA)}`}`);
+      /* Com hora: o contador até começar, no relógio de cada um. */
+      const falta = hora && e.inicio > dia ? ` · ${t.comeca2 || TEXTOS_DA_AGENDA.comeca2} <t:${Math.floor(e.inicio / 1000)}:R>` : "";
+      partes.push(`${emoji(e.nome)} **${e.nome}**${hora ? ` · ${hora}${falta}` : ` · ${t.ate} ${curto(viradaDe(e.fim) - DIA)}`}`);
       const dc = dica(e.nome);
       if (dc) partes.push(`↳ ${dc}`);
     }
   }
   if (acaba.length) partes.push("", `🏁 **${t.ultimo}**`, acaba.map((e) => `${emoji(e.nome)} ${e.nome}`).join(" · "));
+  partes.push("", linhaDaVirada(d, t.virada || TEXTOS_DA_AGENDA.virada));
   const nome = DIAS_DA_SEMANA[new Date(d).getUTCDay()];
   return {
     color: 0x3BA55C,

@@ -17226,7 +17226,13 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o que já acabou não entra", !/Brew Workshop/.test(daSemana.description));
       verdade("o rodapé diz de onde vem e o fuso", /mightpulse\.com/.test(daSemana.footer.text) && /UTC/.test(daSemana.footer.text));
       const doDia = S.avisoDoDia(site, D(21, 4), { dica: (n) => (n === "Castle Battle" ? "Tome as torres primeiro." : "") });
-      verdade("o aviso do dia: o que começa hoje, com a dica", /🟢 \*\*Começa hoje\*\*\n▫️ \*\*Castle Battle\*\* · 12:00–17:00 UTC\n↳ Tome as torres primeiro\./.test(doDia.description));
+      verdade("o aviso do dia: o que começa hoje, com a dica e o contador até começar",
+        /🟢 \*\*Começa hoje\*\*\n▫️ \*\*Castle Battle\*\* · 12:00–17:00 UTC · começa <t:1795262400:R>\n↳ Tome as torres primeiro\./.test(doDia.description));
+      ok("a próxima virada do dia do jogo (00:00 UTC)", new Date(S.proximaVirada(D(21, 4))).toISOString(), "2026-11-22T00:00:00.000Z");
+      ok("o contador da virada: conta sozinho no Discord de cada um, e a hora no fuso dele", S.linhaDaVirada(D(21, 4)), "⏳ **Novo dia do jogo** <t:1795305600:R> · <t:1795305600:t>");
+      verdade("e vai no fim do aviso do dia", /⏳ \*\*Novo dia do jogo\*\* <t:1795305600:R>/.test(doDia.description));
+      verdade("evento com hora que já começou: sem contador", !/começa <t:/.test(S.avisoDoDia(site, D(21, 13)).description));
+      verdade("e em cima da imagem da semana", /description: virada, image:/.test(pedaco("cargaDaSemana")) && /linhaDaVirada\(agora/.test(pedaco("cargaDaSemana")));
       verdade("e o último dia de cada um", /🏁 \*\*Último dia\*\*\n[^\n]*Governor Duel[^\n]*Voyage of Light/.test(doDia.description) && doDia.title === "☀️ Hoje no reino · sábado 21/11");
       ok("dia sem nada começando nem acabando: sem aviso", S.avisoDoDia(site, D(19, 4)), null);
       /* 🎨 o DESENHO da semana (o dono achou o cartão em texto feio, 21/11) */

@@ -39,7 +39,7 @@ import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCa
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
 import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite,
-  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo } from "./calendario-site.js";
+  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada } from "./calendario-site.js";
 import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
@@ -13821,7 +13821,10 @@ async function cargaDaSemana(eventos, agora, reino, idioma, motor) {
     const ta = await textosDaAgendaNaLingua(TEXTOS_DA_AGENDA, idioma, motor);
     return { embeds: [cartaoDaSemana(daSala, agora, { reino, emoji: (n) => emojiDoEvento(n), t: ta })], components: lista, files: [], allowedMentions: { parse: [] } };
   }
-  return { embeds: [{ color: 0x36C8E6, image: { url: "attachment://semana.png" } }], files: [{ attachment: png, name: "semana.png" }],
+  /* Em cima da imagem, o contador até a virada do dia do jogo (conta sozinho
+     no Discord de cada um; a mensagem é refeita quando o dia vira). */
+  const virada = linhaDaVirada(agora, await textoDoJogo(TEXTOS_DA_AGENDA.virada, idioma, motor));
+  return { embeds: [{ color: 0x36C8E6, description: virada, image: { url: "attachment://semana.png" } }], files: [{ attachment: png, name: "semana.png" }],
     components: lista, allowedMentions: { parse: [] } };
 }
 
