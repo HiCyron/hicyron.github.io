@@ -189,6 +189,9 @@ Object.assign(globalThis, carregar(["URSO", "ehEventoDoUrso", "heroisNoUrso", "b
 globalThis.eventoDoJogo = (await import("./eventos-jogo.js")).eventoDoJogo;
 globalThis.NOMES_DOS_EVENTOS = (await import("./eventos-jogo.js")).NOMES_DOS_EVENTOS;
 Object.assign(globalThis, carregar(["comoFunciona"]));
+/* Os nomes no estilo do ranking ("・⚙️┊cyron"): a CYRON acha as salas dela
+   pelos dois jeitos, e as funções que buscam sala pelo nome usam isto. */
+Object.assign(globalThis, carregar(["nomeSimples", "mesmoNome"]));
 
 /* Comentário NÃO é código, e um teste que lê texto-fonte precisa saber disso.
 
@@ -746,7 +749,8 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("no suporte o chat abre a categoria; no cliente, fecha",
       /const posChat = doSuporte \? 0 : tipos\.length;/.test(idx));
     verdade("o chat do suporte leva o nome na língua",
-      /const nomeChat = doSuporte && nomeNoIdioma\("chat", sala\.idioma\) \|\|/.test(idx));
+      /const simplesChat = doSuporte && nomeNoIdioma\("chat", sala\.idioma\) \|\|/.test(idx) &&
+      /const nomeChat = !doSuporte && temEstiloDoRanking\(guild\.name\) \? nomeNoEstilo\(simplesChat, "💬"\) : simplesChat;/.test(idx));
     const garantir = idx.slice(idx.indexOf("async function garantirReplica"), idx.indexOf("const jaTentado"));
     verdade("o histórico traduzido só é posto no servidor de suporte",
       garantir.indexOf("const doSuporte = await ehServidorDoSuporte(guild.id);") > 0 &&
@@ -17286,12 +17290,28 @@ function conferirCartao(onde, embed, componentes = []) {
       {
         const criar = semComentarios(pedaco("criarSalasDoJogo"));
         verdade("a marca vai antes de criar (reiniciar no meio não cria de novo)", criar.indexOf("porAjuste(alvo.marca") < criar.indexOf("guild.channels.create"));
-        verdade("sala com o mesmo nome já existente é adotada, não duplicada", /guild\.channels\.cache\.find\(\(c\) => c\.type === ChannelType\.GuildText && c\.name === def\.nome\)/.test(criar));
+        verdade("sala com o mesmo nome já existente é adotada, não duplicada (nos dois jeitos de nome)", /guild\.channels\.cache\.find\(\(c\) => c\.type === ChannelType\.GuildText && mesmoNome\(c\.name, def\.nome\)\)/.test(criar));
         verdade("só de leitura: ninguém escreve além da CYRON", /PermissionFlagsBits\.SendMessages \| PermissionFlagsBits\.CreatePublicThreads/.test(criar) && /id: client\.user\.id/.test(criar));
         verdade("e vira origem: a máquina das réplicas cria a cópia em cada língua", /sbPost\("discord_fonte_replica", \{ servidor_id: servidor\.id, canal_id: canal\.id, tipo: def\.tipo, gera_replica: true \}\)/.test(criar));
         verdade("só no Kingdom #2311, e as duas salas", /Kingdom/.test(pedaco("SALAS_DO_JOGO")) && /urso/.test(pedaco("SALAS_DO_JOGO")) && /herois/.test(pedaco("SALAS_DO_JOGO")));
         verdade("a ficha do Urso e o livro também no 2311, esperando as cópias", /Kingdom[^\n]*esperaCopias: true/.test(pedaco("URSO_NO_CANAL")) && /Kingdom[^\n]*esperaCopias: true/.test(pedaco("LIVRO_NO_CANAL")));
         verdade("a TOP continua igual", /hunting-trap/.test(pedaco("URSO_NO_CANAL")) && /game-central/.test(pedaco("LIVRO_NO_CANAL")));
+        verdade("as cópias de cada língua nascem na hora (não esperam a varredura de 30 min)", /await sincronizarAgora\(guild\)/.test(criar) && criar.indexOf("sincronizarAgora(guild)") > criar.indexOf("discord_fonte_replica"));
+      }
+      /* os nomes no ESTILO do ranking ("・🏆┊ranking") no Kingdom #2311 */
+      {
+        const E = carregar(["ESTILO_DO_RANKING", "temEstiloDoRanking", "nomeSimples", "mesmoNome", "nomeNoEstilo", "TIPO_AGENDA", "AGENDA_NA_LINGUA", "nomeDaReplica", "nomeDaSala"]);
+        ok("o nome no estilo do ranking", ["⚙️-cyron", "🌐-idioma-language", "📢-anuncios-th", "📆-agenda"].map((n) => E.nomeNoEstilo(n)).join(" "),
+          "・⚙️┊cyron ・🌐┊idioma-language ・📢┊anuncios-th ・📆┊agenda");
+        ok("sem emoji na frente: o emoji dado", E.nomeNoEstilo("chat-th", "💬"), "・💬┊chat-th");
+        ok("já no estilo: não muda (renomear de novo é inútil)", E.nomeNoEstilo("・⚙️┊cyron"), "・⚙️┊cyron");
+        verdade("a CYRON reconhece a sala dela nos dois jeitos (senão criaria outra)", E.mesmoNome("・⚙️┊cyron", "⚙️-cyron") && E.mesmoNome("⚙️-cyron", "⚙️-cyron") && !E.mesmoNome("・📢┊anuncios", "⚙️-cyron"));
+        ok("a cópia segue o estilo da original", E.nomeDaReplica("・📢┊anuncios", "evento", "th"), "・📢┊anuncios-th");
+        ok("e a agenda em cada língua também", [E.nomeDaSala("・📆┊agenda", "agenda", "tr", false), E.nomeDaSala("📆-agenda", "agenda", "tr", false)].join(" | "), "・📆┊takvim-tr | 📆-takvim-tr");
+        verdade("só no Kingdom #2311 (a TOP e os outros servidores continuam iguais)", E.temEstiloDoRanking("Kingdom #2311") && !E.temEstiloDoRanking("[TOP]Best Alliance Kingshot"));
+        verdade("as buscas pelo nome usam o reconhecimento dos dois jeitos",
+          /mesmoNome\(c\.name, CANAL_CONFIG\)/.test(fonte) && /mesmoNome\(c\.name, CANAL_EVENTOS\)/.test(fonte) && /mesmoNome\(c\.name, CANAL_PORTA\)/.test(fonte) &&
+          /mesmoNome\(c\.name, nome\)/.test(pedaco("canalPorNomeOuCria")));
       }
       verdade("o resumo sai limpo: sem '(pelo ícone)'", !/pelo ícone/.test(C.resumoDoCalendario([{ nome: "Rally do Herói", inicio: D(23), fim: null, peloIcone: true }], D(21))));
 
