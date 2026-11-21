@@ -13299,6 +13299,10 @@ async function criarSalasDoJogo() {
     cacheFontes.delete(servidor.id);
     await porAjuste(alvo.marca, `${new Date().toISOString()}|${feitas.join(",")}`);
     console.log(`salas do jogo: ${feitas.join(", ")} em ${guild.name}`);
+    /* As cópias de cada língua na hora (dono, 21/11: "era para estar na aba de
+       traduzir para todos, igual no top"): sem isto, elas esperavam a próxima
+       varredura completa, de meia em meia hora. */
+    await sincronizarAgora(guild).catch((e) => console.log("salas do jogo: a montagem das cópias falhou:", e?.message || e));
   }
   return feito ? "criado" : "nada";
 }

@@ -17296,6 +17296,7 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("só no Kingdom #2311, e as duas salas", /Kingdom/.test(pedaco("SALAS_DO_JOGO")) && /urso/.test(pedaco("SALAS_DO_JOGO")) && /herois/.test(pedaco("SALAS_DO_JOGO")));
         verdade("a ficha do Urso e o livro também no 2311, esperando as cópias", /Kingdom[^\n]*esperaCopias: true/.test(pedaco("URSO_NO_CANAL")) && /Kingdom[^\n]*esperaCopias: true/.test(pedaco("LIVRO_NO_CANAL")));
         verdade("a TOP continua igual", /hunting-trap/.test(pedaco("URSO_NO_CANAL")) && /game-central/.test(pedaco("LIVRO_NO_CANAL")));
+        verdade("as cópias de cada língua nascem na hora (não esperam a varredura de 30 min)", /await sincronizarAgora\(guild\)/.test(criar) && criar.indexOf("sincronizarAgora(guild)") > criar.indexOf("discord_fonte_replica"));
       }
       /* os nomes no ESTILO do ranking ("・🏆┊ranking") no Kingdom #2311 */
       {
