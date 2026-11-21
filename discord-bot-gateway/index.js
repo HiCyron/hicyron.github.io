@@ -38,8 +38,9 @@ import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
-import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite } from "./calendario-site.js";
-import { desenharSemana } from "./agenda-desenho.js";
+import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA, horaDoSite,
+  diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo } from "./calendario-site.js";
+import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -13559,7 +13560,7 @@ function emblemaDoDesenho() {
 
 /* A semana desenhada (agenda-desenho.js), em PNG. Sem sharp: null (quem
    chama cai no cartão em texto). */
-async function desenhoDaSemana(eventos, agora, reino) {
+async function desenhoDaSemana(eventos, agora, reino, t = TEXTOS_DO_DESENHO) {
   const sharp = await carregarSharp();
   if (!sharp) return null;
   const [fonteTitulo, fonteTexto] = await Promise.all([fonteDoDesenho(FONTE_DO_TITULO), fonteDoDesenho(FONTE_DA_IMAGEM)]);
@@ -13570,7 +13571,7 @@ async function desenhoDaSemana(eventos, agora, reino) {
     if (b64) icones.set(e.nome, b64);
   }
   const { svg } = desenharSemana({ eventos: eventos.map((e) => ({ ...e, hora: horaDoSite(e) })), agora, reino, fonteTitulo, fonteTexto, icones,
-    logo: emblemaDoDesenho(), chaveDe: (nome) => eventoDoJogo(nome)?.chave || null });
+    logo: emblemaDoDesenho(), chaveDe: (nome) => eventoDoJogo(nome)?.chave || eventoDoJogo(eventos.find((e) => e.nome === nome)?.site || "")?.chave || null, t });
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
@@ -13609,6 +13610,149 @@ async function amostraDaAgenda() {
   if (aviso) await canal.send({ embeds: [aviso], components: botoesDoDia(eventos, agora), allowedMentions: { parse: [] } });
   console.log(`agenda: amostra ${AMOSTRA_DA_AGENDA} postada em #${CANAL_DE_TESTES} (reino ${reino}, ${eventos.length} eventos, ${png ? "desenho" : "texto"})`);
   return "postado";
+}
+
+
+/* ---- a publicação nas agendas (o dono aprovou, 21/11: "pode add então no
+   top e vamos colocar no servidor reino 2311 na agenda") ----
+
+   Em cada sala da 📅 agenda (a original e as de cada língua): UMA imagem da
+   semana, editada quando a semana muda, e um aviso por dia (00:00 UTC) que
+   apaga o de ontem. A faxina da agenda (pintarSala) não toca nelas: são da
+   CYRON e não são cartão de evento nem aviso de início.
+
+   Nomes: na sala em português, os do jogo em português; nas outras, o nome
+   oficial em inglês (o do site) -- o nome do jogo em tailandês ou turco a
+   CYRON não sabe, e traduzir nome de evento inventaria um que o jogador não
+   acha no jogo. Os textos da imagem vão traduzidos; letra que a fonte da
+   imagem não tem (tailandês, chinês...) volta o texto em inglês. */
+const AGENDA_DO_JOGO = [
+  { guild: /^\[TOP\]\s*Best Alliance/i, reino: "2311", marca: "agenda_jogo:top" },
+  { guild: /^Kingdom\s*#?\s*2311\b/i, reino: "2311", marca: "agenda_jogo:k2311" },
+];
+const SALA_DA_AGENDA = /agenda/;
+const HISTORICO_DO_REINO = (reino) => `calendario_historico:${reino}`;
+
+function eventosNaLingua(eventos, idioma) {
+  return String(idioma || "").startsWith("pt") ? eventos : eventos.map((e) => ({ ...e, nome: e.site || e.nome }));
+}
+
+/* Cada texto (e lista de textos) do objeto, traduzido para a sala. */
+async function textosDaAgendaNaLingua(base, idioma, motor) {
+  if (String(idioma || "").startsWith("pt")) return base;
+  const saida = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (typeof v === "string") saida[k] = await textoDoJogo(v, idioma, motor);
+    else if (Array.isArray(v)) saida[k] = v;
+    else if (v && typeof v === "object") saida[k] = await textosDaAgendaNaLingua(v, idioma, motor);
+    else saida[k] = v;
+  }
+  return saida;
+}
+
+/* Os textos da imagem na língua da sala, só se a fonte tiver todas as letras. */
+async function textosDoDesenhoNaLingua(idioma, motor) {
+  const [fonteTitulo, fonteTexto] = await Promise.all([fonteDoDesenho(FONTE_DO_TITULO), fonteDoDesenho(FONTE_DA_IMAGEM)]);
+  const tem = (fonte, texto) => [...String(texto)].every((c) => /\s/.test(c) || fonte.charToGlyphIndex(c) > 0);
+  const montar = async (lingua) => ({ ...(await textosDaAgendaNaLingua(TEXTOS_DO_DESENHO, lingua, motor)), dias: diasDaSemanaEm(lingua) });
+  const t = await montar(idioma);
+  const cabe = tem(fonteTitulo, t.titulo) && [t.fuso, t.rodape, ...t.dias, ...Object.values(t.secoes)].every((x) => tem(fonteTexto, x));
+  return cabe ? t : montar("en");
+}
+
+/* A mensagem da semana para uma sala: a imagem e a lista "Como funciona". */
+async function cargaDaSemana(eventos, agora, reino, idioma, motor) {
+  const daSala = eventosNaLingua(eventos, idioma);
+  const t = await textosDoDesenhoNaLingua(idioma, motor);
+  const png = await desenhoDaSemana(daSala, agora, reino, t);
+  const placeholder = await textoDoJogo(TEXTOS_DA_AGENDA.comoFunciona, idioma, motor);
+  const lista = listaDoComoFunciona(daSala.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), placeholder);
+  if (!png) {
+    const ta = await textosDaAgendaNaLingua(TEXTOS_DA_AGENDA, idioma, motor);
+    return { embeds: [cartaoDaSemana(daSala, agora, { reino, emoji: (n) => emojiDoEvento(n), t: ta })], components: lista, files: [], allowedMentions: { parse: [] } };
+  }
+  return { embeds: [{ color: 0x36C8E6, image: { url: "attachment://semana.png" } }], files: [{ attachment: png, name: "semana.png" }],
+    components: lista, allowedMentions: { parse: [] } };
+}
+
+/* O aviso do dia para uma sala (null: dia sem nada começando nem acabando). */
+async function cargaDoDia(eventos, agora, idioma, motor) {
+  const daSala = eventosNaLingua(eventos, idioma);
+  const ta = await textosDaAgendaNaLingua(TEXTOS_DA_AGENDA, idioma, motor);
+  const dicas = new Map();
+  for (const e of daSala) {
+    const d = (eventoDoJogo(e.nome) || eventoDoJogo(e.site || ""))?.dicas?.[0];
+    if (d && !dicas.has(e.nome)) dicas.set(e.nome, await textoDoJogo(d, idioma, motor));
+  }
+  const aviso = avisoDoDia(daSala, agora, { emoji: (n) => emojiDoEvento(n, daSala.find((e) => e.nome === n)?.site || ""), dica: (n) => dicas.get(n) || "", t: ta });
+  return aviso ? { embeds: [aviso], components: botoesDoDia(daSala, agora), allowedMentions: { parse: [] } } : null;
+}
+
+async function agendaDoJogoNosCanais(agora = Date.now()) {
+  if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
+  const a = await ajustes();
+  if (a.falhou) return "sem-banco";
+  let feito = 0;
+  for (const alvo of AGENDA_DO_JOGO) {
+    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const eventos = await eventosDaAgenda(alvo.reino);
+    if (!eventos) { console.log(`agenda do jogo: o site do reino ${alvo.reino} não respondeu; tento depois`); continue; }
+    const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+      await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), SALA_DA_AGENDA);
+    if (!salas.length) { console.log(`agenda do jogo: não achei a agenda em ${guild.name}`); continue; }
+    const estado = estadoDaAgenda(a[alvo.marca]);
+    const salvar = () => porAjuste(alvo.marca, JSON.stringify(estado)).catch(() => {});
+    const motor = await motorDoGuild(guild.id).catch(() => undefined);
+    const chave = chaveDaSemana(eventos, agora), dia = Math.floor(agora / 86400000) * 86400000;
+    const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
+    /* A semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
+    if (estado.chave !== chave) {
+      let aqui = 0;
+      for (const sala of salas) {
+        const canal = await canalDe(sala.canal);
+        if (typeof canal?.send !== "function") continue;
+        const carga = await cargaDaSemana(eventos, agora, alvo.reino, sala.idioma, motor).catch((e) => { console.log("agenda do jogo: a semana falhou:", e?.message || e); return null; });
+        if (!carga) continue;
+        const velha = estado.semana[sala.canal] && await canal.messages?.fetch?.(estado.semana[sala.canal]).catch(() => null);
+        if (velha) {
+          if (await velha.edit({ ...carga, attachments: [] }).then(() => true).catch(() => false)) { aqui++; continue; }
+        }
+        const nova = await canal.send(carga).catch((e) => { console.error(`agenda do jogo: não postei em #${canal.name}:`, e?.message || e); return null; });
+        if (!nova) continue;
+        estado.semana[sala.canal] = nova.id;
+        await salvar();
+        aqui++;
+      }
+      estado.chave = chave;
+      await salvar();
+      feito += aqui;
+      console.log(`agenda do jogo: semana em ${aqui} de ${salas.length} salas de ${guild.name}`);
+      /* O histórico do reino, para a previsão (ver historicoNovo). */
+      const marcaH = HISTORICO_DO_REINO(alvo.reino);
+      await porAjuste(marcaH, JSON.stringify(historicoNovo((() => { try { return JSON.parse(a[marcaH] || "[]"); } catch { return []; } })(), eventos))).catch(() => {});
+    }
+    /* O aviso do dia: uma vez por dia; o de ontem sai. */
+    if (estado.dia !== dia) {
+      estado.dia = dia;
+      await salvar();
+      let aqui = 0;
+      for (const sala of salas) {
+        const canal = await canalDe(sala.canal);
+        if (typeof canal?.send !== "function") continue;
+        if (estado.avisos[sala.canal]) await canal.messages?.delete?.(estado.avisos[sala.canal]).catch(() => {});
+        delete estado.avisos[sala.canal];
+        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => null);
+        if (!carga) continue;
+        const nova = await canal.send(carga).catch((e) => { console.error(`agenda do jogo: aviso do dia falhou em #${canal.name}:`, e?.message || e); return null; });
+        if (nova) { estado.avisos[sala.canal] = nova.id; aqui++; }
+      }
+      await salvar();
+      if (aqui) console.log(`agenda do jogo: aviso do dia em ${aqui} de ${salas.length} salas de ${guild.name}`);
+    }
+  }
+  return feito ? "postado" : "nada";
 }
 
 /* ---------------- 🛠️ /suporte: acesso do dono da CYRON, COM permissao ----------------
@@ -29024,6 +29168,13 @@ client.once("clientReady", () => {
     .then((r) => { if ((r === "sem-emoji" || r === "sem-site") && resta) setTimeout(() => amostraAgenda(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("agenda: amostra falhou:", e?.message || e));
   setTimeout(() => amostraAgenda(2), 4 * 60 * 1000);
+  /* A agenda do jogo nas salas (TOP e Kingdom #2311): 6 minutos depois de
+     subir e a cada 15 (só edita quando a semana muda; o aviso, uma vez por dia). */
+  const agendaJogo = (resta) => agendaDoJogoNosCanais()
+    .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => agendaJogo(resta - 1), 10 * 60 * 1000); })
+    .catch((e) => console.log("agenda do jogo: falhou:", e?.message || e));
+  setTimeout(() => agendaJogo(2), 6 * 60 * 1000);
+  setInterval(() => agendaJogo(0), 15 * 60 * 1000);
   const urso = (resta) => ursoNosCanais()
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));

@@ -283,3 +283,55 @@ export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => 
     description: partes.join("\n").trim().slice(0, 4000),
   };
 }
+
+/* ---------------- a publicação nas agendas ----------------
+
+   O dono aprovou (21/11, "pode add então no top e vamos colocar no servidor
+   reino 2311 na agenda"). Em cada sala da agenda (a original e as de cada
+   língua): UMA imagem da semana, editada quando a semana muda (não manda
+   mensagem nova), e um aviso por dia, que apaga o de ontem. O estado fica no
+   banco (cyron_ajuste), em JSON. */
+
+/* Pura. Os dias da semana na língua da sala, de domingo a sábado, curtos e
+   em maiúsculas ("DOM", "SUN", "PAZ"...). */
+export function diasDaSemanaEm(idioma) {
+  try {
+    const f = new Intl.DateTimeFormat(String(idioma || "en"), { weekday: "short", timeZone: "UTC" });
+    return Array.from({ length: 7 }, (_, i) => f.format(new Date(Date.UTC(2026, 10, 22 + i))).replace(/\.$/, "").toLocaleUpperCase(String(idioma || "en")));
+  } catch {
+    return ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+  }
+}
+
+/* Pura. A chave da semana: o dia e o que o site diz. Mudou a chave, a imagem
+   é refeita (uma vez por dia, ou quando o site muda no meio do dia). */
+export function chaveDaSemana(eventos, agora) {
+  const texto = eventos.map((e) => `${e.site || e.nome}|${e.inicio}|${e.fim}`).sort().join(";");
+  let h = 5381;
+  for (let i = 0; i < texto.length; i++) h = ((h * 33) ^ texto.charCodeAt(i)) >>> 0;
+  return `${diaDe(agora)}|${h.toString(36)}`;
+}
+
+/* Pura. O estado da agenda de um servidor, lido do banco (estragado: vazio). */
+export function estadoDaAgenda(valor) {
+  try {
+    const j = JSON.parse(String(valor || "{}"));
+    return { chave: String(j.chave || ""), dia: Number(j.dia) || 0, semana: { ...(j.semana || {}) }, avisos: { ...(j.avisos || {}) } };
+  } catch { return { chave: "", dia: 0, semana: {}, avisos: {} }; }
+}
+
+/* Pura. O HISTÓRICO do reino, para a previsão: cada evento que o site mostrou
+   (nome em inglês, começo, fim), sem repetir, os mais novos primeiro. O site
+   só mostra uns 4 dias à frente e não guarda o passado; juntando o que ele
+   mostra a cada dia, a CYRON descobre de quantos em quantos dias cada evento
+   volta. */
+export function historicoNovo(historico, eventos, teto = 300) {
+  const vistos = new Set(), lista = [];
+  for (const e of [...eventos.map((x) => ({ n: x.site || x.nome, i: x.inicio, f: x.fim })), ...(Array.isArray(historico) ? historico : [])]) {
+    const k = `${e?.n}|${e?.i}`;
+    if (!e?.n || !Number.isFinite(e.i) || vistos.has(k)) continue;
+    vistos.add(k);
+    lista.push({ n: e.n, i: e.i, f: e.f });
+  }
+  return lista.sort((a, b) => b.i - a.i).slice(0, teto);
+}
