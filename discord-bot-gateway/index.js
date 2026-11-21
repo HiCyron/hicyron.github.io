@@ -5655,6 +5655,8 @@ function nomeDaSala(modelo, rotulo, idioma, doSuporte) {
   if (rotulo === TIPO_AGENDA) {
     const base = String(idioma || "").split("-")[0];
     const palavra = AGENDA_NA_LINGUA[idioma] || AGENDA_NA_LINGUA[base] || "agenda";
+    /* A original no estilo do ranking ("・📆┊agenda"): a cópia também. */
+    if (/^・/.test(String(modelo || ""))) return `・📆┊${palavra}-${idioma}`.toLowerCase().slice(0, 100);
     return `📆-${palavra}-${idioma}`.toLowerCase().slice(0, 100);
   }
   return doSuporte && nomeNoIdioma(modelo, idioma) || nomeDaReplica(modelo, rotulo, idioma);
@@ -5667,6 +5669,37 @@ function posicaoDaReplica(i, doSuporte) {
 
 function nomeDaReplica(modelo, rotulo, idioma) {
   return `${modelo || rotulo}-${idioma}`.toLowerCase().slice(0, 100);
+}
+
+/* ---- o ESTILO dos nomes (dono, 21/11: "conseguimos deixar padrão os nomes
+   tipo igual a do ranking?") ----
+
+   O ranking do Kingdom #2311 se chama "・🏆┊ranking". No servidor que pediu
+   esse padrão, as salas da CYRON viram "・⚙️┊cyron", "・📆┊agenda",
+   "・📢┊anuncios-th"... As cópias seguem o nome da original sozinhas (a
+   máquina das réplicas). E como a CYRON acha algumas salas pelo nome
+   (⚙️-cyron, 🌐-idioma-language, 📆-agenda), ela passa a reconhecer os dois
+   jeitos -- sem isso, renomear faria ela criar uma sala nova. */
+const ESTILO_DO_RANKING = [/^Kingdom\s*#?\s*2311\b/i];
+function temEstiloDoRanking(nomeDoServidor) {
+  return ESTILO_DO_RANKING.some((r) => r.test(String(nomeDoServidor || "")));
+}
+
+/* Pura. O nome no jeito simples: "・⚙️┊cyron" -> "⚙️-cyron". */
+function nomeSimples(nome) {
+  return String(nome || "").replace(/^[・·•\s]+/u, "").replace(/[┊｜|]/u, "-").trim();
+}
+function mesmoNome(a, b) {
+  return nomeSimples(a) === nomeSimples(b);
+}
+
+/* Pura. O nome no estilo do ranking: "⚙️-cyron" -> "・⚙️┊cyron"; sem emoji
+   na frente, usa o `emoji` dado ("chat-th" -> "・💬┊chat-th"). */
+function nomeNoEstilo(nome, emoji = "") {
+  const simples = nomeSimples(nome);
+  const m = /^(\p{Extended_Pictographic}[\u{FE0F}\u{200D}\p{Extended_Pictographic}]*)-(.+)$/u.exec(simples);
+  if (m) return `・${m[1]}┊${m[2]}`.slice(0, 100);
+  return emoji ? `・${emoji}┊${simples}`.slice(0, 100) : simples;
 }
 
 const cacheFontes = new Map(); // servidorId -> { v: Map(canal_id -> tipo), t }
@@ -6236,8 +6269,9 @@ async function montarCategorias(guild, servidorId, porIdioma, pago, orcamento, l
          a ele. */
       const chat = sala.canal_id ? await guild.channels.fetch(sala.canal_id).catch(() => null) : null;
       if (chat) {
-        const nomeChat = doSuporte && nomeNoIdioma("chat", sala.idioma) ||
+        const simplesChat = doSuporte && nomeNoIdioma("chat", sala.idioma) ||
           nomeDaReplica(modelos.get("chat"), PREFIXO_SALA.replace(/-$/, ""), sala.idioma);
+        const nomeChat = !doSuporte && temEstiloDoRanking(guild.name) ? nomeNoEstilo(simplesChat, "💬") : simplesChat;
         if (chat.name !== nomeChat && umaVezPorProcesso(`nome:${chat.id}:${nomeChat}`)) {
           console.log(`idioma: chat de ${sala.idioma} vira #${nomeChat}`);
           await chat.setName(nomeChat, "chat segue o nome do canal original");
@@ -7173,7 +7207,7 @@ const TEXTO_PORTA = [
 /* Acha o canal pelo nome antes de criar. Entrar, sair e entrar de novo no
    mesmo servidor nao pode dobrar os canais dele. */
 async function canalPorNomeOuCria(guild, nome, topico) {
-  const achado = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === nome);
+  const achado = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, nome));
   if (achado) return achado;
 
   return await guild.channels.create({
@@ -7229,7 +7263,7 @@ async function garantirCanalDeConfig(guild, servidor) {
 
   if (!canal) {
     canal = guild.channels.cache.find(
-      (c) => c.type === ChannelType.GuildText && c.name === CANAL_CONFIG) || null;
+      (c) => c.type === ChannelType.GuildText && mesmoNome(c.name, CANAL_CONFIG)) || null;
   }
 
   if (!canal) {
@@ -8482,7 +8516,7 @@ const CANAIS_EVENTOS_ANTIGOS = ["📅-eventos"];
 const renomeandoAgenda = new Set();
 function canalDaAgenda(guild) {
   const texto = (c) => c.type === ChannelType.GuildText;
-  const atual = guild.channels.cache.find((c) => texto(c) && c.name === CANAL_EVENTOS);
+  const atual = guild.channels.cache.find((c) => texto(c) && mesmoNome(c.name, CANAL_EVENTOS));
   if (atual) return atual;
   const velho = guild.channels.cache.find((c) => texto(c) && CANAIS_EVENTOS_ANTIGOS.includes(c.name));
   if (velho && !renomeandoAgenda.has(velho.id)) {
@@ -13179,6 +13213,38 @@ async function copiasProntas(guild, servidor, salas) {
   return salas.length >= Math.max(2, agenda.length);
 }
 
+/* As salas ORIGINAIS da CYRON no estilo do ranking: a ⚙️ da administração,
+   a 🌐 da língua e as que geram cópia (anúncios, agenda, urso, heróis). As
+   cópias de cada língua seguem sozinhas (a máquina das réplicas acerta o
+   nome delas pelo da original). Uma vez por partida; só o que ainda não está
+   no estilo; o Discord deixa renomear duas vezes a cada dez minutos por sala. */
+async function padronizarNomes() {
+  let feito = 0;
+  for (const guild of client.guilds.cache.values()) {
+    if (!temEstiloDoRanking(guild.name)) continue;
+    const servidor = await servidorDoGuild(guild.id).catch(() => null);
+    if (!servidor) continue;
+    const ids = new Set([...(await fontesReplica(servidor.id)).keys()]);
+    if (servidor.canal_config) ids.add(String(servidor.canal_config));
+    for (const c of guild.channels.cache.values()) {
+      if (c.type === ChannelType.GuildText && (mesmoNome(c.name, CANAL_CONFIG) || mesmoNome(c.name, CANAL_PORTA))) ids.add(c.id);
+    }
+    for (const id of ids) {
+      const canal = guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
+      if (!canal || canal.type !== ChannelType.GuildText) continue;
+      const novo = nomeNoEstilo(canal.name);
+      if (novo === canal.name || !umaVezPorProcesso(`estilo:${canal.id}:${novo}`)) continue;
+      const velho = canal.name;
+      if (await canal.setName(novo, "CYRON: nomes no estilo do ranking (o dono pediu)").then(() => true).catch((e) => {
+        console.error(`estilo: não renomeei #${velho}:`, e?.message || e); return false; })) {
+        console.log(`estilo: #${velho} virou #${novo} em ${guild.name}`);
+        feito++;
+      }
+    }
+  }
+  return feito;
+}
+
 /* ---- as salas do Urso e dos heróis no Kingdom #2311 (dono, 21/11) ----
 
    Na [TOP] elas já existem (hunting-trap e game-central). No Kingdom #2311
@@ -13208,7 +13274,7 @@ async function criarSalasDoJogo() {
     const feitas = [];
     for (const def of alvo.salas) {
       if ([...fontes.values()].includes(def.tipo)) { feitas.push(`${def.nome}:já era`); continue; }
-      let canal = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === def.nome);
+      let canal = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, def.nome));
       if (!canal) {
         /* As portas da agenda (quem vê o quê), e ninguém escreve além da CYRON. */
         const portas = [...agenda.permissionOverwrites.cache.values()].map((o) => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
@@ -13219,7 +13285,7 @@ async function criarSalasDoJogo() {
         else portas.push({ id: guild.roles.everyone.id, type: 0, allow: 0n, deny: calar });
         portas.push({ id: client.user.id, type: 1, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages |
           PermissionFlagsBits.EmbedLinks | PermissionFlagsBits.AttachFiles | PermissionFlagsBits.ManageMessages, deny: 0n });
-        canal = await guild.channels.create({ name: def.nome, type: ChannelType.GuildText, parent: agenda.parentId || undefined,
+        canal = await guild.channels.create({ name: temEstiloDoRanking(guild.name) ? nomeNoEstilo(def.nome) : def.nome, type: ChannelType.GuildText, parent: agenda.parentId || undefined,
           permissionOverwrites: portas, reason: "CYRON: sala do jogo (o dono pediu)" })
           .catch((e) => { console.error(`salas do jogo: não criei #${def.nome}:`, e?.message || e); return null; });
         if (!canal) continue;
@@ -18488,7 +18554,7 @@ async function apagarDeOutraSala(guild, canalId, msgId) {
    So' leitura, visivel para todos, fora de categoria e logo abaixo do
    primeiro canal do topo (o welcome, no TOP). */
 async function salaDeIdiomaNoTopo(guild) {
-  const achada = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && c.name === CANAL_PORTA);
+  const achada = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, CANAL_PORTA));
   if (achada) return achada;
   const sala = await canalPorNomeOuCria(guild, CANAL_PORTA,
     "Pick your language here and the whole server arrives translated for you.");
@@ -29262,6 +29328,10 @@ client.once("clientReady", () => {
   /* O urso confere de hora em hora: a ficha das salas novas espera as cópias. */
   setInterval(() => urso(0), 60 * 60 * 1000);
   setTimeout(() => criarSalasDoJogo().catch((e) => console.log("salas do jogo: falhou:", e?.message || e)), 3 * 60 * 1000);
+  /* Os nomes no estilo do ranking: depois das salas novas, e de hora em hora
+     (sala nova ou renomeada à mão volta ao padrão). */
+  setTimeout(() => padronizarNomes().catch((e) => console.log("estilo: falhou:", e?.message || e)), 5 * 60 * 1000);
+  setInterval(() => padronizarNomes().catch((e) => console.log("estilo: falhou:", e?.message || e)), 60 * 60 * 1000);
   /* O livro dos heróis: cinco minutos depois de subir, e de hora em hora
      confere se o dia virou (às 10h UTC entra o herói do dia seguinte). */
   const livro = (resta) => livroNosCanais()
