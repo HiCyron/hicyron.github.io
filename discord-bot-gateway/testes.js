@@ -16928,7 +16928,7 @@ function conferirCartao(onde, embed, componentes = []) {
     const chamadas = [];
     Object.assign(globalThis, { chaveDaIA: async () => "k", IA_URL: "https://api.groq.com/openai/v1", EVENTOS_DO_JOGO: [{ nome: "Batalha do Castelo" }],
       pedidoDoCalendario: C.pedidoDoCalendario });
-    const { lerCalendarioComIA } = carregar(["MODELOS_DE_VISAO", "PARECE_DE_IMAGEM", "modeloSumiu", "modelosDeImagemDoGroq", "lerCalendarioComIA"]);
+    const { lerCalendarioComIA, pedirAoGroqComImagens } = carregar(["MODELOS_DE_VISAO", "PARECE_DE_IMAGEM", "modeloSumiu", "modelosDeImagemDoGroq", "pedirAoGroqComImagens", "lerCalendarioComIA"]);
     const respostaFalsa = (status, corpo) => ({ ok: status === 200, status, json: async () => corpo, text: async () => JSON.stringify(corpo) });
     const lido = await lerCalendarioComIA(Buffer.from("x"), async (url, o) => {
       const b = JSON.parse(o.body); chamadas.push(b.model);
@@ -16968,6 +16968,70 @@ function conferirCartao(onde, embed, componentes = []) {
     let semChave = null;
     await lerCalendarioComIA(Buffer.from("x"), async () => respostaFalsa(200, {})).catch((e) => { semChave = e.motivo; });
     ok("sem chave do Groq: avisa, sem chamar", semChave, "chave");
+
+    /* 429 "tente de novo em Xs" (teto por minuto do plano grátis): espera e tenta de novo, uma vez */
+    {
+      globalThis.chaveDaIA = async () => "k";
+      const esperas = [];
+      let vez = 0;
+      const lido429 = await pedirAoGroqComImagens("p", [Buffer.from("x")], async () => (vez++ === 0
+        ? respostaFalsa(429, { error: { message: "Rate limit reached. Please try again in 7.5s." } })
+        : respostaFalsa(200, { choices: [{ message: { content: "{}" } }] })), 900, async (ms) => { esperas.push(ms); });
+      ok("429 com espera curta: espera e lê", JSON.stringify([esperas, lido429.texto]), JSON.stringify([[8500], "{}"]));
+      let erro429 = "";
+      await pedirAoGroqComImagens("p", [Buffer.from("x")], async () => respostaFalsa(429, { error: { message: "Request too large for model" } }), 900,
+        async () => { throw new Error("não devia esperar"); }).catch((e) => { erro429 = e.message; });
+      verdade("pedido grande demais (sem 'tente de novo'): não fica esperando à toa", /HTTP 429/.test(erro429));
+      let corpo2;
+      await pedirAoGroqComImagens("p", [Buffer.from("a"), Buffer.from("b")], async (u, o) => { corpo2 = JSON.parse(o.body); return respostaFalsa(200, { choices: [{ message: { content: "{}" } }] }); });
+      ok("o topo e as faixas vão no mesmo pedido, nessa ordem", corpo2.messages[0].content.map((c) => c.type).join(), "text,image_url,image_url");
+      ok("e pedindo pouca resposta (o teto por minuto do Groq conta a resposta)", corpo2.max_completion_tokens, 900);
+    }
+
+    /* as DATAS pelos pixels: um calendário desenhado com as cores do jogo */
+    {
+      const W = 1080, H = 1500, C3 = 3, L = 18, R = 1061, w = (R - L + 1) / 7;
+      const img = Buffer.alloc(W * H * C3);
+      const pinta = (x0, y0, x1, y1, [r, g, b]) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { const i = (y * W + x) * C3; img[i] = r; img[i + 1] = g; img[i + 2] = b; } };
+      pinta(0, 0, W - 1, H - 1, [120, 100, 80]);                      // a moldura marrom
+      pinta(L, 540, R, H - 1, [235, 222, 206]);                       // o fundo bege da grade
+      const col = (c) => Math.round(L + c * w);
+      pinta(col(2), 540, col(3) - 1, H - 1, [153, 214, 209]);         // hoje (sexta) em verde-água
+      pinta(L, 700, R - 7, 755, [229, 182, 114]);                     // um título de seção
+      pinta(L, 800, col(4) - 2, 880, [242, 204, 71]);                 // amarelo: desde antes até sábado
+      pinta(col(5), 950, R + 3, 1030, [70, 140, 230]);                // azul: segunda em diante
+      pinta(col(3), 1100, col(4) - 2, 1180, [146, 217, 123]);         // verde: só sábado
+      pinta(col(2), 1250, col(4) - 2, 1290, [218, 112, 88]);          // vermelho: sex a sáb, partido pelo texto
+      pinta(col(2), 1300, col(4) - 2, 1330, [218, 112, 88]);
+      pinta(col(2) + 40, 1290, col(2) + 120, 1299, [255, 255, 255]);
+      const an = C.analisarCalendario(img, W, H, C3);
+      ok("acha a grade: as bordas e a coluna de hoje", JSON.stringify([an.L, an.R, an.hoje]), JSON.stringify([L, R, 2]));
+      ok("o título de seção não é evento; as 4 barras são", an.barras.length, 4);
+      ok("cada barra na coluna certa (0 = começou ali ou antes; → = segue depois)",
+        an.barras.map((b) => `${b.ini}-${b.depois ? "→" : b.fim}`).join(" "), "0-3 5-→ 3-3 2-3");
+      ok("barra partida pelo texto é uma barra só", an.barras[3].y1 - an.barras[3].y0 >= 70, true);
+      ok("print que não é o calendário (sem a coluna de hoje): nada", C.analisarCalendario(Buffer.alloc(300 * 300 * 3, 200), 300, 300, 3), null);
+
+      /* os nomes da IA + as barras medidas */
+      const resp = (bars, extra = {}) => JSON.stringify({ utc_now: "2026-11-20 23:54", days: ["11/18", "11/19", "11/20", "11/21", "11/22", "11/23", "11/24"], bars, ...extra });
+      const r = C.eventosDoCalendario([an], resp([{ text: "Voyage da Luz" }, { text: "Comp..." }, { text: "", icon: "castle" }, { text: "Vai co..." }]));
+      const ver = (e) => `${e.nome}|${e.inicio == null ? "antes" : new Date(e.inicio).toISOString().slice(5, 10)}|${e.fim == null ? "depois" : new Date(e.fim - 86400000).toISOString().slice(5, 10)}`;
+      ok("as datas saem das colunas medidas, não da IA", r.eventos.map(ver).join(" ; "),
+        "Voyage da Luz|antes|11-21 ; Vai co...|11-20|11-21 ; Batalha do Castelo|11-21|11-21 ; Comp...|11-23|depois");
+      verdade("ícone de castelo vira a Batalha do Castelo, marcado", r.eventos.find((e) => e.nome === "Batalha do Castelo").peloIcone);
+      const dias = C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "B" }, { text: "C" }, { text: "D" }], { days: ["lixo"] }));
+      ok("dias ilegíveis: vêm da hora UTC e da coluna de hoje", ver(dias.eventos.find((e) => e.nome === "B")), "B|11-23|depois");
+      const poucos = C.eventosDoCalendario([an], resp([{ text: "A" }]));
+      ok("a IA leu menos nomes que barras: avisa", [poucos.lidos, poucos.esperados].join("/"), "1/4");
+      /* prints que se sobrepõem: a mesma barra nos dois conta uma vez; dois "Confr..." no mesmo print são dois */
+      const dois = C.eventosDoCalendario([an, an], resp([{ text: "Confr..." }, { text: "Comp..." }, { text: "Confr..." }, { text: "X" },
+        { text: "Confr..." }, { text: "Comp..." }, { text: "Confr..." }, { text: "X" }]));
+      ok("repetição entre prints some; nome igual no mesmo print fica", dois.eventos.map((e) => e.nome).sort().join(), "Comp...,Confr...,Confr...,X");
+      ok("resposta fora do formato: nada", C.eventosDoCalendario([an], "não sei"), null);
+      verdade("o resumo mostra o ícone de quem não tem nome", /_\(ícone: soldiers\)_/.test(C.resumoDoCalendario(
+        C.eventosDoCalendario([an], resp([{ text: "A" }, { text: "B" }, { text: "", icon: "soldiers" }, { text: "D" }])).eventos, Date.parse("2026-11-20T23:54Z"))));
+      verdade("o pedido dos nomes diz quantas faixas e pede os dias", /4 horizontal strips/.test(C.pedidoDosNomes(4)) && /"days"/.test(C.pedidoDosNomes(4)));
+    }
 
     /* em teste: só o dono, só no TOP e no painel */
     const { imagensDaMensagem } = carregar(["IMAGENS_POR_LEITURA", "imagensDaMensagem"]);
