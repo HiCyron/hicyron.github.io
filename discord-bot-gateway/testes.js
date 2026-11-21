@@ -17242,7 +17242,10 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("o ícone do jogo vai junto, quando existe", /data:image\/png;base64,iVBORw0KGgo=/.test(des.svg));
         ok("as cores: batalha vermelha, aliança verde, oferta dourada, alquimia roxa",
           [Dz.corDoEvento({}, "castelo"), Dz.corDoEvento({}, "campeonato"), Dz.corDoEvento({ categoria: "Deals" }), Dz.corDoEvento({ categoria: "Alchemy Junction" })].join(),
-          "#B8463A,#3E8E4F,#C08A22,#7E4FB8");
+          "#FF6B57,#4ADE80,#FFCB4D,#C38BFF");
+        ok("as seções do calendário do jogo", ["Events", "Deals", "Alchemy Junction", "Fishing Tournament", ""].map((c) => Dz.secaoDoEvento({ categoria: c })).join(),
+          "eventos,ofertas,alquimia,pesca,eventos");
+        verdade("com o emblema da CYRON, quando vem", /data:image\/png;base64,EMBLEMA/.test(Dz.desenharSemana({ eventos: [], agora: D(21), fonteTitulo, fonteTexto, logo: "EMBLEMA" }).svg));
         verdade("e o PNG sai do SVG (sharp)", await (async () => { const sh = (await import("sharp")).default; const png = await sh(Buffer.from(des.svg)).png().toBuffer(); const m = await sh(png).metadata(); return m.width === 1200 && m.height === des.altura; })());
       }
       /* o ÍCONE FIXO de cada evento ("mas todos aqui têm emoji", 21/11) */

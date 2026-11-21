@@ -13547,6 +13547,16 @@ async function iconeDoDesenho(nome, site = "", buscar = fetch) {
   } catch { return null; }
 }
 
+/* O emblema da CYRON no canto do desenho (a figurinha redonda). */
+let EMBLEMA_DO_DESENHO = null;
+function emblemaDoDesenho() {
+  if (EMBLEMA_DO_DESENHO === null) {
+    try { EMBLEMA_DO_DESENHO = readFileSync(fileURLToPath(new URL("./img/figurinhas/cyron.png", import.meta.url))).toString("base64"); }
+    catch { EMBLEMA_DO_DESENHO = ""; }
+  }
+  return EMBLEMA_DO_DESENHO;
+}
+
 /* A semana desenhada (agenda-desenho.js), em PNG. Sem sharp: null (quem
    chama cai no cartão em texto). */
 async function desenhoDaSemana(eventos, agora, reino) {
@@ -13560,13 +13570,14 @@ async function desenhoDaSemana(eventos, agora, reino) {
     if (b64) icones.set(e.nome, b64);
   }
   const { svg } = desenharSemana({ eventos: eventos.map((e) => ({ ...e, hora: horaDoSite(e) })), agora, reino, fonteTitulo, fonteTexto, icones,
-    chaveDe: (nome) => eventoDoJogo(nome)?.chave || null });
+    logo: emblemaDoDesenho(), chaveDe: (nome) => eventoDoJogo(nome)?.chave || null });
   return sharp(Buffer.from(svg)).png().toBuffer();
 }
 
 /* 2: o cartão da semana virou desenho (o dono achou o de texto feio, 21/11).
-   3: todo evento com o ícone do jogo ("mas todos aqui têm emoji"). */
-const AMOSTRA_DA_AGENDA = "3";
+   3: todo evento com o ícone do jogo ("mas todos aqui têm emoji").
+   4: as cores da CYRON, seções como no jogo, relevo ("achei simples"). */
+const AMOSTRA_DA_AGENDA = "4";
 async function amostraDaAgenda() {
   if ((await ajustes()).agenda_amostra === AMOSTRA_DA_AGENDA) return "feito";
   if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
@@ -13583,7 +13594,7 @@ async function amostraDaAgenda() {
   const dica = (nome) => eventoDoJogo(nome)?.dicas?.[0] || "";
   const png = await desenhoDaSemana(eventos, agora, reino).catch((e) => { console.log("agenda: o desenho falhou:", e?.message || e); return null; });
   const lista = listaDoComoFunciona(eventos.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), TEXTOS_DA_AGENDA.comoFunciona);
-  await canal.send({ content: "🧪 **Teste 3: a agenda do jogo, desenhada, com o ícone de cada evento**\n" +
+  await canal.send({ content: "🧪 **Teste 4: a agenda do jogo com a cara da CYRON**\n" +
     "O cartão da semana agora é uma imagem, como o calendário do jogo: uma barra por evento, do dia em que começa ao dia em que termina, " +
     "com o ícone do próprio jogo. Embaixo, o ℹ️ abre como funciona cada evento (só para quem tocou, na língua dele).",
     allowedMentions: { parse: [] } });
