@@ -14544,9 +14544,9 @@ function conferirCartao(onde, embed, componentes = []) {
   const enviadas = [];
   const canalFalso = {
     id: "111111111111111111", name: "chat-en", guild: { id: "g", name: "Servidor" }, isTextBased: () => true,
-    messages: { fetch: async () => new Map([
+    messages: { fetch: async (q) => (typeof q === "string" ? (q === "444444444444444444" ? { id: q, prints: q === "444444444444444444" } : null) : new Map([
       ["m2", { id: "m2", createdTimestamp: 2, author: { id: "a", username: "b" }, content: "segunda", embeds: [] }],
-      ["m1", { id: "m1", createdTimestamp: 1, author: { id: "a", username: "b" }, content: "primeira", embeds: [] }]]) },
+      ["m1", { id: "m1", createdTimestamp: 1, author: { id: "a", username: "b" }, content: "primeira", embeds: [] }]])) },
     send: async (o) => { enviadas.push(o); return { id: "m3", createdTimestamp: 3, author: { id: "bot", username: "CYRON", bot: true }, content: o.content, embeds: [] }; },
   };
   /* Uma conversa no privado (DM): sem servidor, com um destinatário. */
@@ -14578,7 +14578,8 @@ function conferirCartao(onde, embed, componentes = []) {
   };
   const srv = V.ligarVisao({ client: clienteFalso, ehDono: async (id) => id === "dono", buscar,
     numerosDoDono: async () => ({ servidores: { ativos: 7 }, marca: "painel-do-dono" }),
-    listarPrivados: async () => [{ id: "333333333333333333", usuario: "u9", nome: "Budi (guardado)", avatar: "", ultima: "2026-11-09T00:00:00Z" }] }, 0);
+    listarPrivados: async () => [{ id: "333333333333333333", usuario: "u9", nome: "Budi (guardado)", avatar: "", ultima: "2026-11-09T00:00:00Z" }],
+    lerCalendario: async (msg) => (msg.prints ? { titulo: "🧪 Leitura", corpo: "🔴 **Agora**", rodape: "modelo", eventos: 6, prints: 3, falhas: 0 } : { erro: "sem-print" }) }, 0);
   await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
   const base = `http://127.0.0.1:${srv.address().port}`;
   const pedir = (c, t, o = {}) => fetch(base + c, { ...o,
@@ -14598,6 +14599,14 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("o dono fala como a CYRON", (await env.json()).mensagem.texto, "oi, aqui é a CYRON");
     ok("menção a pessoa toca; @everyone e cargo não", JSON.stringify(enviadas[0].allowedMentions), JSON.stringify({ parse: ["users"] }));
     ok("quem não é dono não fala", (await pedir("/visao/enviar", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
+    /* "Ler calendário" pelo app: o dono não é ADM no TOP, e o comando de Apps só aparece para ADM */
+    const cal = await pedir("/visao/calendario", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "111111111111111111", m: "444444444444444444" }) });
+    const calJ = await cal.json();
+    ok("o dono lê o calendário de uma mensagem pelo app", [cal.status, calJ.eventos, calJ.corpo].join("|"), "200|6|🔴 **Agora**");
+    ok("quem não é dono não lê", (await pedir("/visao/calendario", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
+    ok("sem mensagem: 400", (await pedir("/visao/calendario", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "111111111111111111" }) })).status, 400);
+    ok("mensagem que não existe: 404", (await pedir("/visao/calendario", "token-do-dono-123", { method: "POST",
+      body: JSON.stringify({ c: "111111111111111111", m: "555555555555555555" }) })).status, 404);
     ok("canal que não existe: 404", (await pedir("/visao/mensagens?c=222222222222222222", "token-do-dono-123")).status, 404);
     const pv = await (await pedir("/visao/privado", "token-do-dono-123")).json();
     ok("as conversas no privado vêm do banco (sobrevivem a reinício)", pv.conversas.map((x) => x.nome).join(","), "Budi (guardado)");
@@ -14815,7 +14824,7 @@ function conferirCartao(onde, embed, componentes = []) {
     } finally { srv.close(); }
   }
 
-  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, listarPrivados \}\)/.test(fonte));
+  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));
   verdade("e NUNCA desliga a máquina por falta de visita", /auto_stop_machines = "off"/.test(fly) && /min_machines_running = 1/.test(fly));
