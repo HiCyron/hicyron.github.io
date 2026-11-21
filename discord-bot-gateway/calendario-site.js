@@ -210,3 +210,75 @@ export function juntarComOSite(eventos, doSite, { primeiroDia, ultimoDia, chaveD
   const pares = [...par.entries()].sort((x, y) => x[0] - y[0]).filter(([i]) => eventos[i].lido).map(([i, j]) => ({ nome: eventos[i].nome, en: doSite[j].nome }));
   return { eventos: [...saida, ...depois], casados: par.size, pares };
 }
+
+/* ---------------- a AGENDA DO JOGO: o cartão da semana e o aviso do dia ----------------
+
+   O que vai para a 📅 agenda de cada língua (a prévia que o dono aprovou,
+   21/11): um cartão da semana só, que se atualiza, e um aviso por dia na
+   virada do dia do jogo (00:00 UTC), com o que começa e o que termina. O
+   texto sai em português; o index.js traduz para cada sala. `eventos` são os
+   do site (nome já em português quando a CYRON sabe), com a hora exata. */
+const DIAS_DA_SEMANA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+const CURTOS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+const dd = (ms) => { const d = new Date(ms); return `${String(d.getUTCDate()).padStart(2, "0")}/${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
+const curto = (ms) => `${CURTOS[new Date(ms).getUTCDay()]} ${dd(ms)}`;
+
+export const TEXTOS_DA_AGENDA = {
+  semana: "Semana do reino", agora: "Rolando agora", ate: "até", hoje: "Hoje no reino", comeca: "Começa hoje",
+  ultimo: "Último dia", rodape: "Do calendário do jogo (mightpulse.com) · horário UTC: o dia do jogo vira às 00:00 UTC",
+  comoFunciona: "Como funciona cada evento…",
+};
+
+/* Pura. O cartão da semana: o que está rolando e o que começa nos próximos
+   7 dias, dia a dia. `emoji(nome)` dá o emoji; `t` os textos (traduzidos). */
+export function cartaoDaSemana(eventos, agora, { reino, emoji = () => "▫️", t = TEXTOS_DA_AGENDA } = {}) {
+  const hojeDia = diaDe(agora), fimDaJanela = hojeDia + 8 * DIA;
+  const linha = (e, comData) => {
+    const hora = horaDoSite(e);
+    const quando = hora ? `${comData ? `${curto(e.inicio)} · ` : ""}${hora}` : `${t.ate} ${curto(viradaDe(e.fim) - DIA)}`;
+    return `${emoji(e.nome)} **${e.nome}** · ${quando}`;
+  };
+  const porNome = (a, b) => a.nome.localeCompare(b.nome);
+  const rolando = eventos.filter((e) => e.inicio <= agora && e.fim > agora).sort(porNome);
+  const vem = eventos.filter((e) => e.inicio > agora && e.inicio < fimDaJanela);
+  const dias = [...new Set(vem.map((e) => diaDe(e.inicio)))].sort((a, b) => a - b);
+  const partes = [];
+  if (rolando.length) partes.push(`🔴 **${t.agora}**`, ...rolando.map((e) => linha(e, true)));
+  for (const d of dias) {
+    const nome = DIAS_DA_SEMANA[new Date(d).getUTCDay()];
+    partes.push("", `⏭️ **${nome[0].toUpperCase()}${nome.slice(1)} ${dd(d)}**`, ...vem.filter((e) => diaDe(e.inicio) === d).sort(porNome).map((e) => linha(e, false)));
+  }
+  return {
+    color: 0xC8962E,
+    title: `📅 ${t.semana}${reino ? ` #${reino}` : ""}`.slice(0, 256),
+    description: partes.join("\n").trim().slice(0, 4000) || "—",
+    footer: { text: t.rodape.slice(0, 2000) },
+  };
+}
+
+/* Pura. O aviso do dia `dia` (00:00 UTC): o que começa hoje (com a primeira
+   dica da ficha, quando a CYRON tem) e o que tem hoje como último dia. Dia
+   sem nada começando nem terminando: null (sem aviso, sem barulho). */
+export function avisoDoDia(eventos, dia, { emoji = () => "▫️", dica = () => "", t = TEXTOS_DA_AGENDA } = {}) {
+  const d = diaDe(dia);
+  const comeca = eventos.filter((e) => diaDe(e.inicio) === d).sort((a, b) => a.inicio - b.inicio || a.nome.localeCompare(b.nome));
+  const acaba = eventos.filter((e) => viradaDe(e.fim) - DIA === d && diaDe(e.inicio) !== d).sort((a, b) => a.nome.localeCompare(b.nome));
+  if (!comeca.length && !acaba.length) return null;
+  const partes = [];
+  if (comeca.length) {
+    partes.push(`🟢 **${t.comeca}**`);
+    for (const e of comeca) {
+      const hora = horaDoSite(e);
+      partes.push(`${emoji(e.nome)} **${e.nome}**${hora ? ` · ${hora}` : ` · ${t.ate} ${curto(viradaDe(e.fim) - DIA)}`}`);
+      const dc = dica(e.nome);
+      if (dc) partes.push(`↳ ${dc}`);
+    }
+  }
+  if (acaba.length) partes.push("", `🏁 **${t.ultimo}**`, acaba.map((e) => `${emoji(e.nome)} ${e.nome}`).join(" · "));
+  const nome = DIAS_DA_SEMANA[new Date(d).getUTCDay()];
+  return {
+    color: 0x3BA55C,
+    title: `☀️ ${t.hoje} · ${nome} ${dd(d)}`.slice(0, 256),
+    description: partes.join("\n").trim().slice(0, 4000),
+  };
+}

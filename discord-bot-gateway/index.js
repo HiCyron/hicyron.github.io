@@ -38,7 +38,7 @@ import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
   recorteDoIcone, nomeDoEmojiDoEvento, previstosPeloCiclo, emojiSemFundo } from "./calendario-jogo.js";
-import { urlDoSite, eventosDoSite, juntarComOSite } from "./calendario-site.js";
+import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSemana, avisoDoDia, TEXTOS_DA_AGENDA } from "./calendario-site.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -13062,7 +13062,10 @@ async function cliqueUrsoJogo(inter) {
 /* O botão "How it works" do aviso: a ficha do evento, só para quem tocou,
    na língua dele. Os termos do jogo passam protegidos (textoDoJogo). */
 async function cliqueComoFunciona(inter) {
-  const ev = acharEventoDoJogo(String(inter.customId).split(":")[2]);
+  /* O botão traz a chave no nome (jogo:como:<chave>); a lista do cartão da
+     semana, no item escolhido. */
+  const chave = inter.isStringSelectMenu?.() ? inter.values?.[0] : String(inter.customId).split(":")[2];
+  const ev = acharEventoDoJogo(chave);
   if (!ev) return inter.deferUpdate().catch(() => {});
   await inter.deferReply({ flags: 64 });
   const idioma = await linguaDe(inter);
@@ -13470,6 +13473,76 @@ async function amostraDosHerois() {
     duracao_seg: URSO.duracao, repetir_min: URSO.repetir };
   await canal.send(avisoDeInicio(exemplo, { allowedMentions: { parse: [] } }, PALAVRAS_DO_CARTAO, exemplo.titulo, 15, true));
   console.log(`herois: amostra postada em #${CANAL_DE_TESTES}`);
+  return "postado";
+}
+
+/* ---------------- 📅 a AGENDA DO JOGO (o calendário do reino) ----------------
+
+   O cartão da semana e o aviso do dia (calendario-site.js), com os eventos
+   do reino no mightpulse.com e os nomes em português que a CYRON já viu nos
+   prints. Antes de ir para a agenda da [TOP], o dono pediu (21/11): "manda
+   um teste no painel antes para eu ver". */
+async function eventosDaAgenda(reino) {
+  const doSite = await calendarioDoSite(reino);
+  if (!doSite?.eventos?.length) return null;
+  const memoria = lerMemoria(await ajuste(MEMORIA_DO_CALENDARIO));
+  return doSite.eventos.map((e) => ({ ...e, nome: nomeEmPortugues(e.nome, { memoria, fichaDe: (n) => eventoDoJogo(n) }) }));
+}
+
+/* A lista "Como funciona" do cartão: os eventos da semana que têm ficha. */
+function listaDoComoFunciona(eventos, placeholder) {
+  const vistos = new Map();
+  for (const e of eventos) {
+    const ev = eventoDoJogo(e.nome) || eventoDoJogo(e.site || "");
+    if (ev && !vistos.has(ev.chave)) vistos.set(ev.chave, { ev, nome: e.nome });
+  }
+  if (!vistos.size) return [];
+  const opcoes = [...vistos.values()].slice(0, 25).map(({ ev, nome }) => ({
+    label: String(nome).slice(0, 100), value: ev.chave, emoji: emojiDoComponente(nomeDoEmojiDoEvento(nome)) || { name: ev.emoji } }));
+  return [{ type: 1, components: [{ type: 3, custom_id: "jogo:como", placeholder: `ℹ️ ${placeholder}`.slice(0, 150), options: opcoes }] }];
+}
+
+/* Os botões ℹ️ do aviso do dia: o que começa hoje e tem ficha (até 5). */
+function botoesDoDia(eventos, dia) {
+  const DIA = 86400000, d = Math.floor(dia / DIA) * DIA;
+  const vistos = new Map();
+  for (const e of eventos.filter((x) => Math.floor(x.inicio / DIA) * DIA === d)) {
+    const ev = eventoDoJogo(e.nome) || eventoDoJogo(e.site || "");
+    if (ev && !vistos.has(ev.chave)) vistos.set(ev.chave, { ev, nome: e.nome });
+  }
+  if (!vistos.size) return [];
+  return [{ type: 1, components: [...vistos.values()].slice(0, 5).map(({ ev, nome }) => ({
+    type: 2, style: 2, custom_id: `jogo:como:${ev.chave}`, label: String(nome).slice(0, 80),
+    emoji: emojiDoComponente(nomeDoEmojiDoEvento(nome)) || { name: "ℹ️" } })) }];
+}
+
+const AMOSTRA_DA_AGENDA = "1";
+async function amostraDaAgenda() {
+  if ((await ajustes()).agenda_amostra === AMOSTRA_DA_AGENDA) return "feito";
+  if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
+  const gid = await guildDoPainel();
+  const guild = gid && client.guilds.cache.get(gid);
+  if (!guild) return "sem-painel";
+  const reino = await reinoDoCalendario(null);
+  const eventos = reino && await eventosDaAgenda(reino);
+  if (!eventos) return "sem-site";
+  const canal = await canalDoPainel(guild, CANAL_DE_TESTES);
+  if (!canal) return "sem-canal";
+  await porAjuste("agenda_amostra", AMOSTRA_DA_AGENDA);
+  const agora = Date.now();
+  const dica = (nome) => eventoDoJogo(nome)?.dicas?.[0] || "";
+  await canal.send({ content: "🧪 **Teste: a agenda do jogo**\n" +
+    `Como vai ficar na 📅 agenda de cada língua da [TOP] (traduzido para cada sala), com o calendário do reino #${reino}:\n` +
+    "1️⃣ O **cartão da semana**: um só, que se atualiza sozinho (nada de mensagem nova a cada mudança).\n" +
+    "2️⃣ O **aviso do dia**, na virada do dia do jogo (00:00 UTC, 21h de Brasília): o que começa e o que acaba. O de ontem some.\n" +
+    "Toque no ℹ️ para ver a ficha do evento (só você vê, na sua língua). Nada disso vai para a [TOP] antes do seu ok.",
+    allowedMentions: { parse: [] } });
+  await canal.send({ embeds: [cartaoDaSemana(eventos, agora, { reino, emoji: emojiDoEvento })],
+    components: listaDoComoFunciona(eventos.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), TEXTOS_DA_AGENDA.comoFunciona),
+    allowedMentions: { parse: [] } });
+  const aviso = avisoDoDia(eventos, agora, { emoji: emojiDoEvento, dica });
+  if (aviso) await canal.send({ embeds: [aviso], components: botoesDoDia(eventos, agora), allowedMentions: { parse: [] } });
+  console.log(`agenda: amostra postada em #${CANAL_DE_TESTES} (reino ${reino}, ${eventos.length} eventos)`);
   return "postado";
 }
 
@@ -25870,6 +25943,7 @@ client.on("interactionCreate", async (inter) => {
     if (inter.isButton() && inter.customId === "herois:urso") return await cliqueUrso(inter);
     if (inter.isButton() && inter.customId === "urso:jogo") return await cliqueUrsoJogo(inter);
     if (inter.isButton() && inter.customId.startsWith("jogo:como:")) return await cliqueComoFunciona(inter);
+    if (inter.isStringSelectMenu?.() && inter.customId === "jogo:como") return await cliqueComoFunciona(inter);
     if (inter.isMessageComponent() && inter.customId.startsWith("livro:")) return await cliqueLivro(inter);
     /* "sa:" e nao "sup:": o "sup:ler:" e' do botao 🌐 do servidor de suporte. */
     if (inter.isMessageComponent() && inter.customId.startsWith("sa:")) {
@@ -28880,6 +28954,11 @@ client.once("clientReady", () => {
     .then((r) => { if (r === "sem-emoji" && resta) setTimeout(() => amostra(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("herois: amostra falhou:", e?.message || e));
   setTimeout(() => amostra(2), 3 * 60 * 1000);
+  /* A amostra da agenda do jogo, no painel (uma vez por versão). */
+  const amostraAgenda = (resta) => amostraDaAgenda()
+    .then((r) => { if ((r === "sem-emoji" || r === "sem-site") && resta) setTimeout(() => amostraAgenda(resta - 1), 10 * 60 * 1000); })
+    .catch((e) => console.log("agenda: amostra falhou:", e?.message || e));
+  setTimeout(() => amostraAgenda(2), 4 * 60 * 1000);
   const urso = (resta) => ursoNosCanais()
     .then((r) => { if ((r === "sem-emoji" || r === "sem-banco") && resta) setTimeout(() => urso(resta - 1), 10 * 60 * 1000); })
     .catch((e) => console.log("urso: postar nos canais falhou:", e?.message || e));
