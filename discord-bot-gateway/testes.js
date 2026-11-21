@@ -17287,6 +17287,9 @@ function conferirCartao(onde, embed, componentes = []) {
         const doisUrsos = Dz.desenharSemana({ eventos: [...site, ...urso, ...urso2], agora: D(21, 18), reino: "2311", fonteTitulo, fonteTexto,
           icones: new Map([["Armadilha do Urso 1", "URSOPNG"], ["Armadilha do Urso 2", "URSOPNG"]]) });
         ok("o urso 1 e o urso 2 em linhas separadas, uma linha cada (não uma por dia)", doisUrsos.eventos - Dz.eventosDaJanela(site, D(21, 18)).length, 2);
+        verdade("o urso 2 (21:30) um pouco à frente do urso 1 (11:30) no mesmo dia, sem sair do dia",
+          Dz.xDaPilula(2, 21 * 60 + 30) > Dz.xDaPilula(2, 11 * 60 + 30) && Dz.xDaPilula(2, 0) >= 44 + 2 * ((1200 - 88) / 7) + 6 &&
+          Dz.xDaPilula(2, 1439) + Dz.PILULA <= 44 + 3 * ((1200 - 88) / 7) - 6);
         ok("uma pílula com o urso em cada dia de cada armadilha (3 + 3)", (doisUrsos.svg.match(/xlink:href="data:image\/png;base64,URSOPNG"/g) || []).length, 6);
       }
       /* o ÍCONE FIXO de cada evento ("mas todos aqui têm emoji", 21/11) */

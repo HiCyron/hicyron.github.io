@@ -113,6 +113,18 @@ function horaCurta(ms) {
   return new Date(ms).toISOString().slice(11, 16);
 }
 
+/* A pílula de um evento da aliança é mais curta que o dia, e anda dentro
+   dele conforme a hora: mais tarde, mais à direita (dono, 21/11: "o urso 2
+   podia estar um pouco na frente... para sinalizar que é depois do urso 1"). */
+export const PILULA = 112;
+/* Pura. O x onde a pílula começa: coluna do dia + a hora do dia (0h na
+   esquerda, 24h no fim da folga). */
+export function xDaPilula(coluna, minutosDoDia) {
+  const folga = COLUNA - 12 - PILULA;
+  const frac = Math.min(1, Math.max(0, (Number(minutosDoDia) || 0) / 1440));
+  return MARGEM + coluna * COLUNA + 6 + Math.floor(frac * folga);
+}
+
 /* Brilhos de fundo (estrelinhas de 4 pontas, como na arte da CYRON), em
    lugares fixos: o desenho sai igual toda vez. */
 function brilhos(altura) {
@@ -220,7 +232,7 @@ function desenharLinhaDaAlianca(p, e, y, { ini, fonteTexto, icones }) {
   const porDia = new Map();
   for (const o of e.ocorrencias) {
     const c = Math.floor((diaDe(o.inicio) - ini) / DIA);
-    if (c >= 0 && c <= 6) porDia.set(c, [...(porDia.get(c) || []), horaCurta(o.inicio)]);
+    if (c >= 0 && c <= 6) porDia.set(c, [...(porDia.get(c) || []), { hora: horaCurta(o.inicio), min: (o.inicio - diaDe(o.inicio)) / 60000 }]);
   }
   const dias = [...porDia.entries()].sort((a, b) => a[0] - b[0]);
   if (!dias.length) return;
@@ -241,22 +253,23 @@ function desenharLinhaDaAlianca(p, e, y, { ini, fonteTexto, icones }) {
   } else if (depois[1] - depois[0] >= 120) {
     contorno(caminho(fonteTexto, caber(fonteTexto, e.nome, tam, depois[1] - depois[0]), depois[0], yb + 31, tam));
   } else nomeDentro = true;
-  for (const [i, [c, horas]] of dias.entries()) {
-    const x0 = MARGEM + c * COLUNA + 6, x1 = MARGEM + (c + 1) * COLUNA - 6;
+  for (const [i, [c, vezes]] of dias.entries()) {
+    const x0 = xDaPilula(c, vezes[0].min), x1 = x0 + PILULA;
+    const horas = vezes.map((v) => v.hora);
     const forma = `M${x0 + r},${yb} H${x1 - r} A${r},${r} 0 0 1 ${x1 - r},${yb + BARRA} H${x0 + r} A${r},${r} 0 0 1 ${x0 + r},${yb} Z`;
     p.push(`<path d="${forma}" fill="url(#cor-alianca)" stroke="#000000" stroke-opacity="0.35" stroke-width="1.5" filter="url(#sombra)"/>`);
     p.push(`<clipPath id="c${y}_${c}"><path d="${forma}"/></clipPath>`);
     p.push(`<rect x="${x0}" y="${yb + 2}" width="${x1 - x0}" height="${BARRA * 0.42}" rx="${r * 0.8}" fill="#FFFFFF" fill-opacity="0.22" clip-path="url(#c${y}_${c})"/>`);
-    let xt = x0 + 14;
+    let xt = x0 + 12;
     if (icone) {
-      const cx = x0 + 24, cy = yb + BARRA / 2;
-      p.push(`<circle cx="${cx}" cy="${cy}" r="23" fill="url(#anel)" filter="url(#sombra)"/>`);
-      p.push(`<circle cx="${cx}" cy="${cy}" r="19.5" fill="#0C1533"/>`);
-      p.push(`<image x="${cx - 23}" y="${cy - 26}" width="46" height="46" xlink:href="data:image/png;base64,${icone}" href="data:image/png;base64,${icone}"/>`);
-      xt = cx + 30;
+      const cx = x0 + 21, cy = yb + BARRA / 2;
+      p.push(`<circle cx="${cx}" cy="${cy}" r="22" fill="url(#anel)" filter="url(#sombra)"/>`);
+      p.push(`<circle cx="${cx}" cy="${cy}" r="18.5" fill="#0C1533"/>`);
+      p.push(`<image x="${cx - 22}" y="${cy - 25}" width="44" height="44" xlink:href="data:image/png;base64,${icone}" href="data:image/png;base64,${icone}"/>`);
+      xt = cx + 27;
     }
     const texto = nomeDentro && i === 0 ? e.nome : horas.join(" · ");
-    contorno(caminho(fonteTexto, caber(fonteTexto, texto, 18, x1 - xt - 10), xt, yb + 30, 18));
+    contorno(caminho(fonteTexto, caber(fonteTexto, texto, 17, x1 - xt - 8), xt, yb + 30, 17));
   }
 }
 
