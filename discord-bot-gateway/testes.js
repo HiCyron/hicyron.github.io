@@ -17088,6 +17088,25 @@ function conferirCartao(onde, embed, componentes = []) {
       ok("outra semana sem o nome inteiro no print: a memória completa", outraSemana.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 23)).nome, "Rally do Herói");
 
       ok("o resumo: o que vai a semana toda", /\*\*X\*\* · a semana toda/.test(C.resumoDoCalendario([{ nome: "X", inicio: null, fim: null }], Date.now())), true);
+
+      /* o NÚMERO de cada faixa: a IA pulou a faixa só com ícone e os nomes escorregaram (4º teste, 21/11) */
+      const nomesDe = (bars, total) => C.nomesPorFaixa(bars, total).map((b) => (b ? b.text : "-")).join();
+      ok("pelo número, não pela ordem da resposta", nomesDe([{ n: 2, text: "B" }, { n: 1, text: "A" }], 3), "A,B,-");
+      ok("faixa pulada fica sem nome; a seguinte NÃO herda o nome do vizinho", nomesDe([{ n: 1, text: "A" }, { n: 3, text: "C" }], 3), "A,-,C");
+      ok("sem número: pela posição (como antes)", nomesDe([{ text: "A" }, { text: "B" }], 3), "A,B,-");
+      ok("número repetido ou fora da conta: pela posição", [nomesDe([{ n: 1, text: "A" }, { n: 1, text: "B" }], 2), nomesDe([{ n: 9, text: "A" }], 2)].join(" | "), "A,B | A,-");
+      ok("resposta sem lista: nada", nomesDe(undefined, 2), "-,-");
+      const pulou = C.eventosDoCalendario([an], resp([{ n: 1, text: "Rally do Herói" }, { n: 2, text: "Rally ..." }, { n: 3, text: "Camp..." }]), Date.now(),
+        { conhecidos: ["Campeonato da Aliança"] });
+      ok("a IA pulou a última faixa: cada nome na sua barra, e a pulada sai pelo ícone",
+        JSON.stringify([pulou.lidos, pulou.esperados, pulou.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 21)).nome, pulou.eventos.find((e) => e.inicio === Date.UTC(2026, 10, 24)).nome]),
+        JSON.stringify([3, 4, "Campeonato da Aliança", "Rally do Herói"]));
+      const px1 = C.numeroEmPixels(7, 56, 80), px2 = C.numeroEmPixels(23, 56, 80);
+      const pretos = (buf) => { let n = 0; for (let i = 0; i < buf.length; i += 3) if (buf[i] === 0) n++; return n; };
+      const borda = (buf, w, h) => { for (let y = 0; y < h; y++) for (const x of [0, 1, w - 2, w - 1]) if (buf[(y * w + x) * 3] === 0) return true; return false; };
+      verdade("o número sai desenhado (sem fonte), branco com preto", px1.length === 56 * 80 * 3 && pretos(px1) > 50 && pretos(px1) < 56 * 80 / 2);
+      verdade("dois dígitos cabem sem encostar na borda", pretos(px2) > pretos(px1) && !borda(px2, 56, 80));
+      verdade("o pedido fala do número da faixa e pede um item por número", /NUMBER/.test(C.pedidoDosNomes(4)) && /"n":1/.test(C.pedidoDosNomes(4)));
     }
     {
     }
