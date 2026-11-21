@@ -35,6 +35,7 @@ export const CORES = {
 };
 const BATALHAS = new Set(["castelo", "santuario", "swordland", "tri", "vaicomtudo", "duelo"]);
 export function tipoDoEvento(e, chave) {
+  if (e?.daAlianca) return "alianca";
   if (chave && BATALHAS.has(chave)) return "batalha";
   if (chave === "campeonato" || chave === "mobilizacao") return "alianca";
   const c = String(e.categoria || "").toLowerCase();
@@ -48,6 +49,7 @@ export function corDoEvento(e, chave) {
 }
 /* A seção do calendário do jogo onde o evento mora. */
 export function secaoDoEvento(e) {
+  if (e?.daAlianca) return "eventos";
   const c = String(e.categoria || "").toLowerCase();
   if (/deal|oferta/.test(c)) return "ofertas";
   if (/alchemy|alquimia/.test(c)) return "alquimia";
@@ -76,6 +78,31 @@ export function eventosDaJanela(eventos, agora, dias = 7) {
   const ini = diaDe(agora), fim = ini + dias * DIA;
   return eventos.filter((e) => e.fim > agora && e.inicio < fim)
     .sort((a, b) => Math.max(a.inicio, ini) - Math.max(b.inicio, ini) || a.fim - b.fim || a.nome.localeCompare(b.nome));
+}
+
+/* Pura. As barras de UM evento da aliança (criado pela liderança — titulo,
+   quando em ms, repetir em minutos, duracao em segundos) que caem na janela
+   da semana (dono, 21/11: o urso "no calendário, junto com os demais"). Sem
+   repetição: só a primeira, se ainda não fechou. Com: todas as que começam
+   dentro da janela. Sem duração, a barra ganha 30m para aparecer. Até 10 por
+   evento (um evento não enche a imagem sozinho). */
+export function barrasDaAlianca({ titulo, quando, repetir = 0, duracao = 0 }, agora, dias = 7) {
+  const q = typeof quando === "number" ? quando : Date.parse(quando);
+  if (!Number.isFinite(q)) return [];
+  const ini = diaDe(agora), fim = ini + dias * DIA;
+  const dur = Math.max(0, Number(duracao) || 0) * 1000;
+  const comprimento = dur || 30 * 60000;
+  const passo = Number(repetir) > 0 ? Number(repetir) * 60000 + dur : 0;
+  const nome = String(titulo || "").trim() || "Evento";
+  const out = [];
+  let t = q;
+  if (passo > 0 && t + comprimento <= ini) t += Math.ceil((ini - t - comprimento) / passo) * passo;
+  for (let i = 0; i < 80 && t < fim; i++) {
+    if (t + comprimento > agora) out.push({ nome, inicio: t, fim: t + comprimento, daAlianca: true });
+    if (!(passo > 0)) break;
+    t += passo;
+  }
+  return out.slice(0, 10);
 }
 
 /* Brilhos de fundo (estrelinhas de 4 pontas, como na arte da CYRON), em

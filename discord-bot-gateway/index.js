@@ -42,7 +42,7 @@ import { urlDoSite, eventosDoSite, juntarComOSite, nomeEmPortugues, cartaoDaSema
   diasDaSemanaEm, chaveDaSemana, estadoDaAgenda, historicoNovo, linhaDaVirada, chaveDoAviso } from "./calendario-site.js";
 import { TEXTOS_DO_CODIGO, codigoLimpo, codigosDoAnuncio, validadeDe, pareceKingshot, salasDoCodigo, cartaoDoCodigo, botoesDoCodigo,
   codigoDoBotao, estadoDoCodigo, MARCA_DO_CODIGO, SITE_DOS_CODIGOS, codigosDoSite, decisaoDoSite } from "./codigos-jogo.js";
-import { desenharSemana, TEXTOS_DO_DESENHO } from "./agenda-desenho.js";
+import { desenharSemana, TEXTOS_DO_DESENHO, barrasDaAlianca } from "./agenda-desenho.js";
 import { fileURLToPath } from "node:url";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 
@@ -13714,8 +13714,13 @@ function botoesDoDia(eventos, dia) {
 /* O ícone do evento para o desenho: o emoji ev_... do aplicativo (nasceu do
    print), baixado uma vez do CDN do Discord. Sem emoji, a barra vai sem ícone. */
 const ICONES_DO_DESENHO = new Map();
+/* O ícone de um evento da aliança (criado pela liderança): o urso, quando o
+   título fala dele; senão, sem ícone (a barra vai limpa). */
+function iconeDaAlianca(nome) {
+  return /\b(urso|bear|armadilha|hunting)\b/i.test(String(nome || "")) ? "ks_urso" : "";
+}
 async function iconeDoDesenho(nome, site = "", buscar = fetch) {
-  const e = EMOJIS_DA_CYRON.get(iconeFixo(nome) || iconeFixo(site)) || EMOJIS_DA_CYRON.get(nomeDoEmojiDoEvento(nome));
+  const e = EMOJIS_DA_CYRON.get(iconeFixo(nome) || iconeFixo(site) || iconeDaAlianca(nome)) || EMOJIS_DA_CYRON.get(nomeDoEmojiDoEvento(nome));
   if (!e) return null;
   if (ICONES_DO_DESENHO.has(e.id)) return ICONES_DO_DESENHO.get(e.id);
   try {
@@ -13840,10 +13845,13 @@ async function textosDoDesenhoNaLingua(idioma, motor) {
 }
 
 /* A mensagem da semana para uma sala: a imagem e a lista "Como funciona". */
-async function cargaDaSemana(eventos, agora, reino, idioma, motor) {
+async function cargaDaSemana(eventos, agora, reino, idioma, motor, extras = []) {
   const daSala = eventosNaLingua(eventos, idioma);
   const t = await textosDoDesenhoNaLingua(idioma, motor);
-  const png = await desenhoDaSemana(daSala, agora, reino, t);
+  /* Os eventos da aliança (o urso e os outros que a liderança marcou) entram
+     na imagem junto com os do reino; o título fica como a liderança escreveu
+     (nome de evento não se traduz). */
+  const png = await desenhoDaSemana([...daSala, ...extras], agora, reino, t);
   const placeholder = await textoDoJogo(TEXTOS_DA_AGENDA.comoFunciona, idioma, motor);
   const lista = listaDoComoFunciona(daSala.filter((e) => e.fim > agora && e.inicio < agora + 8 * 86400000), placeholder);
   if (!png) {
@@ -13896,7 +13904,12 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
     const estado = estadoDaAgenda(a[alvo.marca]);
     const salvar = () => porAjuste(alvo.marca, JSON.stringify(estado)).catch(() => {});
     const motor = await motorDoGuild(guild.id).catch(() => undefined);
-    const chave = chaveDaSemana(eventos, agora), dia = Math.floor(agora / 86400000) * 86400000;
+    /* Os eventos que a liderança marcou (o urso e os outros) entram na imagem
+       da semana: cada ocorrência que cai nos próximos 7 dias vira uma barra.
+       É por servidor; o reino é o mesmo, a agenda da liderança não. */
+    const daLideranca = (await eventosDoServidor(servidor.id, agora).catch(() => []))
+      .flatMap((ev) => barrasDaAlianca({ titulo: ev.titulo, quando: ev.quando, repetir: ev.repetir_min, duracao: ev.duracao_seg }, agora)).slice(0, 20);
+    const chave = chaveDaSemana([...eventos, ...daLideranca], agora), dia = Math.floor(agora / 86400000) * 86400000;
     const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
     /* A semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
     if (estado.chave !== chave) {
@@ -13904,7 +13917,7 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
       for (const sala of salas) {
         const canal = await canalDe(sala.canal);
         if (typeof canal?.send !== "function") continue;
-        const carga = await cargaDaSemana(eventos, agora, alvo.reino, sala.idioma, motor).catch((e) => { console.log("agenda do jogo: a semana falhou:", e?.message || e); return null; });
+        const carga = await cargaDaSemana(eventos, agora, alvo.reino, sala.idioma, motor, daLideranca).catch((e) => { console.log("agenda do jogo: a semana falhou:", e?.message || e); return null; });
         if (!carga) continue;
         const velha = estado.semana[sala.canal] && await canal.messages?.fetch?.(estado.semana[sala.canal]).catch(() => null);
         if (velha) {
