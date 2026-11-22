@@ -13435,7 +13435,7 @@ const SALAS_DO_JOGO_PADRAO = { urso: { nome: "🐻-urso", tipo: "urso" }, herois
 const VERSAO_DA_FICHA_DO_URSO = "7";
 /* As línguas que têm o vídeo gravado (cyron/video/salas-kingshot-<língua>.mp4).
    Fora delas, o vídeo em inglês -- e o texto da oferta na língua do dono. */
-const VIDEOS_DAS_SALAS = new Set(["pt", "en"]);
+const VIDEOS_DAS_SALAS = new Set(["pt", "en", "es", "tr", "fr", "ko", "ru", "de", "id", "ar"]);
 
 function videoDasSalas(idioma) {
   return `${SITE_DO_CYRON}video/salas-kingshot-${VIDEOS_DAS_SALAS.has(idioma) ? idioma : "en"}.mp4`;
