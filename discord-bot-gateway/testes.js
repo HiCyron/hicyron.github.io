@@ -16588,9 +16588,22 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("a janela e o print chegam onde devem", /customId === "jogo:reino"\) return await reinoDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)) &&
       /await calendarioDoPedido\(msg\)/.test(semComentarios(fonte)));
     const ag = semComentarios(pedaco("agendaDoJogoNosCanais"));
-    verdade("a agenda dos ligados: o site primeiro, o print de reserva",
-      /\(await eventosDaAgenda\(alvo\.reino\)\) \|\| \(alvo\.sid \? eventosDoPrint\(a\[marcaDaAgendaLida\(alvo\.sid\)\], agora\) : null\)/.test(ag) &&
+    verdade("a agenda dos ligados: o site junto com o que só o print trouxe; TOP e 2311 só o site",
+      /const eventos = alvo\.sid \? juntarSiteEPrint\(doSite, eventosDoPrint\(a\[marcaDaAgendaLida\(alvo\.sid\)\], agora\)\) : doSite;/.test(ag) &&
       /\.\.\.\(await alvosLigados\(a\)\)\.agenda/.test(ag));
+    {
+      /* o teste do reino 2492 (22/11): os "Fundo" estavam no print e não no site */
+      globalThis.normalizarHeroi = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const { juntarSiteEPrint } = carregar(["juntarSiteEPrint"]);
+      const site = [{ nome: "Mobilização da Aliança", site: "Alliance Mobilization", inicio: 100, fim: 600 },
+        { nome: "Officer Project", site: "Officer Project", inicio: 300, fim: 400 }];
+      const print = [{ nome: "Mobilização da Aliança", inicio: 100, fim: 600 }, { nome: "Projeto", site: "Officer Project", inicio: 300, fim: 400 },
+        { nome: "Fundo de Equipamento Exclusivo", inicio: 0, fim: 700 }, { nome: "Fundo de Ascensão do Herói", inicio: 50, fim: 700 }];
+      ok("o que os dois têm fica o do site; os fundos do print entram", juntarSiteEPrint(site, print).map((e) => e.nome),
+        ["Mobilização da Aliança", "Officer Project", "Fundo de Equipamento Exclusivo", "Fundo de Ascensão do Herói"]);
+      ok("mesmo nome em outra semana não é o mesmo evento", juntarSiteEPrint(site, [{ nome: "Mobilização da Aliança", inicio: 800, fim: 900 }]).length, 3);
+      ok("sem print, o site; sem site, o print", [juntarSiteEPrint(site, null).length, juntarSiteEPrint(null, print).length, juntarSiteEPrint(null, null)], [2, 4, null]);
+    }
     verdade("a leitura devolve os eventos e aceita o reino dado", /lista: eventos, agora/.test(pedaco("calendarioDaMensagem")) &&
       /const reino = reinoDado \|\| await reinoDoCalendario\(guildId\)/.test(pedaco("calendarioDaMensagem")));
     verdade("as vantagens vêm antes do que cada sala tem", oferta.embeds[0].description.indexOf("✅") < oferta.embeds[0].description.indexOf("🐻 **"));
