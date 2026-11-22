@@ -2806,6 +2806,89 @@ function comReacoes(descricao, linha) {
   return base.slice(0, 4096 - fim.length) + fim;
 }
 
+/* Emoji de OUTRO servidor (Nitro) na soma das reações (dono, 22/11: reagiu
+   com um emoji de fora e "só aparece o nome").
+
+   A cópia sai por webhook, e webhook só desenha emoji de fora com a
+   permissão do @everyone -- que nas salas de idioma nem enxerga o canal, e
+   sem enxergar o Discord nega todo o resto. Liberar a permissão não resolve.
+   Então a CYRON guarda uma cópia do emoji como emoji DELA (do aplicativo:
+   2000 vagas, fora das do servidor) e a soma mostra a cópia.
+
+   Webhook com emoji do aplicativo nunca foi medido. A primeira edição é a
+   medida: o Discord grava `:nome:` no lugar do emoji que recusa, e a resposta
+   da edição traz o que foi gravado. Recusou: a linha volta ao nome, e a
+   cópia não é tentada de novo até reiniciar. */
+const PREFIXO_DO_ESPELHO = "re_";
+const MAX_ESPELHOS_DE_EMOJI = 150;
+const espelhoNoWebhook = { vale: null }; // null: não medido; true/false: o Discord já respondeu
+
+/* Pura. O nome da cópia: prefixo, o nome original (só o que o Discord aceita
+   em nome de emoji) e o fim do id -- dois "pepe" de servidores diferentes não
+   se pisam. Cabe nos 32. */
+function nomeDoEspelho(nome, id) {
+  const limpo = String(nome || "").replace(/[^A-Za-z0-9_]/g, "").slice(0, 22) || "emoji";
+  return `${PREFIXO_DO_ESPELHO}${limpo}_${String(id || "").slice(-6)}`;
+}
+
+/* Pura. Os emojis personalizados da soma que não são deste servidor. */
+function emojisDeForaNaSoma(totais, doServidor) {
+  const fora = [];
+  for (const t of totais || []) {
+    const m = /^<(a?):(\w{2,32}):(\d{15,25})>$/.exec(String(t?.chave || ""));
+    if (m && !doServidor?.has?.(m[3])) fora.push({ chave: t.chave, animado: !!m[1], nome: m[2], id: m[3] });
+  }
+  return fora;
+}
+
+/* Pura. A soma como a cópia mostra: o emoji de fora trocado pela cópia dele,
+   quando há cópia. A chave original segue intacta fora daqui -- é com ela que
+   se reage na mensagem original. */
+function somaComEspelhos(totais, espelhos) {
+  return (totais || []).map((t) => ({ ...t, chave: espelhos?.get?.(t.chave) || t.chave }));
+}
+
+/* Pura. O Discord desenhou as cópias? A cópia que voltou inteira no texto
+   gravado pegou; a recusada volta como `:nome:`. */
+function espelhosPegaram(gravado, espelhos) {
+  const usados = [...(espelhos?.values?.() || [])];
+  return usados.length > 0 && usados.every((e) => String(gravado || "").includes(e));
+}
+
+/* Pura. Qual cópia sai para abrir vaga: a mais antiga (id menor), só quando
+   as cópias chegaram ao teto. */
+function espelhoMaisVelho(emojis, teto = MAX_ESPELHOS_DE_EMOJI) {
+  const copias = (emojis || []).filter((e) => String(e?.name || "").startsWith(PREFIXO_DO_ESPELHO));
+  if (copias.length < teto) return null;
+  return copias.reduce((a, b) => (BigInt(b.id) < BigInt(a.id) ? b : a));
+}
+
+/* A cópia de um emoji de fora, pronta para o texto, ou null. Uma tentativa
+   por emoji por processo: emoji que o Discord não deixou copiar não vira
+   uma chamada a cada reação. Sem a lista do aplicativo carregada, nada --
+   criaria repetido o que já existe. */
+async function espelhoDoEmoji(e) {
+  const nome = nomeDoEspelho(e.nome, e.id);
+  const ja = EMOJIS_DA_CYRON.get(nome);
+  if (ja) return `<${ja.animated ? "a" : ""}:${ja.name}:${ja.id}>`;
+  if (!SUBIDA_DOS_EMOJIS.pronta || !umaVezPorProcesso(`espelho:${e.id}`)) return null;
+  const tipo = e.animado ? "gif" : "png";
+  const r = await fetch(`https://cdn.discordapp.com/emojis/${e.id}.${tipo}?size=128`, { signal: AbortSignal.timeout(4000) });
+  if (!r.ok) return null;
+  const bytes = Buffer.from(await r.arrayBuffer());
+  if (!bytes.length || bytes.length > 256 * 1024) return null;
+  const velho = espelhoMaisVelho([...EMOJIS_DA_CYRON.values()]);
+  if (velho) {
+    await client.application.emojis.delete(velho.id).catch(() => {});
+    for (const [k, v] of EMOJIS_DA_CYRON) if (v.id === velho.id) EMOJIS_DA_CYRON.delete(k);
+  }
+  const criado = await client.application.emojis.create({
+    attachment: `data:image/${tipo};base64,${bytes.toString("base64")}`, name: nome,
+  });
+  EMOJIS_DA_CYRON.set(nome, { id: criado.id, name: criado.name, animated: !!criado.animated });
+  return `<${criado.animated ? "a" : ""}:${criado.name}:${criado.id}>`;
+}
+
 /* O que uma mensagem contribui para a soma.
 
    Duas coisas ficam de fora, por motivos diferentes:
@@ -2864,6 +2947,25 @@ async function atravessarReacoes(familia) {
     const servidor = guildId ? await servidorDoGuild(guildId).catch(() => null) : null;
     const salas = servidor ? await canaisEspelho(servidor.id).catch(() => []) : [];
     const enderecos = new Map(salas.map((s) => [s.canal_id, s.webhook]));
+    /* Emoji de fora vai pela cópia dele (ver espelhoDoEmoji). */
+    const espelhos = new Map();
+    if (espelhoNoWebhook.vale !== false) {
+      const doServidor = new Set(vivas[0]?.guild?.emojis?.cache?.keys?.() || []);
+      for (const e of emojisDeForaNaSoma(totais, doServidor)) {
+        const copia = await espelhoDoEmoji(e).catch((err) => {
+          console.log(`reacoes: não consegui copiar o emoji ${e.nome}:`, err?.message || err);
+          return null;
+        });
+        if (copia) espelhos.set(e.chave, copia);
+      }
+    }
+    let mostrar = espelhos.size ? linhaDeReacoesNoCorpo(somaComEspelhos(totais, espelhos)) : linha;
+    const pintar = (url, m, embed, desc) => clienteDoWebhook(url).editMessage(m.id, {
+      embeds: [{ ...embed.toJSON(), description: desc, footer: undefined }],
+    }).catch((e) => {
+      console.error("reacoes: nao consegui pintar o rodape:", e?.message || e);
+      return null;
+    });
     for (const m of copias) {
       const url = enderecos.get(m.channelId);
       const embed = m.embeds?.[0];
@@ -2871,18 +2973,23 @@ async function atravessarReacoes(familia) {
       /* Sem edicao quando nada mudou: o Discord marca a mensagem como editada,
          e um cartao que diz "editado" sem ter mudado uma letra faz quem le
          desconfiar do que esta lendo. */
-      const antes = embed.description || "", depois = comReacoes(antes, linha);
+      const antes = embed.description || "", depois = comReacoes(antes, mostrar);
       /* O rodapé velho (de antes das reações irem para o corpo) sai junto. */
-      if (depois === antes && !embed.footer?.text) { guardarPe(m.id, linha); continue; }
-      const deu = await clienteDoWebhook(url).editMessage(m.id, {
-        embeds: [{ ...embed.toJSON(), description: depois, footer: undefined }],
-      }).catch((e) => {
-        console.error("reacoes: nao consegui pintar o rodape:", e?.message || e);
-        return null;
-      });
+      if (depois === antes && !embed.footer?.text) { guardarPe(m.id, mostrar); continue; }
+      let deu = await pintar(url, m, embed, depois);
+      /* A medida: a primeira edição com cópia diz se o webhook desenha emoji
+         do aplicativo. Não desenhou -- volta o nome, nesta e nas próximas. */
+      if (deu && espelhos.size && espelhoNoWebhook.vale === null) {
+        espelhoNoWebhook.vale = espelhosPegaram(deu.embeds?.[0]?.description, espelhos);
+        console.log(`reacoes: emoji do aplicativo no webhook ${espelhoNoWebhook.vale ? "desenha" : "não desenha -- volto ao nome"}`);
+        if (!espelhoNoWebhook.vale) {
+          mostrar = linha;
+          deu = await pintar(url, m, embed, comReacoes(antes, linha));
+        }
+      }
       /* So' anoto o que o Discord aceitou: guardar uma linha que a edicao
          recusou faria a emenda seguinte repintar um rodape que nunca existiu. */
-      if (deu) guardarPe(m.id, linha);
+      if (deu) guardarPe(m.id, mostrar);
     }
   }
 
