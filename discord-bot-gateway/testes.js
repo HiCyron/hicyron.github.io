@@ -1108,6 +1108,18 @@ function conferirCartao(onde, embed, componentes = []) {
     !emendaNestaSala(velho, "cartao1", "x".repeat(3801)));
   verdade("texto junto no limite: ainda emenda",
     emendaNestaSala(velho, "cartao1", "x".repeat(3800)));
+  /* Um cartão mostra UMA imagem (dono, 22/11: "mando 2 [GIFs] mas só vai 1?") */
+  const comGif = { id: "cartao1", linhas: ["oi"], figura: { image: { url: "gif1" } } };
+  verdade("GIF depois de GIF: cartão novo, senão um dos dois some",
+    !emendaNestaSala(comGif, "cartao1", "oi\nlink2", null, { image: true }));
+  verdade("texto depois de GIF: ainda emenda (o GIF fica)",
+    emendaNestaSala(comGif, "cartao1", "oi\nkkk", null, { image: false }));
+  verdade("GIF depois de texto: emenda (o lugar da imagem estava livre)",
+    emendaNestaSala(velho, "cartao1", "oi\nlink", null, { image: true }));
+  verdade("figurinha depois de figurinha: cartão novo; figurinha depois de GIF: emenda (lugares diferentes)",
+    !emendaNestaSala({ ...velho, figura: { thumbnail: { url: "f1" } } }, "cartao1", "oi", null, { thumbnail: true }) &&
+    emendaNestaSala(comGif, "cartao1", "oi", null, { thumbnail: true }));
+  verdade("a cópia diz ao emendar o que a fala nova traz", /emendaNestaSala\(velho, salaDestino\?\.lastMessageId, juntas, traduziuAqui,\s*\{ image: !!\(\(midiaLink && !video\) \|\| emojisEmbaixo\), thumbnail: !!figurinha\?\.url \}\)/.test(fonte));
 }
 
 /* ---- e o espelho inteiro rodando, com Discord de mentira ----
