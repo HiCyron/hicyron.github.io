@@ -16685,6 +16685,26 @@ function conferirCartao(onde, embed, componentes = []) {
       const of = semComentarios(pedaco("oferecerSalasDoJogo"));
       verdade("a anterior sai antes da nova entrar", of.indexOf("ofertasNaSala(") > 0 && of.indexOf("ofertasNaSala(") < of.indexOf("canal.send({ content: videoDasSalas(lingua)"));
     }
+    {
+      /* a oferta refeita pelo banco (dono, 22/11: "usa a CYRON para apagar e reenviar") */
+      const refeitas = [], avisos = [];
+      const guardados = Object.fromEntries(["ajustes", "SUBIDA_DOS_EMOJIS", "sb", "porAjuste", "oferecerSalasDoJogo", "avisarNoPainel", "CANAL_NOVOS"]
+        .map((k) => [k, globalThis[k]]));
+      Object.assign(globalThis, {
+        ajustes: async () => ({ "oferta_jogo:s-met": "refazer", "oferta_jogo:s-top": "2026-11-22T20:00:00Z", "jogo_ks:s-met": "urso" }),
+        SUBIDA_DOS_EMOJIS: { pronta: true }, sb: async (q) => [{ id: q.match(/id=eq\.([^&]+)/)[1] }], porAjuste: async () => {},
+        oferecerSalasDoJogo: async (s) => { refeitas.push(s.id); return `oferta de ${s.id}`; }, avisarNoPainel: async (c, t) => { avisos.push(t); },
+        CANAL_NOVOS: "📥-novos",
+      });
+      try {
+        const { refazerOfertasPedidas } = carregar(["refazerOfertasPedidas"]);
+        ok("só a marcada \"refazer\" é refeita", [await refazerOfertasPedidas(), refeitas], [1, ["s-met"]]);
+        ok("e o dono fica sabendo no 📥-novos", avisos, ["🔁 oferta de s-met"]);
+      } finally {
+        Object.assign(globalThis, guardados);
+      }
+      verdade("ao subir e de 10 em 10 minutos", /setTimeout\(refazerOfertas, 4 \* 60 \* 1000\);\s*setInterval\(refazerOfertas, 10 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+    }
     verdade("os botões da oferta chegam ao clique", /customId\.startsWith\("jogo:criar:"\)\) \{\s*return await cliqueDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)));
     verdade("o 🐻 da ficha manda a oferta", /if \(acao === "jogo"\) return inter\.editReply\(await oferecerSalasDoJogo\(servidor\)\)/.test(semComentarios(fonte)));
     const criar = semComentarios(pedaco("criarSalasDoJogo"));

@@ -13598,6 +13598,27 @@ async function oferecerSalasDoJogo(servidor) {
     (apagadas ? ` A oferta anterior saiu (${apagadas} mensagem${apagadas > 1 ? "s" : ""}).` : "");
 }
 
+/* Oferta refeita pelo banco (dono, 22/11: "usa a CYRON para apagar e
+   reenviar"): a marca da oferta valendo "refazer" faz a CYRON apagar a
+   anterior e mandar de novo, sem ninguém apertar 🐻. A resposta vai para o
+   📥-novos do painel, com a língua em que foi. "refazer" já libera o
+   servidor, como a marca de sempre. */
+async function refazerOfertasPedidas() {
+  const a = await ajustes();
+  if (a.falhou || !SUBIDA_DOS_EMOJIS.pronta) return 0;
+  let feitas = 0;
+  for (const [chave, valor] of Object.entries(a)) {
+    if (!chave.startsWith("oferta_jogo:") || valor !== "refazer") continue;
+    const sid = chave.slice("oferta_jogo:".length);
+    const servidor = (await sb(`cyron_servidor?id=eq.${encodeURIComponent(sid)}&select=*`).catch(() => null))?.[0];
+    if (!servidor) { await porAjuste(chave, null).catch(() => {}); continue; }
+    const frase = await oferecerSalasDoJogo(servidor).catch((e) => `Não consegui refazer a oferta: ${e?.message || e}`);
+    await avisarNoPainel(CANAL_NOVOS, `🔁 ${frase}`).catch(() => {});
+    feitas++;
+  }
+  return feitas;
+}
+
 const JANELA_DO_REINO = {
   custom_id: "jogo:reino", title: "📅 Reino · Kingdom",
   components: [{ type: 1, components: [{ type: 4, custom_id: "reino", style: 1, required: true, min_length: 1, max_length: 6,
@@ -30207,6 +30228,10 @@ client.once("clientReady", () => {
   /* O urso confere de hora em hora: a ficha das salas novas espera as cópias. */
   setInterval(() => urso(0), 60 * 60 * 1000);
   setTimeout(() => criarSalasDoJogo().catch((e) => console.log("salas do jogo: falhou:", e?.message || e)), 3 * 60 * 1000);
+  /* A oferta das salas refeita pelo banco (marca "refazer"): ao subir e de 10 em 10 minutos. */
+  const refazerOfertas = () => refazerOfertasPedidas().catch((e) => console.log("salas do jogo: refazer a oferta falhou:", e?.message || e));
+  setTimeout(refazerOfertas, 4 * 60 * 1000);
+  setInterval(refazerOfertas, 10 * 60 * 1000);
   /* Os nomes no estilo do ranking: depois das salas novas, e de hora em hora
      (sala nova ou renomeada à mão volta ao padrão). */
   setTimeout(() => padronizarNomes().catch((e) => console.log("estilo: falhou:", e?.message || e)), 5 * 60 * 1000);
