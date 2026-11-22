@@ -2153,7 +2153,7 @@ function conferirCartao(onde, embed, componentes = []) {
    Estourar o teto não corta a tradução: corta o acesso à chave do dono. */
 {
   const { cotaDoDonoNoDia, jaGastouHoje, somarGasto, estourouACota, gastoDoDia } =
-    carregar(["PLANOS", "faixaDe", "gastoDoDia", "cotaDoDonoNoDia", "jaGastouHoje", "somarGasto", "estourouACota"]);
+    carregar(["PLANOS", "faixaDe", "gastoDoDia", "COTA_DO_DONO_NO_BETA", "cotaDoDonoNoDia", "jaGastouHoje", "somarGasto", "estourouACota"]);
 
   globalThis.planoDe = (s) => s.plano;
   globalThis.BETA = false; globalThis.BETA_ATE = "";
@@ -2167,6 +2167,11 @@ function conferirCartao(onde, embed, componentes = []) {
   /* Plano desconhecido cai no menor, não no maior: errar para o lado que
      protege a bolsa. */
   ok("plano estranho cai no mais apertado", cotaDoDonoNoDia({ plano: "sei lá" }), 8000);
+  /* No beta, 100 mil por servidor (a MET gastou os 40 mil em uma hora, 22/11). */
+  globalThis.BETA = true;
+  ok("no beta, 100 mil por dia para qualquer um", [cotaDoDonoNoDia({ plano: "gratis" }), cotaDoDonoNoDia({ plano: "pago", nivel: "alianca" })], [100000, 100000]);
+  globalThis.BETA = false;
+  ok("o beta acabou: volta o teto do plano", cotaDoDonoNoDia({ plano: "pago", nivel: "alianca" }), 40000);
 
   /* Sem servidor identificado não há teto: é o caminho do tradutor por tópico
      e dos testes, e travar ali seria travar o que não gasta a bolsa. */

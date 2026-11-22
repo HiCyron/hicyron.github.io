@@ -5020,8 +5020,16 @@ function nomeDaFaixa(faixa) {
    Os numeros: 40 mil/dia no pago sao 1,2 milhao no mes, e cabem dois clientes
    grandes na bolsa. 8 mil no gratis e' o bastante pra um servidor pequeno
    conversar o dia inteiro, e pouco pra alguem morar de graca na minha conta. */
+/* No beta, 100 mil por dia por servidor (dono, 22/11: "tá cheio de erro no
+   canal de erro"). A MET Altecaia, com 7 línguas, gastou os 40 mil do dia em
+   uma hora e caiu nos gratuitos, que a esse volume devolvem 429 e 500. A
+   chave do dono é a F0 da Azure (2 milhões por mês, sem custo): o mês ia em
+   288 mil no dia 22, então há folga. O aviso de cota (85% e 95%) continua de
+   guarda, e o teto de cada plano volta a valer quando o beta acabar. */
+const COTA_DO_DONO_NO_BETA = 100000;
 function cotaDoDonoNoDia(servidor) {
-  return PLANOS[faixaDe(servidor)]?.cotaDoDono ?? PLANOS.gratis.cotaDoDono;
+  const doPlano = PLANOS[faixaDe(servidor)]?.cotaDoDono ?? PLANOS.gratis.cotaDoDono;
+  return BETA || venceEm(BETA_ATE) ? Math.max(doPlano, COTA_DO_DONO_NO_BETA) : doPlano;
 }
 
 /* O plano que VALE agora, que nem sempre e' o que esta gravado.
