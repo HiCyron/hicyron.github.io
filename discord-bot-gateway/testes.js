@@ -7150,8 +7150,43 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("cabe nos 4096: corta o corpo, nunca a linha", [R.comReacoes("x".repeat(5000), "👍 1").length <= 4096, R.comReacoes("x".repeat(5000), "👍 1").endsWith("👍 1")].join(), "true,true");
     const at = semComentarios(pedaco("atravessarReacoes"));
     verdade("as cópias recebem a soma no corpo (e o rodapé velho sai)", /const linha = linhaDeReacoesNoCorpo\(totais\)/.test(at) &&
-      /description: depois, footer: undefined/.test(at) && /depois === antes && !embed\.footer\?\.text/.test(at));
+      /description: desc, footer: undefined/.test(at) && /pintar\(url, m, embed, depois\)/.test(at) && /depois === antes && !embed\.footer\?\.text/.test(at));
     verdade("a emenda devolve a linha das reações ao corpo", /description: comReacoes\(figura\.embed\.description, pe\)/.test(fonte));
+  }
+  {
+    /* emoji de OUTRO servidor na soma (dono, 22/11: reagiu com um emoji de fora e "só aparece o nome") */
+    const E = carregar(["PREFIXO_DO_ESPELHO", "MAX_ESPELHOS_DE_EMOJI", "nomeDoEspelho", "emojisDeForaNaSoma",
+      "somaComEspelhos", "espelhosPegaram", "espelhoMaisVelho", "linhaDeReacoesNoCorpo"]);
+    ok("a cópia leva prefixo, nome e o fim do id", E.nomeDoEspelho("heheboy", "123456789012345678"), "re_heheboy_345678");
+    verdade("nome comprido ou estranho cabe nos 32 e só com o que o Discord aceita",
+      /^re_[A-Za-z0-9_]{1,22}_\d{6}$/.test(E.nomeDoEspelho("a-b.c".repeat(20), "123456789012345678")) &&
+      E.nomeDoEspelho("x".repeat(40), "123456789012345678").length <= 32);
+    ok("nome sem letra aproveitável ainda vira nome", E.nomeDoEspelho("--", "123456789012345678"), "re_emoji_345678");
+    const casa = new Set(["111111111111111111"]);
+    const totais = [{ chave: "👍", quantos: 2 }, { chave: "<:nosso:111111111111111111>", quantos: 1 },
+      { chave: "<:heheboy:222222222222222222>", quantos: 1 }, { chave: "<a:dance:333333333333333333>", quantos: 3 }];
+    ok("só os personalizados de fora entram na cópia", JSON.stringify(E.emojisDeForaNaSoma(totais, casa).map((e) => [e.nome, e.animado])),
+      JSON.stringify([["heheboy", false], ["dance", true]]));
+    ok("sem lista do servidor, todo personalizado é de fora", E.emojisDeForaNaSoma(totais, null).length, 3);
+    const espelhos = new Map([["<:heheboy:222222222222222222>", "<:re_heheboy_222222:999999999999999999>"]]);
+    ok("a soma mostra a cópia e deixa o resto como estava",
+      E.linhaDeReacoesNoCorpo(E.somaComEspelhos(totais, espelhos)),
+      "👍 2  ·  <:nosso:111111111111111111> 1  ·  <:re_heheboy_222222:999999999999999999> 1  ·  <a:dance:333333333333333333> 3");
+    ok("a chave original não muda (é com ela que se reage na original)", totais[2].chave, "<:heheboy:222222222222222222>");
+    verdade("pegou: a cópia voltou inteira no texto gravado", E.espelhosPegaram("oi\n-# x <:re_heheboy_222222:999999999999999999> 1", espelhos));
+    verdade("recusou: o Discord gravou :nome:", !E.espelhosPegaram("oi\n-# x :re_heheboy_222222: 1", espelhos));
+    verdade("sem cópia não há o que medir", !E.espelhosPegaram("qualquer", new Map()));
+    const lista = [{ name: "rosto_feliz", id: "5" }, { name: "re_a_000001", id: "30" }, { name: "re_b_000002", id: "20" }, { name: "re_c_000003", id: "40" }];
+    ok("abaixo do teto ninguém sai", E.espelhoMaisVelho(lista, 4), null);
+    ok("no teto sai a cópia mais antiga, nunca um emoji da CYRON", E.espelhoMaisVelho(lista, 3)?.name, "re_b_000002");
+    const at = semComentarios(pedaco("atravessarReacoes"));
+    verdade("as cópias usam o emoji copiado e medem a primeira edição",
+      /emojisDeForaNaSoma\(totais, doServidor\)/.test(at) && /espelhoNoWebhook\.vale = espelhosPegaram\(deu\.embeds/.test(at) &&
+      /mostrar = linha;/.test(at) && /guardarPe\(m\.id, mostrar\)/.test(at));
+    verdade("a original continua reagindo com a chave de verdade", /await original\.react\(chave\)/.test(at));
+    const ed = semComentarios(pedaco("espelhoDoEmoji"));
+    verdade("uma tentativa por emoji e só com a lista do aplicativo carregada",
+      /SUBIDA_DOS_EMOJIS\.pronta/.test(ed) && /umaVezPorProcesso\(`espelho:\$\{e\.id\}`\)/.test(ed) && /256 \* 1024/.test(ed));
   }
   verdade("nenhum sinal de código sobra na linha",
     !/[<>]/.test(linhaDeReacoes([{ chave: "<:pepe:1>", quantos: 1 }, { chave: "👍", quantos: 2 }])));
@@ -7254,7 +7289,7 @@ function conferirCartao(onde, embed, componentes = []) {
   /* A soma mora no FIM do corpo, depois da assinatura (que continua no
      corpo, clicável): no rodapé o Discord não desenha emoji do servidor (dono,
      22/11: "reagi com um emoji diferente e só apareceu o nome"). */
-  verdade("a soma mora no fim do corpo, e o rodapé velho sai", /description: depois, footer: undefined/.test(soma));
+  verdade("a soma mora no fim do corpo, e o rodapé velho sai", /description: desc, footer: undefined/.test(soma) && /pintar\(url, m, embed, depois\)/.test(soma));
 
   /* Bot não edita mensagem de gente, e não existe API para reagir no lugar de
      outra pessoa. Na original, o único sinal possível é o próprio bot reagir
