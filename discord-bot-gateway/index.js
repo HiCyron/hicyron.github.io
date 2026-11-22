@@ -13916,7 +13916,49 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
     const chave = `v${VERSAO_DO_DESENHO}|` + chaveDaSemana([...eventos, ...daLideranca.flatMap((l) => l.ocorrencias.map((o) => ({ nome: l.nome, ...o })))], agora),
       dia = Math.floor(agora / 86400000) * 86400000;
     const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
-    /* A semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
+    const chaveA = chaveDoAviso(eventos, agora);
+    /* O histórico do reino, para a previsão (ver historicoNovo). */
+    const historico = async () => {
+      const marcaH = HISTORICO_DO_REINO(alvo.reino);
+      await porAjuste(marcaH, JSON.stringify(historicoNovo((() => { try { return JSON.parse(a[marcaH] || "[]"); } catch { return []; } })(), eventos))).catch(() => {});
+    };
+    /* O dia virou (00:00 UTC): a imagem da semana e o aviso do dia saem e
+       voltam JUNTOS no fim da sala, o aviso logo embaixo da imagem (dono,
+       22/11: "foi parar lá embaixo, era para ser embaixo da imagem"). O mais
+       novo fica sempre no fim, onde o pessoal olha. As cargas são montadas
+       ANTES de apagar: sem o que pôr no lugar, nada sai. */
+    if (estado.dia !== dia) {
+      estado.dia = dia;
+      estado.chave = chave;
+      estado.aviso = chaveA;
+      await salvar();
+      let aqui = 0;
+      for (const sala of salas) {
+        const canal = await canalDe(sala.canal);
+        if (typeof canal?.send !== "function") continue;
+        const semana = await cargaDaSemana(eventos, agora, alvo.reino, sala.idioma, motor, daLideranca).catch((e) => { console.log("agenda do jogo: a semana falhou:", e?.message || e); return null; });
+        if (!semana) continue;
+        const doDia = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => null);
+        for (const id of [estado.semana[sala.canal], estado.avisos[sala.canal]]) if (id) await canal.messages?.delete?.(id).catch(() => {});
+        delete estado.semana[sala.canal];
+        delete estado.avisos[sala.canal];
+        const nova = await canal.send(semana).catch((e) => { console.error(`agenda do jogo: não postei em #${canal.name}:`, e?.message || e); return null; });
+        if (!nova) { await salvar(); continue; }
+        estado.semana[sala.canal] = nova.id;
+        if (doDia) {
+          const aviso = await canal.send(doDia).catch((e) => { console.error(`agenda do jogo: aviso do dia falhou em #${canal.name}:`, e?.message || e); return null; });
+          if (aviso) estado.avisos[sala.canal] = aviso.id;
+        }
+        await salvar();
+        aqui++;
+      }
+      feito += aqui;
+      console.log(`agenda do jogo: dia novo, a semana e o aviso juntos em ${aqui} de ${salas.length} salas de ${guild.name}`);
+      await historico();
+      continue;
+    }
+    /* No meio do dia, os dois são EDITADOS no lugar (continuam juntos). A
+       semana: edita a mensagem de cada sala; sem ela, manda uma nova. */
     if (estado.chave !== chave) {
       let aqui = 0;
       for (const sala of salas) {
@@ -13938,15 +13980,12 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
       await salvar();
       feito += aqui;
       console.log(`agenda do jogo: semana em ${aqui} de ${salas.length} salas de ${guild.name}`);
-      /* O histórico do reino, para a previsão (ver historicoNovo). */
-      const marcaH = HISTORICO_DO_REINO(alvo.reino);
-      await porAjuste(marcaH, JSON.stringify(historicoNovo((() => { try { return JSON.parse(a[marcaH] || "[]"); } catch { return []; } })(), eventos))).catch(() => {});
+      await historico();
     }
-    /* O aviso do dia: um por dia (o de ontem sai) e, no meio do dia, editado
-       quando um evento com hora começa ou acaba (dono, 21/11: "o evento do
-       castelo já acabou... ele deveria sair dali"). */
-    const chaveA = chaveDoAviso(eventos, agora);
-    if (estado.dia === dia && estado.aviso !== chaveA) {
+    /* O aviso do dia, editado quando um evento com hora começa ou acaba
+       (dono, 21/11: "o evento do castelo já acabou... ele deveria sair
+       dali"); sem nada que sobrou, sai. */
+    if (estado.aviso !== chaveA) {
       estado.aviso = chaveA;
       await salvar();
       let aqui = 0;
@@ -13968,24 +14007,6 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
       }
       await salvar();
       if (aqui) console.log(`agenda do jogo: aviso do dia refeito em ${aqui} de ${salas.length} salas de ${guild.name} (um evento começou ou acabou)`);
-    }
-    if (estado.dia !== dia) {
-      estado.dia = dia;
-      estado.aviso = chaveA;
-      await salvar();
-      let aqui = 0;
-      for (const sala of salas) {
-        const canal = await canalDe(sala.canal);
-        if (typeof canal?.send !== "function") continue;
-        if (estado.avisos[sala.canal]) await canal.messages?.delete?.(estado.avisos[sala.canal]).catch(() => {});
-        delete estado.avisos[sala.canal];
-        const carga = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => null);
-        if (!carga) continue;
-        const nova = await canal.send(carga).catch((e) => { console.error(`agenda do jogo: aviso do dia falhou em #${canal.name}:`, e?.message || e); return null; });
-        if (nova) { estado.avisos[sala.canal] = nova.id; aqui++; }
-      }
-      await salvar();
-      if (aqui) console.log(`agenda do jogo: aviso do dia em ${aqui} de ${salas.length} salas de ${guild.name}`);
     }
   }
   return feito ? "postado" : "nada";
