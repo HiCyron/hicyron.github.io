@@ -13514,14 +13514,20 @@ function canaisDaFicha(valor) {
   return new Set((String(valor || "").split("|")[3] || "").split(",").filter(Boolean));
 }
 
-/* A oferta: as vantagens primeiro (é o que faz o ADM querer), depois o que
-   cada sala tem, e um botão por sala. O vídeo vai numa mensagem própria,
-   logo acima: o link sozinho faz o Discord desenhar o player. */
-function cartaoDaOfertaDoJogo() {
+/* A oferta: as vantagens primeiro, depois o que cada sala tem, e um botão por
+   sala. Vai no PRIVADO do dono do servidor, na língua dele (dono, 22/11:
+   "podemos enviar no privado, assim evita tudo isso": na ⚙️-cyron ela ficava
+   numa língua só para todos os ADMs). Por isso os botões levam o servidor --
+   no privado não há servidor onde o clique aconteceu --, e o nome dele vai no
+   `author` do cartão, que o tradutor não toca. O vídeo vai numa mensagem
+   própria, logo acima: o link sozinho faz o Discord desenhar o player. */
+function cartaoDaOfertaDoJogo(sid = "", nomeDoServidor = "") {
+  const de = sid ? `:${sid}` : "";
   return {
     embeds: [{
       color: 0xC9A227,
-      title: "🎮 Salas do Kingshot liberadas para este servidor",
+      ...(nomeDoServidor ? { author: { name: `🏰 ${String(nomeDoServidor).slice(0, 200)}` } } : {}),
+      title: "🎮 Salas do Kingshot liberadas para o seu servidor",
       description: [
         "O vídeo acima mostra tudo em um minuto. As vantagens:",
         "",
@@ -13533,49 +13539,82 @@ function cartaoDaOfertaDoJogo() {
         "",
         "🐻 **Sala do Urso**: os heróis certos, a tropa e as dicas para quem lidera e para quem entra.",
         "📖 **Sala dos Heróis**: um herói por dia, com as notas de Rally, Guarnição e Urso. As setas abrem o livro inteiro, só para quem tocou.",
-        "📅 **Agenda do reino**: a imagem da semana com os eventos do reino e um aviso por dia. Você digita o número do reino e manda o print do calendário do jogo.",
+        "📅 **Agenda do reino**: a imagem da semana com os eventos do reino e um aviso por dia. Você digita o número do reino e manda o print do calendário do jogo aqui.",
         "",
-        "Toque no botão da sala que você quer. Dá para criar uma agora e as outras depois.",
+        "Toque no botão da sala que você quer: ela nasce no seu servidor. Dá para criar uma agora e as outras depois.",
       ].join("\n"),
     }],
     components: [{ type: 1, components: [
-      { type: 2, custom_id: "jogo:criar:urso", style: 3, emoji: { name: "🐻" }, label: "Criar sala do Urso" },
-      { type: 2, custom_id: "jogo:criar:herois", style: 3, emoji: { name: "📖" }, label: "Criar sala dos Heróis" },
-      { type: 2, custom_id: "jogo:criar:agenda", style: 3, emoji: { name: "📅" }, label: "Criar agenda do reino" },
+      { type: 2, custom_id: `jogo:criar:urso${de}`, style: 3, emoji: { name: "🐻" }, label: "Criar sala do Urso" },
+      { type: 2, custom_id: `jogo:criar:herois${de}`, style: 3, emoji: { name: "📖" }, label: "Criar sala dos Heróis" },
+      { type: 2, custom_id: `jogo:criar:agenda${de}`, style: 3, emoji: { name: "📅" }, label: "Criar agenda do reino" },
     ] }],
     allowedMentions: { parse: [] },
   };
 }
 
-/* O 🐻 da ficha: libera o servidor e manda a oferta para a ⚙️-cyron de lá.
-   Devolve a frase para o dono. */
+/* O 🐻 da ficha: libera o servidor e manda a oferta no privado do dono de lá,
+   na língua dele. Privado fechado: vai para a ⚙️-cyron, como antes. Devolve
+   a frase para o dono da CYRON. */
 async function oferecerSalasDoJogo(servidor) {
   const guild = client.guilds.cache.get(String(servidor.guild_id));
   if (!guild) return "Não estou nesse servidor agora.";
-  const canal = servidor.canal_config && await guild.channels.fetch(String(servidor.canal_config)).catch(() => null);
-  if (typeof canal?.send !== "function") return "Esse servidor não tem a sala ⚙️-cyron (ou eu não consigo ver ela).";
   const lingua = await linguaDaSalaCyron(guild).catch(() => "en");
   const motor = await motorDoGuild(guild.id).catch(() => MOTOR_AUTO);
-  const carta = await cartaoNaLingua(cartaoDaOfertaDoJogo(), lingua, motor);
+  const carta = await cartaoNaLingua(cartaoDaOfertaDoJogo(servidor.id, guild.name), lingua, motor);
   await porAjuste(marcaDaOferta(servidor.id), new Date().toISOString());
-  const video = await canal.send({ content: videoDasSalas(lingua), allowedMentions: { parse: [] } }).catch(() => null);
-  const foi = await canal.send(carta).then(() => true).catch((e) => {
-    console.error(`salas do jogo: não mandei a oferta em ${guild.name}:`, e?.message || e);
-    return false;
-  });
-  if (!foi) return `Não consegui escrever na ⚙️-cyron de **${guild.name}**.`;
-  console.log(`salas do jogo: oferta em ${guild.name} (${lingua})`);
-  return `🐻 Oferta enviada para a ⚙️-cyron de **${guild.name}**, em \`${lingua}\`` +
-    (video ? (VIDEOS_DAS_SALAS.has(lingua) ? ", com o vídeo nessa língua." : ", com o vídeo em inglês (ainda não há vídeo nessa língua).") : ", sem o vídeo (não consegui mandar).");
+  const mandar = async (destino) => {
+    if (typeof destino?.send !== "function") return false;
+    const video = await destino.send({ content: videoDasSalas(lingua), allowedMentions: { parse: [] } }).catch(() => null);
+    const foi = await destino.send(carta).then(() => true).catch(() => false);
+    return foi ? (video ? "com-video" : "sem-video") : false;
+  };
+  const dono = await client.users.fetch(String(guild.ownerId)).catch(() => null);
+  let onde = "no privado do dono", deu = await mandar(dono ? await dono.createDM().catch(() => null) : null);
+  if (!deu) {
+    onde = "na ⚙️-cyron (o privado do dono está fechado)";
+    const canal = servidor.canal_config && await guild.channels.fetch(String(servidor.canal_config)).catch(() => null);
+    deu = await mandar(canal);
+  }
+  if (!deu) return `Não consegui mandar a oferta para **${guild.name}**: o privado do dono está fechado e a ⚙️-cyron não aceitou.`;
+  console.log(`salas do jogo: oferta para ${guild.name} ${onde} (${lingua})`);
+  return `🐻 Oferta de **${guild.name}** enviada ${onde}, em \`${lingua}\`` +
+    (deu === "com-video" ? (VIDEOS_DAS_SALAS.has(lingua) ? ", com o vídeo nessa língua." : ", com o vídeo em inglês (ainda não há vídeo nessa língua).") : ", sem o vídeo (não consegui mandar).");
 }
 
-const JANELA_DO_REINO = {
-  custom_id: "jogo:reino", title: "📅 Reino · Kingdom",
-  components: [{ type: 1, components: [{ type: 4, custom_id: "reino", style: 1, required: true, min_length: 1, max_length: 6,
-    label: "Número do reino · Kingdom number", placeholder: "2311" }] }],
-};
+/* Pode criar as salas de um servidor: o dono dele, ou quem pode Gerenciar o
+   Servidor lá (o clique pode vir do privado, onde o Discord não diz nada
+   sobre permissão). O suporte liberado da CYRON também passa. */
+async function podeNasSalasDoJogo(guild, userId, inter = null) {
+  if (!guild || !userId) return false;
+  if (String(guild.ownerId) === String(userId)) return true;
+  if (inter?.guildId === guild.id && podeAdministrar(inter)) return true;
+  const membro = await guild.members.fetch(String(userId)).catch(() => null);
+  return !!membro?.permissions?.has(PermissionFlagsBits.ManageGuild);
+}
+
+/* Pura. O que o botão ou a janela dizem: a sala e o servidor (os de antes,
+   postados na ⚙️-cyron, não traziam o servidor). */
+function pedidoDoBotao(customId) {
+  const [, , tipo = "", sid = ""] = String(customId || "").split(":");
+  return { tipo, sid };
+}
+
+/* O servidor do clique: o do botão (privado), senão o de onde se clicou. */
+async function servidorDoClique(inter, sid) {
+  if (sid) return (await sb(`cyron_servidor?id=eq.${encodeURIComponent(sid)}&select=*`).catch(() => null))?.[0] || null;
+  return inter.guildId ? await servidorDoGuild(inter.guildId).catch(() => null) : null;
+}
+
+function janelaDoReino(sid = "") {
+  return {
+    custom_id: `jogo:reino${sid ? `:${sid}` : ""}`, title: "📅 Reino · Kingdom",
+    components: [{ type: 1, components: [{ type: 4, custom_id: "reino", style: 1, required: true, min_length: 1, max_length: 6,
+      label: "Número do reino · Kingdom number", placeholder: "2311" }] }],
+  };
+}
 const PEDIDO_DO_CALENDARIO_VALE = 30 * 60 * 1000;
-const pedidosDeCalendario = new Map(); // "guild:pessoa" -> { reino, canal, expira }
+const pedidosDeCalendario = new Map(); // pessoa -> { reino, lingua, sid, canal, expira }
 
 /* Pura. Só os dígitos do reino (até 5), ou "". */
 function reinoDigitado(texto) {
@@ -13583,39 +13622,43 @@ function reinoDigitado(texto) {
   return d.length >= 1 && d.length <= 5 ? d : "";
 }
 
-/* A janela do reino: anota o pedido e pede o print, nesta mesma sala. */
+/* A janela do reino: anota o pedido e pede o print, aqui mesmo (no privado ou na sala). */
 async function reinoDasSalasDoJogo(inter) {
-  const lingua = inter.guild ? await linguaDaSalaCyron(inter.guild).catch(() => "en") : "en";
+  const lingua = await linguaDe(inter);
   const fala = async (t) => textoNaLingua(t, lingua).catch(() => t);
-  if (!inter.guildId || !podeAdministrar(inter)) return inter.reply({ flags: 64, content: await fala("Só quem pode Gerenciar o Servidor cria a agenda.") });
   const reino = reinoDigitado(inter.fields?.getTextInputValue?.("reino"));
   if (!reino) return inter.reply({ flags: 64, content: await fala("Digite só o número do reino, por exemplo 2311.") });
   await inter.deferReply({ flags: 64 });
-  const servidor = await servidorDoGuild(inter.guildId).catch(() => null);
+  const servidor = await servidorDoClique(inter, String(inter.customId || "").split(":")[2] || "");
+  const guild = servidor && client.guilds.cache.get(String(servidor.guild_id));
   const a = await ajustes();
-  if (!servidor || a.falhou || !a[marcaDaOferta(servidor.id)]) {
+  if (!servidor || !guild || a.falhou || !a[marcaDaOferta(servidor.id)]) {
     return inter.editReply(await fala("As salas do Kingshot ainda não foram liberadas para este servidor."));
   }
-  pedidosDeCalendario.set(`${inter.guildId}:${inter.user.id}`, { reino, canal: inter.channelId, expira: Date.now() + PEDIDO_DO_CALENDARIO_VALE });
+  if (!(await podeNasSalasDoJogo(guild, inter.user.id, inter))) return inter.editReply(await fala("Só o dono ou quem administra o servidor cria a agenda."));
+  pedidosDeCalendario.set(String(inter.user.id), { reino, lingua, sid: servidor.id, canal: inter.channelId, expira: Date.now() + PEDIDO_DO_CALENDARIO_VALE });
   const doSite = await calendarioDoSite(reino).catch(() => null);
-  return inter.editReply(await fala(`📅 Reino ${reino} anotado. Agora mande aqui, nesta sala, os prints do calendário do jogo (Eventos → Calendário). ` +
+  return inter.editReply(await fala(`📅 Reino ${reino} anotado. Agora mande aqui os prints do calendário do jogo (Eventos → Calendário). ` +
     "Pode mandar 2 ou 3 de uma vez, rolando a tela." +
     (doSite?.eventos?.length ? `\nO site do reino ${reino} também tem os eventos: eu uso os dois.` : "")));
 }
 
-/* O print chegou na sala de quem pediu: lê, guarda, cria a agenda e avisa o
-   dono da CYRON (ele confere no jogo, se quiser). Devolve true quando a
-   mensagem era o print do pedido. */
+/* O print chegou onde a pessoa pediu (o privado, quase sempre): lê, guarda,
+   cria a agenda no servidor e avisa o dono da CYRON (ele confere no jogo, se
+   quiser). Devolve true quando a mensagem era o print do pedido. */
 async function calendarioDoPedido(msg) {
-  const chave = `${msg.guild?.id}:${msg.author?.id}`;
+  const chave = String(msg.author?.id || "");
   const p = pedidosDeCalendario.get(chave);
   if (!p) return false;
   if (p.expira < Date.now()) { pedidosDeCalendario.delete(chave); return false; }
   if (msg.channelId !== p.canal || !imagensDaMensagem(msg).length) return false;
-  const lingua = await linguaDaSalaCyron(msg.guild).catch(() => "en");
+  const servidor = await servidorDoClique({}, p.sid);
+  const guild = servidor && client.guilds.cache.get(String(servidor.guild_id));
+  if (!guild) return false;
+  const lingua = p.lingua || await linguaDaSalaCyron(guild).catch(() => "en");
   const fala = async (t) => textoNaLingua(t, lingua).catch(() => t);
   await msg.react("⏳").catch(() => {});
-  const r = await calendarioDaMensagem(msg, msg.guild.id, { reino: p.reino }).catch((e) => ({ erro: String(e?.message || e) }));
+  const r = await calendarioDaMensagem(msg, guild.id, { reino: p.reino }).catch((e) => ({ erro: String(e?.message || e) }));
   await msg.reactions?.cache?.get("⏳")?.users?.remove(client.user.id).catch(() => {});
   const lista = (r?.lista || []).filter((e) => e?.nome && e.inicio && e.fim);
   if (!lista.length) {
@@ -13624,8 +13667,6 @@ async function calendarioDoPedido(msg) {
     return true;
   }
   pedidosDeCalendario.delete(chave);
-  const servidor = await servidorDoGuild(msg.guild.id).catch(() => null);
-  if (!servidor) return true;
   await porAjuste(marcaDaAgendaLida(servidor.id), JSON.stringify({ reino: p.reino, lidoEm: Date.now(),
     eventos: lista.map((e) => ({ nome: e.nome, ...(e.site ? { site: e.site } : {}), inicio: e.inicio, fim: e.fim })) }));
   const a = await ajustes();
@@ -13644,30 +13685,33 @@ async function calendarioDoPedido(msg) {
     : `✅ Li ${lista.length} eventos do reino ${p.reino}, mas não consegui criar a sala da agenda. Confira se a CYRON pode Gerenciar Canais e mande o print de novo.`),
     allowedMentions: { repliedUser: false } }).catch(() => {});
   /* O dono confere (dono, 22/11: "qualquer coisa eu entro no reino e vejo"). */
-  avisarNoPainel(CANAL_NOVOS, `📅 **${msg.guild.name}** mandou o calendário do reino **${p.reino}** · ${lista.length} eventos\n` +
+  avisarNoPainel(CANAL_NOVOS, `📅 **${guild.name}** mandou o calendário do reino **${p.reino}** · ${lista.length} eventos\n` +
     `${String(r.corpo || "").slice(0, 1500)}\n-# ${String(r.rodape || "").slice(0, 300)}`).catch(() => {});
-  console.log(`agenda do jogo: ${msg.guild.name} mandou o calendário do reino ${p.reino} (${lista.length} eventos)`);
+  console.log(`agenda do jogo: ${guild.name} mandou o calendário do reino ${p.reino} (${lista.length} eventos)`);
   return true;
 }
 
-/* O botão da oferta, lá no servidor. Cria a sala pedida (a outra, se já estava
+/* O botão da oferta (no privado, ou na ⚙️-cyron quando o privado estava
+   fechado). Cria a sala pedida no servidor do botão (a outra, se já estava
    ligada, continua), e a ficha ou o livro chegam em seguida. Apertar de novo
    não duplica: a sala com o mesmo nome é adotada. */
 async function cliqueDasSalasDoJogo(inter) {
-  const tipo = String(inter.customId || "").split(":")[2];
-  const lingua = inter.guild ? await linguaDaSalaCyron(inter.guild).catch(() => "en") : "en";
-  const fala = async (t) => textoNaLingua(t, lingua).catch(() => t);
+  const { tipo, sid } = pedidoDoBotao(inter.customId);
+  /* A resposta na língua de quem tocou (a escolhida na CYRON, senão a do Discord dele). */
+  const fala = async (t) => textoNaLingua(t, await linguaDe(inter)).catch(() => t);
   const dizer = async (t) => inter.reply({ flags: 64, content: await fala(t) });
-  if (!(tipo in SALAS_DO_JOGO_PADRAO) || !inter.guildId) return dizer("Esse botão não vale aqui.");
-  if (!podeAdministrar(inter)) return dizer("Só quem pode Gerenciar o Servidor cria as salas.");
-  const servidor = await servidorDoGuild(inter.guildId).catch(() => null);
+  if (!(tipo in SALAS_DO_JOGO_PADRAO)) return dizer("Esse botão não vale aqui.");
+  const servidor = await servidorDoClique(inter, sid);
+  const guild = servidor && client.guilds.cache.get(String(servidor.guild_id));
   const a = await ajustes();
-  if (!servidor || a.falhou) return dizer("Não consegui ler o meu cadastro agora. Tente de novo em um minuto.");
+  if (!servidor || !guild || a.falhou) return dizer("Não consegui achar o servidor agora. Tente de novo em um minuto.");
   if (!a[marcaDaOferta(servidor.id)]) return dizer("As salas do Kingshot ainda não foram liberadas para este servidor.");
   /* A agenda precisa do reino e do print: a janela pede o número (rótulos nas
-     duas línguas, sem esperar tradução -- a janela tem 3 segundos para abrir). */
-  if (tipo === "agenda") return inter.showModal(janelaValida(JANELA_DO_REINO));
+     duas línguas, sem esperar tradução -- a janela tem 3 segundos para abrir).
+     A permissão é conferida quando a janela volta. */
+  if (tipo === "agenda") return inter.showModal(janelaValida(janelaDoReino(servidor.id)));
   await inter.deferReply({ flags: 64 });
+  if (!(await podeNasSalasDoJogo(guild, inter.user.id, inter))) return inter.editReply(await fala("Só o dono ou quem administra o servidor cria as salas."));
   const ligadas = salasLigadas(a[marcaDoJogo(servidor.id)]);
   ligadas.add(tipo);
   const conjunto = [...ligadas].sort();
@@ -13680,7 +13724,7 @@ async function cliqueDasSalasDoJogo(inter) {
   if (!canalId) return inter.editReply(await fala("Não consegui criar a sala. Confira se a CYRON pode Gerenciar Canais e aperte de novo."));
   setTimeout(() => (tipo === "urso" ? ursoNosCanais() : livroNosCanais())
     .catch((e) => console.log("salas do jogo: a primeira postagem falhou:", e?.message || e)), 60 * 1000);
-  return inter.editReply(await fala(`✅ Pronto: <#${canalId}>. Em um minuto o conteúdo aparece lá, e as cópias de cada língua chegam logo depois.`));
+  return inter.editReply(await fala(`✅ Pronto: <#${canalId}>, no servidor ${guild.name}. Em um minuto o conteúdo aparece lá, e as cópias de cada língua chegam logo depois.`));
 }
 
 /* ---- as salas do Urso e dos heróis no Kingdom #2311 (dono, 21/11) ----
@@ -27198,7 +27242,7 @@ client.on("interactionCreate", async (inter) => {
       return await cliqueOuvirAudio(inter);
     }
     if (inter.isModalSubmit()) {
-      if (inter.customId === "jogo:reino") return await reinoDasSalasDoJogo(inter);
+      if (inter.customId === "jogo:reino" || inter.customId.startsWith("jogo:reino:")) return await reinoDasSalasDoJogo(inter);
       if (inter.customId === "cyron:motor") return await salvarMotor(inter);
       if (inter.customId === "cyron:palavras") return await salvarPalavras(inter);
       if (inter.customId === "cyron:codigo") return await resgatarCodigo(inter);
@@ -27286,6 +27330,9 @@ client.on("messageCreate", async (msg) => {
        responderia a mim mesmo para sempre. */
     if (!msg.guild) {
       if (msg.author?.bot) return;
+      /* O print do calendário que a agenda do reino pediu no privado (ver calendarioDoPedido). */
+      if (pedidosDeCalendario.size && await calendarioDoPedido(msg).catch((e) => {
+        console.error("agenda do jogo: não li o print:", e?.message || e); return false; })) return;
       if (await painelNoPrivado(msg)) return;
       await atenderNoPrivado(msg);
       return;

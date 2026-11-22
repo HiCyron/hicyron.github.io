@@ -16541,7 +16541,7 @@ function conferirCartao(onde, embed, componentes = []) {
   {
     const J = carregar(["marcaDaOferta", "marcaDoJogo", "SALAS_DO_JOGO_PADRAO", "VERSAO_DA_FICHA_DO_URSO",
       "salasLigadas", "alvosDoJogo", "canaisDaFicha", "cartaoDaOfertaDoJogo", "marcaDaAgendaLida", "agendaGuardada", "eventosDoPrint",
-      "reinoDigitado"]);
+      "reinoDigitado", "pedidoDoBotao"]);
     ok("o que o servidor ligou, só as salas que existem", [...J.salasLigadas(" urso, x ,herois")].sort().join(), "herois,urso");
     ok("nada ligado", J.salasLigadas(null).size, 0);
     const lista = [{ guildId: "g1", nome: "[MET] Altecaia", sid: "s1" }, { guildId: "g2", nome: "[TOP]Best Alliance Kingshot", sid: "s2" },
@@ -16558,10 +16558,14 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("e o livro entra", dois.livro[0].marca, "livro_no_canal:s1");
     ok("canais da ficha: o 4º campo da marca", [...J.canaisDaFicha("t|2/2|en,pt|11,22")], ["11", "22"]);
     ok("marca dos de sempre (sem 4º campo): nenhum", J.canaisDaFicha("t|3/3|en,en,pt").size, 0);
-    const oferta = J.cartaoDaOfertaDoJogo();
+    const oferta = J.cartaoDaOfertaDoJogo("s1", "[MET] Altecaia");
     conferirCartao("a oferta das salas do Kingshot", oferta.embeds[0], oferta.components);
-    ok("um botão por sala, e o da agenda do reino", oferta.components[0].components.map((b) => b.custom_id),
-      ["jogo:criar:urso", "jogo:criar:herois", "jogo:criar:agenda"]);
+    /* no privado não há servidor onde o clique aconteceu: o botão leva o servidor */
+    ok("um botão por sala, e o da agenda do reino, cada um com o servidor", oferta.components[0].components.map((b) => b.custom_id),
+      ["jogo:criar:urso:s1", "jogo:criar:herois:s1", "jogo:criar:agenda:s1"]);
+    ok("o nome do servidor no alto, fora do tradutor", oferta.embeds[0].author?.name, "🏰 [MET] Altecaia");
+    ok("o botão diz a sala e o servidor", [J.pedidoDoBotao("jogo:criar:urso:s1"), J.pedidoDoBotao("jogo:criar:herois")],
+      [{ tipo: "urso", sid: "s1" }, { tipo: "herois", sid: "" }]);
 
     /* 📅 a agenda do reino pela foto do calendário (dono, 22/11: "com a foto já podemos criar e o site ajuda") */
     ok("o reino: só os dígitos", [J.reinoDigitado(" #2311 "), J.reinoDigitado("reino 1500"), J.reinoDigitado("abc"), J.reinoDigitado("1234567")],
@@ -16579,14 +16583,18 @@ function conferirCartao(onde, embed, componentes = []) {
     const pedido = semComentarios(pedaco("calendarioDoPedido"));
     verdade("o print só vale de quem pediu, na sala onde pediu, e com imagem",
       /pedidosDeCalendario\.get\(chave\)/.test(pedido) && /msg\.channelId !== p\.canal \|\| !imagensDaMensagem\(msg\)\.length/.test(pedido));
-    verdade("lê com o reino digitado e guarda o que leu", /calendarioDaMensagem\(msg, msg\.guild\.id, \{ reino: p\.reino \}\)/.test(pedido) &&
+    verdade("lê com o reino digitado e guarda o que leu", /calendarioDaMensagem\(msg, guild\.id, \{ reino: p\.reino \}\)/.test(pedido) &&
       /porAjuste\(marcaDaAgendaLida\(servidor\.id\)/.test(pedido));
-    verdade("print que não deu leitura: pede outro, e o pedido continua", pedido.indexOf("if (!lista.length)") < pedido.indexOf("pedidosDeCalendario.delete(chave);\n  const servidor"));
+    verdade("print que não deu leitura: pede outro, e o pedido continua", pedido.indexOf("if (!lista.length)") < pedido.indexOf("pedidosDeCalendario.delete(chave);\n  await porAjuste"));
+    verdade("o pedido é da pessoa (vale no privado), e a agenda nasce no servidor do pedido",
+      /const chave = String\(msg\.author\?\.id/.test(pedido) && /servidorDoClique\(\{\}, p\.sid\)/.test(pedido));
     verdade("o dono fica sabendo de cada leitura", /avisarNoPainel\(CANAL_NOVOS, `📅/.test(pedido));
     const janela = semComentarios(pedaco("cliqueDasSalasDoJogo"));
     verdade("o botão da agenda abre a janela do reino (antes de qualquer resposta)", janela.indexOf('if (tipo === "agenda") return inter.showModal') < janela.indexOf("await inter.deferReply"));
-    verdade("a janela e o print chegam onde devem", /customId === "jogo:reino"\) return await reinoDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)) &&
-      /await calendarioDoPedido\(msg\)/.test(semComentarios(fonte)));
+    verdade("a janela e o print chegam onde devem (o print também no privado)",
+      /inter\.customId\.startsWith\("jogo:reino:"\)\) return await reinoDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)) &&
+      (semComentarios(fonte).match(/await calendarioDoPedido\(msg\)/g) || []).length === 2 &&
+      semComentarios(fonte).indexOf("await calendarioDoPedido(msg)") < semComentarios(fonte).indexOf("if (await painelNoPrivado(msg)) return;"));
     const ag = semComentarios(pedaco("agendaDoJogoNosCanais"));
     verdade("a agenda dos ligados: o site primeiro, o print de reserva",
       /\(await eventosDaAgenda\(alvo\.reino\)\) \|\| \(alvo\.sid \? eventosDoPrint\(a\[marcaDaAgendaLida\(alvo\.sid\)\], agora\) : null\)/.test(ag) &&
@@ -16640,13 +16648,46 @@ function conferirCartao(onde, embed, componentes = []) {
     }
 
     const clique = semComentarios(pedaco("cliqueDasSalasDoJogo"));
-    verdade("o clique só vale onde o dono liberou, e só para quem administra",
-      /if \(!podeAdministrar\(inter\)\)/.test(clique) && /if \(!a\[marcaDaOferta\(servidor\.id\)\]\) return dizer/.test(clique));
+    verdade("o clique só vale onde o dono liberou, e só para o dono ou quem administra lá",
+      /podeNasSalasDoJogo\(guild, inter\.user\.id, inter\)/.test(clique) && /if \(!a\[marcaDaOferta\(servidor\.id\)\]\) return dizer/.test(clique) &&
+      /podeNasSalasDoJogo\(guild, inter\.user\.id, inter\)/.test(semComentarios(pedaco("reinoDasSalasDoJogo"))));
     verdade("apertar de novo confere de novo (a marca da criação sai)", /porAjuste\(`salas_jogo:\$\{servidor\.id\}:\$\{conjunto\.join\("\+"\)\}`, null\)/.test(clique));
-    const ofer = semComentarios(pedaco("oferecerSalasDoJogo"));
-    verdade("a oferta na língua do dono, com o vídeo acima e a liberação marcada",
-      /linguaDaSalaCyron\(guild\)/.test(ofer) && /cartaoNaLingua\(cartaoDaOfertaDoJogo\(\), lingua, motor\)/.test(ofer) &&
-      /porAjuste\(marcaDaOferta\(servidor\.id\)/.test(ofer) && ofer.indexOf("videoDasSalas(lingua)") < ofer.indexOf("canal.send(carta)"));
+    {
+      /* a oferta vai no privado do dono, na língua dele (dono, 22/11: "podemos enviar no privado, assim evita tudo isso") */
+      const enviados = [];
+      let privadoAberto = true;
+      const dm = { send: async (m) => { if (!privadoAberto) throw new Error("Cannot send messages to this user"); enviados.push(["dm", m.content || m.embeds[0].title]); return {}; } };
+      const sala = { send: async (m) => { enviados.push(["sala", m.content || m.embeds[0].title]); return {}; } };
+      const guild = { id: "g1", name: "[MET] Altecaia", ownerId: "dono1", channels: { fetch: async () => sala } };
+      const guardados = Object.fromEntries(["client", "linguaDaSalaCyron", "motorDoGuild", "cartaoNaLingua", "porAjuste", "videoDasSalas",
+        "VIDEOS_DAS_SALAS", "cartaoDaOfertaDoJogo", "marcaDaOferta"].map((k) => [k, globalThis[k]]));
+      const marcas = [];
+      Object.assign(globalThis, {
+        client: { guilds: { cache: new Map([["g1", guild]]) }, users: { fetch: async (id) => (id === "dono1" ? { createDM: async () => dm } : null) } },
+        linguaDaSalaCyron: async () => "tr", motorDoGuild: async () => "auto", cartaoNaLingua: async (c) => c,
+        porAjuste: async (k) => { marcas.push(k); }, videoDasSalas: (l) => `video-${l}`, VIDEOS_DAS_SALAS: new Set(["tr"]),
+        cartaoDaOfertaDoJogo: J.cartaoDaOfertaDoJogo, marcaDaOferta: (sid) => `oferta_jogo:${sid}`,
+      });
+      try {
+        const { oferecerSalasDoJogo } = carregar(["oferecerSalasDoJogo"]);
+        const r1 = await oferecerSalasDoJogo({ id: "s1", guild_id: "g1", canal_config: "c1" });
+        ok("no privado do dono: o vídeo na língua dele e depois a oferta", enviados.map((e) => e.join(":")),
+          ["dm:video-tr", "dm:🎮 Salas do Kingshot liberadas para o seu servidor"]);
+        verdade("o servidor fica liberado e o dono da CYRON sabe onde foi", marcas.includes("oferta_jogo:s1") && /no privado do dono/.test(r1) && /`tr`/.test(r1));
+        enviados.length = 0; privadoAberto = false;
+        const r2 = await oferecerSalasDoJogo({ id: "s1", guild_id: "g1", canal_config: "c1" });
+        ok("privado fechado: vai para a ⚙️-cyron", enviados.map((e) => e[0]), ["sala", "sala"]);
+        verdade("e o dono da CYRON fica sabendo", /privado do dono está fechado/.test(r2));
+      } finally {
+        Object.assign(globalThis, guardados);
+      }
+      const guildP = { id: "g1", ownerId: "dono1", members: { fetch: async (id) => (id === "adm" ? { permissions: { has: () => true } }
+        : id === "membro" ? { permissions: { has: () => false } } : null) } };
+      const P = carregar(["podeNasSalasDoJogo"]);
+      ok("cria as salas: o dono e quem administra; o resto não", [await P.podeNasSalasDoJogo(guildP, "dono1"), await P.podeNasSalasDoJogo(guildP, "adm"),
+        await P.podeNasSalasDoJogo(guildP, "membro"), await P.podeNasSalasDoJogo(guildP, "estranho"), await P.podeNasSalasDoJogo(null, "dono1")],
+        [true, true, false, false, false]);
+    }
     verdade("os botões da oferta chegam ao clique", /customId\.startsWith\("jogo:criar:"\)\) \{\s*return await cliqueDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)));
     verdade("o 🐻 da ficha manda a oferta", /if \(acao === "jogo"\) return inter\.editReply\(await oferecerSalasDoJogo\(servidor\)\)/.test(semComentarios(fonte)));
     const criar = semComentarios(pedaco("criarSalasDoJogo"));
