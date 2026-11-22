@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Kingshot Odaları",
-  "sub": "🐻 Ayı · 📖 Kahramanlar",
+  "sub": "🐻 Ayı · 📖 Kahramanlar · 📅 Takvim",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Seninkileri şimdi oluştur",
   "ctaL3": "Sadece CYRON ekibinin açtığı sunucularda",
+  "btAgenda": "Krallık takvimi oluştur",
+  "enviar": "Gönder",
+  "anotado": "📅 Krallık 1500 kaydedildi. Şimdi oyun takviminin ekran görüntülerini buraya gönder.",
+  "printTit": "Takvim",
+  "lido": "✅ Krallık 1500'den 12 etkinlik okudum. Takvim <b>#📆-agenda</b> odasında.",
+  "semanaTit": "📅 Krallık 1500 · bu hafta",
+  "virada": "⏳ Oyun günü 5 saat sonra yenilenir",
+  "dias": [
+   "PZT",
+   "SAL",
+   "ÇAR",
+   "PER",
+   "CUM",
+   "CMT",
+   "PAZ"
+  ],
+  "hojeTit": "📅 Bugün",
+  "comeca": "başlıyor",
+  "termina": "bitiyor",
+  "emH": [
+   "2 saat sonra",
+   "5 saat sonra"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Ayı için kahramanlar**\nTopluluk notuna göre Ayı Tuzağı (Bear Trap) için en iyiler.\n\n{{ks_rally}} **Ralliyi yönetmek için (her neslin en iyisi)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Ralliye katılmak için**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= para harcamadan alınır*",
   "dicasUrso": "{{ks_pergaminho}} **İpuçları**\n{{ks_brilho}} Başkasının rallisine katılırken sadece 1. kahramanın 1. yeteneği sayılır: öne Amane, Chenko veya Yeonwoo koy (para harcamadan alınır). Diğer iki kahraman sadece götürdüğün birliği artırır; yetenekleri sayılmaz.\n{{ks_brilho}} Birlik: çoğunluk okçu. Gen 1'de yaklaşık %60, Gen 2'de %70 ve Gen 3'ten itibaren %80 veya daha fazla.\n{{ks_brilho}} Asla katılımcı olarak gönderme: Jabel, Helga, Long Fei, Gordon, Diana, Edwin ve Charles. 1. yetenekleri saldırı yeteneği değil.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Güzel haber: Kingshot sunucun CYRON'dan iki yeni oda kazandı. Ayı odası ve Kahramanlar odası."
+   "fala": "Güzel haber: Kingshot sunucun CYRON'dan üç yenilik kazandı: Ayı odası, Kahramanlar odası ve krallık takvimi."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "Bir de krallık takvimi var. Krallık takvimi oluştur düğmesine dokun, krallık numaranı yaz ve oyun takviminin ekran görüntüsünü buraya gönder.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON ekran görüntüsünü okur ve takvimi oluşturur: krallığın etkinlikleriyle haftanın resmi ve her gün bir duyuru, her dilde.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "İki oda da salt okunur, böylece bilgi sohbette asla kaybolmaz. Seninkileri şimdi CYRON odasında oluştur!"
+   "fala": "Odalar salt okunur, böylece bilgi sohbette asla kaybolmaz. Seninkileri şimdi CYRON odasında oluştur!"
   }
  ]
 }

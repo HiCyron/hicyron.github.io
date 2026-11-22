@@ -388,6 +388,147 @@ const LINGUAS = {
   },
 };
 
+// A agenda do reino pela foto do calendário (dono, 22/11): a cena entra antes do fim.
+const EVS_EN = ["Strongest Governor", "Alliance Mobilization", "Governor's Duel", "Fishing Tournament", "Bear Trap", "Castle Battle"];
+const AGENDA = {
+  pt: {
+    falas: {
+      intro: "Boa notícia: o seu servidor de Kingshot ganhou três novidades da CYRON: a sala do Urso, a sala dos Heróis e a agenda do reino.",
+      agenda: "E tem a agenda do reino. Toque em Criar agenda do reino, digite o número do reino e mande aqui o print do calendário do jogo.",
+      agenda2: "A CYRON lê o print e cria a agenda: a imagem da semana com os eventos do reino, e um aviso a cada dia, em cada língua.",
+      cta: "As salas são só de ler, então a informação nunca se perde na conversa. Crie as suas agora, na sala da CYRON!",
+    },
+    t: { sub: "🐻 Urso · 📖 Heróis · 📅 Agenda", btAgenda: "Criar agenda do reino", enviar: "Enviar",
+      anotado: "📅 Reino 1500 anotado. Agora mande aqui os prints do calendário do jogo.", printTit: "Calendário",
+      lido: "✅ Li 12 eventos do reino 1500. A agenda fica em <b>#📆-agenda</b>.", semanaTit: "📅 Reino 1500 · esta semana",
+      virada: "⏳ O dia do jogo vira em 5 h", dias: ["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"], hojeTit: "📅 Hoje",
+      comeca: "começa", termina: "termina", emH: ["em 2 h", "em 5 h"],
+      evs: ["O Governador mais Forte", "Mobilização da Aliança", "Duelo dos Governadores", "Torneio de Pesca", "Armadilha do Urso", "Batalha do Castelo"] },
+  },
+  en: {
+    falas: {
+      intro: "Good news: your Kingshot server just got three new things from CYRON: the Bear room, the Heroes room and the kingdom calendar.",
+      agenda: "There's also the kingdom calendar. Tap Create kingdom calendar, type your kingdom number and send a screenshot of the game calendar here.",
+      agenda2: "CYRON reads the screenshot and builds the calendar: the week picture with your kingdom's events, and a notice every day, in every language.",
+      cta: "These rooms are read only, so the information never gets lost in the chat. Create yours now, in the CYRON room!",
+    },
+    t: { sub: "🐻 Bear · 📖 Heroes · 📅 Calendar", btAgenda: "Create kingdom calendar", enviar: "Submit",
+      anotado: "📅 Kingdom 1500 saved. Now send the game calendar screenshots here.", printTit: "Calendar",
+      lido: "✅ Read 12 events from kingdom 1500. The calendar lives in <b>#📆-agenda</b>.", semanaTit: "📅 Kingdom 1500 · this week",
+      virada: "⏳ The game day resets in 5 h", dias: ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"], hojeTit: "📅 Today",
+      comeca: "starts", termina: "ends", emH: ["in 2 h", "in 5 h"], evs: EVS_EN },
+  },
+  es: {
+    falas: {
+      intro: "Buenas noticias: tu servidor de Kingshot acaba de recibir tres novedades de CYRON: la sala del Oso, la sala de los Héroes y la agenda del reino.",
+      agenda: "Y también está la agenda del reino. Toca Crear agenda del reino, escribe el número de tu reino y manda aquí una captura del calendario del juego.",
+      agenda2: "CYRON lee la captura y crea la agenda: la imagen de la semana con los eventos del reino, y un aviso cada día, en cada idioma.",
+      cta: "Las salas son solo de lectura, así la información nunca se pierde en el chat. ¡Crea las tuyas ahora, en la sala de CYRON!",
+    },
+    t: { sub: "🐻 Oso · 📖 Héroes · 📅 Agenda", btAgenda: "Crear agenda del reino", enviar: "Enviar",
+      anotado: "📅 Reino 1500 anotado. Ahora manda aquí las capturas del calendario del juego.", printTit: "Calendario",
+      lido: "✅ Leí 12 eventos del reino 1500. La agenda está en <b>#📆-agenda</b>.", semanaTit: "📅 Reino 1500 · esta semana",
+      virada: "⏳ El día del juego cambia en 5 h", dias: ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"], hojeTit: "📅 Hoy",
+      comeca: "empieza", termina: "termina", emH: ["en 2 h", "en 5 h"], evs: EVS_EN },
+  },
+  tr: {
+    falas: {
+      intro: "Güzel haber: Kingshot sunucun CYRON'dan üç yenilik kazandı: Ayı odası, Kahramanlar odası ve krallık takvimi.",
+      agenda: "Bir de krallık takvimi var. Krallık takvimi oluştur düğmesine dokun, krallık numaranı yaz ve oyun takviminin ekran görüntüsünü buraya gönder.",
+      agenda2: "CYRON ekran görüntüsünü okur ve takvimi oluşturur: krallığın etkinlikleriyle haftanın resmi ve her gün bir duyuru, her dilde.",
+      cta: "Odalar salt okunur, böylece bilgi sohbette asla kaybolmaz. Seninkileri şimdi CYRON odasında oluştur!",
+    },
+    t: { sub: "🐻 Ayı · 📖 Kahramanlar · 📅 Takvim", btAgenda: "Krallık takvimi oluştur", enviar: "Gönder",
+      anotado: "📅 Krallık 1500 kaydedildi. Şimdi oyun takviminin ekran görüntülerini buraya gönder.", printTit: "Takvim",
+      lido: "✅ Krallık 1500'den 12 etkinlik okudum. Takvim <b>#📆-agenda</b> odasında.", semanaTit: "📅 Krallık 1500 · bu hafta",
+      virada: "⏳ Oyun günü 5 saat sonra yenilenir", dias: ["PZT", "SAL", "ÇAR", "PER", "CUM", "CMT", "PAZ"], hojeTit: "📅 Bugün",
+      comeca: "başlıyor", termina: "bitiyor", emH: ["2 saat sonra", "5 saat sonra"], evs: EVS_EN },
+  },
+  fr: {
+    falas: {
+      intro: "Bonne nouvelle : ton serveur Kingshot vient de recevoir trois nouveautés de CYRON : le salon de l'Ours, le salon des Héros et le calendrier du royaume.",
+      agenda: "Et il y a le calendrier du royaume. Touche Créer le calendrier du royaume, tape le numéro de ton royaume et envoie ici une capture du calendrier du jeu.",
+      agenda2: "CYRON lit la capture et crée le calendrier : l'image de la semaine avec les événements du royaume, et un avis chaque jour, dans chaque langue.",
+      cta: "Les salons sont en lecture seule, donc l'information ne se perd jamais dans la discussion. Crée les tiens maintenant, dans le salon de CYRON !",
+    },
+    t: { sub: "🐻 Ours · 📖 Héros · 📅 Calendrier", btAgenda: "Créer le calendrier du royaume", enviar: "Envoyer",
+      anotado: "📅 Royaume 1500 noté. Envoie maintenant ici les captures du calendrier du jeu.", printTit: "Calendrier",
+      lido: "✅ J'ai lu 12 événements du royaume 1500. Le calendrier est dans <b>#📆-agenda</b>.", semanaTit: "📅 Royaume 1500 · cette semaine",
+      virada: "⏳ Le jour du jeu change dans 5 h", dias: ["LUN", "MAR", "MER", "JEU", "VEN", "SAM", "DIM"], hojeTit: "📅 Aujourd'hui",
+      comeca: "commence", termina: "se termine", emH: ["dans 2 h", "dans 5 h"], evs: EVS_EN },
+  },
+  ko: {
+    falas: {
+      intro: "좋은 소식이에요. 여러분의 킹샷 서버에 CYRON의 새 기능 세 가지가 생겼어요. 곰 채널, 영웅 채널, 그리고 왕국 일정이에요.",
+      agenda: "왕국 일정도 있어요. 왕국 일정 만들기를 누르고, 왕국 번호를 입력한 다음, 게임 달력 스크린샷을 여기에 보내세요.",
+      agenda2: "CYRON이 스크린샷을 읽고 일정을 만들어요. 왕국 이벤트가 담긴 이번 주 이미지와 매일의 알림을, 언어마다요.",
+      cta: "모든 채널이 읽기 전용이라, 정보가 대화 속에 묻히지 않아요. 지금 CYRON 채널에서 만들어 보세요!",
+    },
+    t: { sub: "🐻 곰 · 📖 영웅 · 📅 일정", btAgenda: "왕국 일정 만들기", enviar: "제출",
+      anotado: "📅 왕국 1500 저장됨. 이제 게임 달력 스크린샷을 여기에 보내세요.", printTit: "달력",
+      lido: "✅ 왕국 1500의 이벤트 12개를 읽었어요. 일정은 <b>#📆-agenda</b>에 있어요.", semanaTit: "📅 왕국 1500 · 이번 주",
+      virada: "⏳ 게임 날짜가 5시간 후 바뀌어요", dias: ["월", "화", "수", "목", "금", "토", "일"], hojeTit: "📅 오늘",
+      comeca: "시작", termina: "종료", emH: ["2시간 후", "5시간 후"], evs: EVS_EN },
+  },
+  ru: {
+    falas: {
+      intro: "Хорошие новости: на твоём сервере Kingshot появились три новинки от CYRON: канал Медведя, канал Героев и календарь королевства.",
+      agenda: "А ещё есть календарь королевства. Нажми Создать календарь королевства, введи номер королевства и пришли сюда скриншот календаря из игры.",
+      agenda2: "CYRON читает скриншот и создаёт календарь: картинку недели с событиями королевства и объявление каждый день, на каждом языке.",
+      cta: "Каналы только для чтения, поэтому информация никогда не теряется в чате. Создай свои прямо сейчас, в канале CYRON!",
+    },
+    t: { sub: "🐻 Медведь · 📖 Герои · 📅 Календарь", btAgenda: "Создать календарь королевства", enviar: "Отправить",
+      anotado: "📅 Королевство 1500 сохранено. Теперь пришли сюда скриншоты календаря из игры.", printTit: "Календарь",
+      lido: "✅ Прочитала 12 событий королевства 1500. Календарь — в <b>#📆-agenda</b>.", semanaTit: "📅 Королевство 1500 · эта неделя",
+      virada: "⏳ Игровой день сменится через 5 ч", dias: ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"], hojeTit: "📅 Сегодня",
+      comeca: "начинается", termina: "заканчивается", emH: ["через 2 ч", "через 5 ч"], evs: EVS_EN },
+  },
+  de: {
+    falas: {
+      intro: "Gute Nachricht: Dein Kingshot-Server hat gerade drei Neuheiten von CYRON bekommen: den Bären-Kanal, den Helden-Kanal und den Königreich-Kalender.",
+      agenda: "Und es gibt den Königreich-Kalender. Tippe auf Königreich-Kalender erstellen, gib die Nummer deines Königreichs ein und schick hier einen Screenshot vom Spielkalender.",
+      agenda2: "CYRON liest den Screenshot und erstellt den Kalender: das Wochenbild mit den Events des Königreichs und jeden Tag einen Hinweis, in jeder Sprache.",
+      cta: "Die Kanäle sind schreibgeschützt, so geht keine Information im Chat verloren. Erstelle deine jetzt, im CYRON-Kanal!",
+    },
+    t: { sub: "🐻 Bär · 📖 Helden · 📅 Kalender", btAgenda: "Königreich-Kalender erstellen", enviar: "Senden",
+      anotado: "📅 Königreich 1500 gespeichert. Schick jetzt hier die Screenshots vom Spielkalender.", printTit: "Kalender",
+      lido: "✅ 12 Events aus Königreich 1500 gelesen. Der Kalender ist in <b>#📆-agenda</b>.", semanaTit: "📅 Königreich 1500 · diese Woche",
+      virada: "⏳ Der Spieltag wechselt in 5 Std.", dias: ["MO", "DI", "MI", "DO", "FR", "SA", "SO"], hojeTit: "📅 Heute",
+      comeca: "beginnt", termina: "endet", emH: ["in 2 Std.", "in 5 Std."], evs: EVS_EN },
+  },
+  id: {
+    falas: {
+      intro: "Kabar baik: server Kingshot kamu baru saja dapat tiga hal baru dari CYRON: ruang Beruang, ruang Pahlawan, dan kalender kerajaan.",
+      agenda: "Ada juga kalender kerajaan. Ketuk Buat kalender kerajaan, ketik nomor kerajaanmu, lalu kirim tangkapan layar kalender game ke sini.",
+      agenda2: "CYRON membaca tangkapan layar dan membuat kalendernya: gambar minggu ini dengan event kerajaan, dan pengumuman setiap hari, di setiap bahasa.",
+      cta: "Ruang-ruang ini hanya bisa dibaca, jadi informasinya tidak pernah tenggelam di obrolan. Buat ruangmu sekarang, di ruang CYRON!",
+    },
+    t: { sub: "🐻 Beruang · 📖 Pahlawan · 📅 Kalender", btAgenda: "Buat kalender kerajaan", enviar: "Kirim",
+      anotado: "📅 Kerajaan 1500 dicatat. Sekarang kirim tangkapan layar kalender game ke sini.", printTit: "Kalender",
+      lido: "✅ Aku membaca 12 event dari kerajaan 1500. Kalendernya ada di <b>#📆-agenda</b>.", semanaTit: "📅 Kerajaan 1500 · minggu ini",
+      virada: "⏳ Hari game berganti dalam 5 jam", dias: ["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"], hojeTit: "📅 Hari ini",
+      comeca: "mulai", termina: "berakhir", emH: ["dalam 2 jam", "dalam 5 jam"], evs: EVS_EN },
+  },
+  ar: {
+    falas: {
+      intro: "خبر رائع: حصل خادم كينغ شوت الخاص بك على ثلاث ميزات جديدة من سايرون: قناة الدب، وقناة الأبطال، وتقويم المملكة.",
+      agenda: "وهناك أيضًا تقويم المملكة. اضغط على إنشاء تقويم المملكة، واكتب رقم مملكتك، وأرسل هنا لقطة شاشة لتقويم اللعبة.",
+      agenda2: "يقرأ سايرون لقطة الشاشة وينشئ التقويم: صورة الأسبوع مع أحداث المملكة، وإشعار كل يوم، بكل لغة.",
+      cta: "القنوات للقراءة فقط، لذلك لا تضيع المعلومات أبدًا في المحادثة. أنشئ قنواتك الآن، في قناة سايرون!",
+    },
+    t: { sub: "🐻 الدب · 📖 الأبطال · 📅 التقويم", btAgenda: "إنشاء تقويم المملكة", enviar: "إرسال",
+      anotado: "📅 تم حفظ المملكة 1500. أرسل الآن هنا لقطات شاشة تقويم اللعبة.", printTit: "التقويم",
+      lido: "✅ قرأت 12 حدثًا من المملكة 1500. التقويم في <b>#📆-agenda</b>.", semanaTit: "📅 المملكة 1500 · هذا الأسبوع",
+      virada: "⏳ يتغير يوم اللعبة بعد 5 ساعات", dias: ["إثن", "ثلا", "أرب", "خمي", "جمع", "سبت", "أحد"], hojeTit: "📅 اليوم",
+      comeca: "يبدأ", termina: "ينتهي", emH: ["بعد ساعتين", "بعد 5 ساعات"], evs: EVS_EN },
+  },
+};
+for (const [l, x] of Object.entries(AGENDA)) {
+  if (!LINGUAS[l]) continue;
+  LINGUAS[l].falas = { ...LINGUAS[l].falas, ...x.falas };
+  LINGUAS[l].t = { ...LINGUAS[l].t, ...x.t };
+}
+
 // A ficha do Urso como a sala mostra (o 1º cartão), com os emojis marcados {{ks_...}}.
 function fichaDoUrso(t) {
   const e = (n) => `{{${n}}}`;
@@ -416,8 +557,8 @@ for (const [lingua, L] of Object.entries(LINGUAS)) {
     dicasUrso: [`{{ks_pergaminho}} **${t.dicasTit || H.TEXTOS_DO_URSO.dicas}**`, ...t.dicas.map((d) => `{{ks_brilho}} ${d}`)].join("\n"), heroi1: paginaDoHeroi("Amane", t), heroi2: paginaDoHeroi("Chenko", t),
     pagina1: `📖 1 / ${H.LIVRO.length}`, pagina2: `📖 2 / ${H.LIVRO.length}` };
   delete textos.urso; delete textos.ficha; delete textos.dicas; delete textos.dicasTit;
-  const ordem = ["intro", "vantagens", "oferta", "urso", "herois", "lista", "ficha", "livro", "cta"];
-  const pausas = { vantagens: 0.6, oferta: 0.5, urso: 0.7, herois: 0.7, lista: 0.6, ficha: 1.2, livro: 0.9 };
+  const ordem = ["intro", "vantagens", "oferta", "urso", "herois", "lista", "ficha", "livro", "agenda", "agenda2", "cta"];
+  const pausas = { vantagens: 0.6, oferta: 0.5, urso: 0.7, herois: 0.7, lista: 0.6, ficha: 1.2, livro: 0.9, agenda: 0.9, agenda2: 1.0 };
   const roteiro = { cena: "cena-salas.html", voz: L.voz, taxa: L.taxa || "+4%", tom: "+0Hz", final: 2.2, textos,
     cenas: ordem.map((id) => ({ id, fala: L.falas[id], ...(pausas[id] ? { pausa: pausas[id] } : {}) })) };
   writeFileSync(`roteiro-salas-${lingua}.json`, JSON.stringify(roteiro, null, 1) + "\n");

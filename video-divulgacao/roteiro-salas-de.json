@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Kingshot-Kanäle",
-  "sub": "🐻 Bär · 📖 Helden",
+  "sub": "🐻 Bär · 📖 Helden · 📅 Kalender",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Erstelle deine jetzt",
   "ctaL3": "Nur auf Servern, die das CYRON-Team freigeschaltet hat",
+  "btAgenda": "Königreich-Kalender erstellen",
+  "enviar": "Senden",
+  "anotado": "📅 Königreich 1500 gespeichert. Schick jetzt hier die Screenshots vom Spielkalender.",
+  "printTit": "Kalender",
+  "lido": "✅ 12 Events aus Königreich 1500 gelesen. Der Kalender ist in <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Königreich 1500 · diese Woche",
+  "virada": "⏳ Der Spieltag wechselt in 5 Std.",
+  "dias": [
+   "MO",
+   "DI",
+   "MI",
+   "DO",
+   "FR",
+   "SA",
+   "SO"
+  ],
+  "hojeTit": "📅 Heute",
+  "comeca": "beginnt",
+  "termina": "endet",
+  "emH": [
+   "in 2 Std.",
+   "in 5 Std."
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Helden für den Bären**\nDie besten für die Bärenfalle (Bear Trap), nach Community-Bewertung.\n\n{{ks_rally}} **Zum Anführen der Rallye (der beste jeder Generation)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Zum Beitreten der Rallye**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= ohne Geld zu bekommen*",
   "dicasUrso": "{{ks_pergaminho}} **Tipps**\n{{ks_brilho}} Wenn du der Rallye eines anderen beitrittst, zählt nur die 1. Fähigkeit des 1. Helden: Setz Amane, Chenko oder Yeonwoo nach vorn (ohne Geld zu bekommen). Die anderen beiden Helden erhöhen nur die Truppen, die du mitbringst; ihre Fähigkeiten zählen nicht.\n{{ks_brilho}} Truppen: hauptsächlich Bogenschützen. Etwa 60 % in Gen 1, 70 % in Gen 2 und 80 % oder mehr ab Gen 3.\n{{ks_brilho}} Schick nie als Joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin und Charles. Ihre 1. Fähigkeit ist keine Angriffsfähigkeit.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Gute Nachricht: Dein Kingshot-Server hat gerade zwei neue Kanäle von CYRON bekommen. Den Bären-Kanal und den Helden-Kanal."
+   "fala": "Gute Nachricht: Dein Kingshot-Server hat gerade drei Neuheiten von CYRON bekommen: den Bären-Kanal, den Helden-Kanal und den Königreich-Kalender."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "Und es gibt den Königreich-Kalender. Tippe auf Königreich-Kalender erstellen, gib die Nummer deines Königreichs ein und schick hier einen Screenshot vom Spielkalender.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON liest den Screenshot und erstellt den Kalender: das Wochenbild mit den Events des Königreichs und jeden Tag einen Hinweis, in jeder Sprache.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "Beide Kanäle sind schreibgeschützt, so geht keine Information im Chat verloren. Erstelle deine jetzt, im CYRON-Kanal!"
+   "fala": "Die Kanäle sind schreibgeschützt, so geht keine Information im Chat verloren. Erstelle deine jetzt, im CYRON-Kanal!"
   }
  ]
 }

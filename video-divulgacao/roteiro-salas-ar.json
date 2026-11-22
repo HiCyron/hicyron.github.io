@@ -7,7 +7,7 @@
  "textos": {
   "rtl": true,
   "titulo": "قنوات كينغ شوت",
-  "sub": "🐻 الدب · 📖 الأبطال",
+  "sub": "🐻 الدب · 📖 الأبطال · 📅 التقويم",
   "vantagens": [
    [
     "🎯",
@@ -79,6 +79,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "أنشئ قناتيك الآن",
   "ctaL3": "فقط في الخوادم التي فتحها فريق CYRON",
+  "btAgenda": "إنشاء تقويم المملكة",
+  "enviar": "إرسال",
+  "anotado": "📅 تم حفظ المملكة 1500. أرسل الآن هنا لقطات شاشة تقويم اللعبة.",
+  "printTit": "التقويم",
+  "lido": "✅ قرأت 12 حدثًا من المملكة 1500. التقويم في <b>#📆-agenda</b>.",
+  "semanaTit": "📅 المملكة 1500 · هذا الأسبوع",
+  "virada": "⏳ يتغير يوم اللعبة بعد 5 ساعات",
+  "dias": [
+   "إثن",
+   "ثلا",
+   "أرب",
+   "خمي",
+   "جمع",
+   "سبت",
+   "أحد"
+  ],
+  "hojeTit": "📅 اليوم",
+  "comeca": "يبدأ",
+  "termina": "ينتهي",
+  "emH": [
+   "بعد ساعتين",
+   "بعد 5 ساعات"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **أبطال الدب**\nالأفضل لفخ الدب (Bear Trap) حسب تقييم المجتمع.\n\n{{ks_rally}} **لقيادة الحشد (الأفضل في كل جيل)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **للانضمام إلى الحشد**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= يمكن الحصول عليه مجانًا*",
   "dicasUrso": "{{ks_pergaminho}} **نصائح**\n{{ks_brilho}} عند الانضمام إلى حشد شخص آخر، تُحسب فقط المهارة الأولى للبطل الأول: ضع Amane أو Chenko أو Yeonwoo في المقدمة (يمكن الحصول عليهم مجانًا). البطلان الآخران يزيدان القوات التي ترسلها فقط؛ مهاراتهما لا تُحسب.\n{{ks_brilho}} القوات: أغلبها رماة. حوالي 60% في Gen 1، و70% في Gen 2، و80% أو أكثر من Gen 3 فصاعدًا.\n{{ks_brilho}} لا ترسل أبدًا كمنضم: Jabel وHelga وLong Fei وGordon وDiana وEdwin وCharles. مهارتهم الأولى ليست مهارة هجوم.",
   "heroi1": {
@@ -97,7 +128,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "خبر رائع: حصل خادم كينغ شوت الخاص بك على قناتين جديدتين من سايرون. قناة الدب وقناة الأبطال."
+   "fala": "خبر رائع: حصل خادم كينغ شوت الخاص بك على ثلاث ميزات جديدة من سايرون: قناة الدب، وقناة الأبطال، وتقويم المملكة."
   },
   {
    "id": "vantagens",
@@ -135,8 +166,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "وهناك أيضًا تقويم المملكة. اضغط على إنشاء تقويم المملكة، واكتب رقم مملكتك، وأرسل هنا لقطة شاشة لتقويم اللعبة.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "يقرأ سايرون لقطة الشاشة وينشئ التقويم: صورة الأسبوع مع أحداث المملكة، وإشعار كل يوم، بكل لغة.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "القناتان للقراءة فقط، لذلك لا تضيع المعلومات أبدًا في المحادثة. أنشئ قناتيك الآن، في قناة سايرون!"
+   "fala": "القنوات للقراءة فقط، لذلك لا تضيع المعلومات أبدًا في المحادثة. أنشئ قنواتك الآن، في قناة سايرون!"
   }
  ]
 }

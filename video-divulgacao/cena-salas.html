@@ -24,7 +24,7 @@
   .cab .menu { font-size: 44px; color: #b5bac1; padding: 6px 8px; }
   .cab .h { color: #80848e; font-size: 48px; font-weight: 500; }
   .rolo { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding-bottom: 10px; }
-  .msg { overflow: hidden; }
+  .msg { overflow: hidden; flex: 0 0 auto; } /* sem encolher: a sala cheia empurra as de cima para fora, como no Discord */
   .msg .in { display: flex; gap: 20px; padding: 12px 26px; }
   .av { flex: 0 0 auto; width: 76px; height: 76px; border-radius: 50%; overflow: hidden; }
   .av img { width: 100%; height: 100%; object-fit: cover; }
@@ -47,7 +47,7 @@
     background: linear-gradient(135deg, #3a2a14, #12152e); display: grid; place-items: center; }
   .video img { position: absolute; height: 290px; bottom: 0; left: 30px; }
   .video .play { width: 110px; height: 110px; border-radius: 50%; background: rgba(0,0,0,.6); display: grid; place-items: center; font-size: 54px; z-index: 2; }
-  .video .vt { position: absolute; right: 22px; top: 22px; font-weight: 900; font-size: 30px; text-align: right; z-index: 2; color: #ffe27a; }
+  .video .vt { position: absolute; right: 18px; top: 20px; max-width: 300px; font-weight: 900; font-size: 26px; line-height: 1.25; text-align: right; z-index: 2; color: #ffe27a; }
   .bts { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
   .bt { font-weight: 700; font-size: 27px; padding: 14px 22px; border-radius: 10px; background: #248046; color: #fff; }
   .bt.cinza { background: #4e5058; } .bt.azul { background: #5865f2; } .bt.feito { background: #3b3d44; color: #b5bac1; }
@@ -96,6 +96,29 @@
   .rtl #legenda { direction: rtl; }
   .rtl .emb .d, .rtl .emb .tit, .rtl .txt, .rtl .efem, .rtl .fechado, .rtl #vant .item { direction: rtl; }
   .rtl .emb .d, .rtl .emb .tit, .rtl .txt, .rtl .efem, .rtl #vant .item { text-align: right; }
+  /* a janela do reino (modal do Discord) */
+  #janela { position: absolute; left: 70px; right: 70px; top: 330px; background: #313338; border-radius: 22px; padding: 30px 32px; z-index: 9;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7); }
+  #janela .jt { font-weight: 900; font-size: 36px; color: #f2f3f5; margin-bottom: 22px; }
+  #janela .jl { font-weight: 700; font-size: 24px; color: #b5bac1; letter-spacing: 1px; margin-bottom: 10px; }
+  #janela .ji { height: 80px; border-radius: 10px; background: #1e1f22; display: flex; align-items: center; padding: 0 22px; font-size: 38px; color: #f2f3f5; }
+  #janela .jb { display: flex; justify-content: flex-end; margin-top: 26px; }
+  #veu3 { position: absolute; inset: 0; background: #000; opacity: 0; z-index: 8; }
+  /* o print do calendário do jogo que o ADM manda */
+  .print { margin-top: 8px; width: 520px; border-radius: 12px; overflow: hidden; background: linear-gradient(180deg, #24324f, #18213a); padding: 14px 16px; }
+  .print .pt { font-weight: 900; font-size: 24px; color: #ffe9a8; text-align: center; margin-bottom: 10px; }
+  .print .pl { display: flex; align-items: center; gap: 8px; height: 40px; margin: 5px 0; }
+  .print .pb { height: 30px; border-radius: 8px; display: flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 16px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; }
+  .print .pb img { width: 26px; height: 26px; }
+  /* a imagem da semana */
+  .semana { margin-top: 10px; width: 800px; border-radius: 14px; overflow: hidden; background: linear-gradient(180deg, #13304a, #0e1c2e); padding: 18px 18px 14px; }
+  .semana .st { font-weight: 900; font-size: 30px; color: #8fe3ff; margin-bottom: 12px; }
+  .semana .sd { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+  .semana .sd span { text-align: center; font-weight: 700; font-size: 19px; color: #9fb7cc; background: rgba(255,255,255,.06); border-radius: 6px; padding: 4px 0; }
+  .semana .sl { position: relative; height: 54px; margin: 6px 0; }
+  .semana .sb { position: absolute; top: 4px; height: 46px; border-radius: 12px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
+    font-size: 19px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; box-shadow: inset 0 -4px 0 rgba(0,0,0,.25); }
+  .semana .sb img { width: 36px; height: 36px; flex: 0 0 auto; }
   #dedo { position: absolute; width: 92px; height: 92px; border-radius: 50%; background: rgba(255,255,255,.5);
     border: 6px solid rgba(255,255,255,.92); pointer-events: none; z-index: 50; opacity: 0; }
 </style></head>
@@ -122,9 +145,24 @@ function md(s) {
   }).join("<br>");
 }
 
-function msg({ t = -1, hora = "", corpo = "", id = "" } = {}) {
-  return `<div class="msg" data-t="${t}" ${id ? `id="${id}"` : ""}><div class="in"><div class="av"><img src="img/cyron-og.jpg"></div><div class="cbody">
-    <div class="linha1"><span class="nome">CYRON</span><span class="app">APP</span><span class="hora">${hora}</span></div>${corpo}</div></div></div>`;
+function msg({ t = -1, hora = "", corpo = "", id = "", adm = false } = {}) {
+  const av = adm ? '<div class="av" style="background:#c9a227;display:grid;place-items:center;font-weight:900;font-size:36px;color:#1b1408">A</div>'
+    : '<div class="av"><img src="img/cyron-og.jpg"></div>';
+  const nome = adm ? '<span class="nome" style="color:#f0d77a">Admin</span>' : '<span class="nome">CYRON</span><span class="app">APP</span>';
+  return `<div class="msg" data-t="${t}" ${id ? `id="${id}"` : ""}><div class="in">${av}<div class="cbody">
+    <div class="linha1">${nome}<span class="hora">${hora}</span></div>${corpo}</div></div></div>`;
+}
+// as barras dos eventos: [ícone, cor, dia em que começa, dia em que acaba]
+const EVENTOS_DA_SEMANA = [["ks_ev_strongest", "#c9862a", 0, 2], ["ks_ev_mobilization", "#4f63d8", 1, 5], ["ks_ev_duel", "#c2417e", 3, 5],
+  ["ks_ev_fishing", "#2a8f88", 2, 3], ["ks_ev_bear", "#3f9a4a", 0, 6], ["ks_ev_castle", "#a85a1e", 6, 6]];
+function printDoJogo() {
+  return `<div class="print"><div class="pt">${TX.printTit}</div>${EVENTOS_DA_SEMANA.slice(0, 5).map(([ic, cor, a, b], i) =>
+    `<div class="pl"><div class="pb" style="margin-left:${a * 62}px;width:${(b - a + 1) * 62 + 40}px;background:${cor}"><img src="img/eventos/${ic}.png">${TX.evs[i]}</div></div>`).join("")}</div>`;
+}
+function semanaDoReino() {
+  const col = 764 / 7;
+  return `<div class="semana"><div class="st">${TX.semanaTit}</div><div class="sd">${TX.dias.map((d) => `<span>${d}</span>`).join("")}</div>
+    ${EVENTOS_DA_SEMANA.map(([ic, cor, a, b], i) => `<div class="sl"><div class="sb" style="left:${a * col}px;width:${(b - a + 1) * col - 4}px;background:${cor}"><img src="img/eventos/${ic}.png">${TX.evs[i]}</div></div>`).join("")}</div>`;
 }
 function cartao(texto, { cor = "#c9a227", tit = "", canto = "", mini = false } = {}) {
   return `<div class="emb" style="border-left-color:${cor}"><div class="e">${tit ? `<div class="tit">${tit}</div>` : ""}<div class="d${mini ? " mini" : ""}">${texto}</div></div>
@@ -145,9 +183,12 @@ function montarHistoria() {
     pagina("cyron", "⚙️-cyron", [
       msg({ hora: hoje(h1), corpo: `<div class="video"><img src="img/cyron-corpo.webp"><span class="play">▶</span><span class="vt">${TX.titulo}<br>${TX.sub}</span></div>` }),
       msg({ hora: hoje(h1), corpo: cartao(TX.ofertaVant.join("<br>"), { tit: TX.ofertaTit }) +
-        `<div class="bts"><span class="bt" id="bt-urso">🐻 ${TX.btUrso}</span><span class="bt" id="bt-herois">📖 ${TX.btHerois}</span></div>` }),
+        `<div class="bts"><span class="bt" id="bt-urso">🐻 ${TX.btUrso}</span><span class="bt" id="bt-herois">📖 ${TX.btHerois}</span><span class="bt" id="bt-agenda">📅 ${TX.btAgenda}</span></div>` }),
       msg({ t: tUrso + 0.45, hora: hoje(h2), corpo: `<div class="txt">${TX.prontoUrso}</div><div class="efem">${TX.soVoce}</div>` }),
-      msg({ t: tHer + 0.45, hora: hoje(h2), corpo: `<div class="txt">${TX.prontoHerois}</div><div class="efem">${TX.soVoce}</div>` })]),
+      msg({ t: tHer + 0.45, hora: hoje(h2), corpo: `<div class="txt">${TX.prontoHerois}</div><div class="efem">${TX.soVoce}</div>` }),
+      msg({ t: q("agenda", 0.64), hora: hoje(h3), corpo: `<div class="txt">${TX.anotado}</div><div class="efem">${TX.soVoce}</div>` }),
+      msg({ t: q("agenda", 0.86), hora: hoje(h3), adm: true, corpo: printDoJogo() }),
+      msg({ t: q("agenda2", 0.06), hora: hoje(h3), corpo: `<div class="txt">${TX.lido}</div>` })]),
     pagina("urso", "🐻-urso", [msg({ hora: hoje(h3), corpo: cartao(md(TX.fichaUrso), { cor: "#b8641e", mini: true }) }),
       msg({ t: q("ficha", 0.7), hora: hoje(h3), corpo: cartao(md(TX.dicasUrso), { cor: "#b8641e", mini: true }) })], { fechado: true }),
     pagina("herois", "📖-herois", [
@@ -158,6 +199,10 @@ function montarHistoria() {
       msg({ t: q("livro", 0.82) + 0.35, hora: hoje(h3), corpo: cartao(md(TX.heroi2.linhas), { cor: TX.heroi2.cor, canto: TX.heroi2.retrato }) +
         `<div class="bts"><span class="bt azul">◀️</span><span class="bt cinza">${TX.pagina2}</span><span class="bt azul">▶️</span></div><div class="efem">${TX.soVoce}</div>` })],
       { fechado: true }),
+    pagina("agenda", "📆-agenda", [
+      msg({ hora: hoje(h3), corpo: `<div class="txt" style="color:#dbdee1">${TX.virada}</div>` + semanaDoReino() }),
+      msg({ t: q("agenda2", 0.72), hora: hoje(h3), corpo: cartao(`├ 🟢 <b>${TX.evs[2]}</b> ${TX.comeca} ⏳ ${TX.emH[0]}<br>└ 🏁 <b>${TX.evs[3]}</b> ${TX.termina} 🔴 ${TX.emH[1]}`,
+        { tit: TX.hojeTit, cor: "#36c8e6" }) })], { fechado: true }),
   ];
   const F = document.getElementById("fone");
   paginas.forEach((p) => F.appendChild(h(p)));
@@ -186,6 +231,20 @@ function montarHistoria() {
   EV.gavetas.push({ abre: tLivro - 0.7, toca: tLivro, fecha: tLivro + 0.25, alvo: "herois" });
   toque(tLivro - 0.82, ".pag.atual .menu"); toque(tLivro, "#ch-herois"); pg(tLivro + 0.05, "herois");
   toque(q("livro", 0.82), "#bt-prox");
+  // a agenda do reino: volta para a sala da CYRON, toca no botão, digita o reino, manda o print
+  const tVolta = ini("agenda") - 0.1;
+  EV.gavetas.push({ abre: tVolta - 0.7, toca: tVolta, fecha: tVolta + 0.25, alvo: "cyron" });
+  toque(tVolta - 0.82, ".pag.atual .menu"); toque(tVolta, "#ch-cyron"); pg(tVolta + 0.05, "cyron");
+  const tAg = q("agenda", 0.24);
+  toque(tAg, "#bt-agenda");
+  troca(tAg + 0.15, "#bt-agenda", (e, d) => { e.className = d ? "bt feito" : "bt"; });
+  EV.janela = { abre: tAg + 0.2, fecha: q("agenda", 0.6), de: q("agenda", 0.36), ate: q("agenda", 0.5), texto: "1500", envia: q("agenda", 0.57) };
+  toque(EV.janela.envia, "#j-enviar");
+  // a sala nova aparece na lista, e a CYRON leva até ela
+  troca(ini("agenda2"), "#ch-agenda", (e, d) => { e.style.display = d ? "flex" : "none"; });
+  const tAgenda = q("agenda2", 0.3);
+  EV.gavetas.push({ abre: tAgenda - 0.7, toca: tAgenda, fecha: tAgenda + 0.25, alvo: "agenda" });
+  toque(tAgenda - 0.82, ".pag.atual .menu"); toque(tAgenda, "#ch-agenda"); pg(tAgenda + 0.05, "agenda");
   EV.paginas.sort((a, b) => a.t - b.t);
 }
 
@@ -199,13 +258,17 @@ function montar(tl, tx) {
   montarHistoria();
   const F = document.getElementById("fone");
   F.appendChild(h('<div id="veu"></div>'));
+  F.appendChild(h('<div id="veu3"></div>'));
+  F.appendChild(h(`<div id="janela"><div class="jt">📅 Reino · Kingdom</div><div class="jl">NÚMERO DO REINO · KINGDOM NUMBER</div>
+    <div class="ji"><span id="j-dig"></span><span class="cursor" style="display:inline-block;width:3px;height:42px;background:#dbdee1;margin-left:3px"></span></div>
+    <div class="jb"><span class="bt azul" id="j-enviar">${TX.enviar}</span></div></div>`));
   const ch = (nome, { id = "", novo = false, copia = false } = {}) =>
     `<div class="ch${copia ? " copia" : ""}" ${id ? `id="ch-${id}"` : ""} ${copia ? 'style="display:none"' : ""}><span class="h">#</span>${nome}${novo ? ` <span class="novo">${TX.novo}</span>` : ""}</div>`;
   const [cEnt, cAli, cAdm] = TX.cats;
   F.appendChild(h(`<div id="gaveta"><div class="srv"><span class="icone">👑</span>${TX.servidor}</div>
     <div class="cat">${cEnt}</div>${ch("🌐-idioma-language")}
-    <div class="cat">${cAli}</div>${ch("📢-anuncios")}${ch("🐻-urso", { id: "urso", novo: true })}${ch("📖-herois", { id: "herois", novo: true })}
-    ${TX.linguas.map(([cat, l]) => `<div class="cat">${cat}</div>${ch("💬-chat-" + l)}${ch("🐻-urso-" + l, { copia: true })}${ch("📖-herois-" + l, { copia: true })}`).join("")}
+    <div class="cat">${cAli}</div>${ch("📢-anuncios")}${ch("🐻-urso", { id: "urso", novo: true })}${ch("📖-herois", { id: "herois", novo: true })}${ch("📆-agenda", { id: "agenda", novo: true, copia: true }).replace(' class="ch copia"', ' class="ch"')}
+    ${TX.linguas.slice(0, 2).map(([cat, l]) => `<div class="cat">${cat}</div>${ch("💬-chat-" + l)}${ch("🐻-urso-" + l, { copia: true })}${ch("📖-herois-" + l, { copia: true })}`).join("")}
     <div class="cat">${cAdm}</div>${ch("⚙️-cyron", { id: "cyron" })}</div>`));
   P.appendChild(h(`<div id="intro" style="top:230px"><img src="img/cyron-corpo.webp" style="height:700px"><div class="t1">${TX.titulo}</div><div class="t2">${TX.sub}</div>
     <div class="medalhas"><img src="img/ks/ks_urso.gif"><img src="img/herois/amane.gif"><img src="img/ks/ks_rally.gif"></div></div>`));
@@ -239,6 +302,13 @@ function render(t) {
   gav.querySelectorAll(".ch").forEach((c) => { const id = c.id.slice(3);
     c.classList.toggle("atual", !!id && id === atual.id && !(gev && gev.toca !== null && t >= gev.toca));
     c.classList.toggle("alvo", !!(gev && gev.alvo && gev.alvo === id && gev.toca !== null && t >= gev.toca - 0.1)); });
+  if (EV.janela) {
+    const j = EV.janela, k = abertura(t, j.abre, j.fecha, 0.25), jan = document.getElementById("janela");
+    vis(jan, k, (1 - k) * 60, 0.96 + 0.04 * k);
+    document.getElementById("veu3").style.opacity = k * 0.6;
+    const n = Math.round(j.texto.length * clamp((t - j.de) / (j.ate - j.de)));
+    document.getElementById("j-dig").textContent = j.texto.slice(0, n);
+  }
   EV.trocas.forEach((x) => { const e = document.querySelector(x.sel); if (e) { const d = t >= x.t; if (e.dataset.d !== String(d)) { e.dataset.d = String(d); x.fn(e, d); } } });
   // o dedo
   const dedo = document.getElementById("dedo"); let op = 0;

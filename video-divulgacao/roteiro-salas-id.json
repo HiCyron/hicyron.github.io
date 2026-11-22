@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Ruang Kingshot",
-  "sub": "🐻 Beruang · 📖 Pahlawan",
+  "sub": "🐻 Beruang · 📖 Pahlawan · 📅 Kalender",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Buat ruangmu sekarang",
   "ctaL3": "Hanya di server yang dibuka oleh tim CYRON",
+  "btAgenda": "Buat kalender kerajaan",
+  "enviar": "Kirim",
+  "anotado": "📅 Kerajaan 1500 dicatat. Sekarang kirim tangkapan layar kalender game ke sini.",
+  "printTit": "Kalender",
+  "lido": "✅ Aku membaca 12 event dari kerajaan 1500. Kalendernya ada di <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Kerajaan 1500 · minggu ini",
+  "virada": "⏳ Hari game berganti dalam 5 jam",
+  "dias": [
+   "SEN",
+   "SEL",
+   "RAB",
+   "KAM",
+   "JUM",
+   "SAB",
+   "MIN"
+  ],
+  "hojeTit": "📅 Hari ini",
+  "comeca": "mulai",
+  "termina": "berakhir",
+  "emH": [
+   "dalam 2 jam",
+   "dalam 5 jam"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Pahlawan untuk Beruang**\nYang terbaik untuk Perangkap Beruang (Bear Trap), menurut nilai komunitas.\n\n{{ks_rally}} **Untuk memimpin rally (terbaik tiap generasi)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Untuk ikut rally**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= bisa didapat tanpa bayar*",
   "dicasUrso": "{{ks_pergaminho}} **Tips**\n{{ks_brilho}} Saat ikut rally orang lain, hanya skill ke-1 dari pahlawan ke-1 yang dihitung: taruh Amane, Chenko, atau Yeonwoo di depan (bisa didapat tanpa bayar). Dua pahlawan lainnya hanya menambah pasukan yang kamu bawa; skill mereka tidak dihitung.\n{{ks_brilho}} Pasukan: sebagian besar pemanah. Sekitar 60% di Gen 1, 70% di Gen 2, dan 80% atau lebih mulai Gen 3.\n{{ks_brilho}} Jangan pernah kirim sebagai joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin, dan Charles. Skill ke-1 mereka bukan skill serangan.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Kabar baik: server Kingshot kamu baru saja dapat dua ruang baru dari CYRON. Ruang Beruang dan ruang Pahlawan."
+   "fala": "Kabar baik: server Kingshot kamu baru saja dapat tiga hal baru dari CYRON: ruang Beruang, ruang Pahlawan, dan kalender kerajaan."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "Ada juga kalender kerajaan. Ketuk Buat kalender kerajaan, ketik nomor kerajaanmu, lalu kirim tangkapan layar kalender game ke sini.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON membaca tangkapan layar dan membuat kalendernya: gambar minggu ini dengan event kerajaan, dan pengumuman setiap hari, di setiap bahasa.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "Kedua ruang hanya bisa dibaca, jadi informasinya tidak pernah tenggelam di obrolan. Buat ruangmu sekarang, di ruang CYRON!"
+   "fala": "Ruang-ruang ini hanya bisa dibaca, jadi informasinya tidak pernah tenggelam di obrolan. Buat ruangmu sekarang, di ruang CYRON!"
   }
  ]
 }

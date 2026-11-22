@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Salas do Kingshot",
-  "sub": "🐻 Urso · 📖 Heróis",
+  "sub": "🐻 Urso · 📖 Heróis · 📅 Agenda",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Crie as suas agora",
   "ctaL3": "Só servidores liberados pelo dono da CYRON",
+  "btAgenda": "Criar agenda do reino",
+  "enviar": "Enviar",
+  "anotado": "📅 Reino 1500 anotado. Agora mande aqui os prints do calendário do jogo.",
+  "printTit": "Calendário",
+  "lido": "✅ Li 12 eventos do reino 1500. A agenda fica em <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Reino 1500 · esta semana",
+  "virada": "⏳ O dia do jogo vira em 5 h",
+  "dias": [
+   "SEG",
+   "TER",
+   "QUA",
+   "QUI",
+   "SEX",
+   "SÁB",
+   "DOM"
+  ],
+  "hojeTit": "📅 Hoje",
+  "comeca": "começa",
+  "termina": "termina",
+  "emH": [
+   "em 2 h",
+   "em 5 h"
+  ],
+  "evs": [
+   "O Governador mais Forte",
+   "Mobilização da Aliança",
+   "Duelo dos Governadores",
+   "Torneio de Pesca",
+   "Armadilha do Urso",
+   "Batalha do Castelo"
+  ],
   "fichaUrso": "{{ks_urso}} **Heróis para o Urso**\nOs melhores para a Armadilha do Urso (Bear Trap), pela nota da comunidade.\n\n{{ks_rally}} **Para liderar o rally (o melhor de cada geração)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Para entrar no rally**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= dá para ter sem gastar*",
   "dicasUrso": "{{ks_pergaminho}} **Dicas**\n{{ks_brilho}} Para entrar no rally de outra pessoa, só conta a 1ª habilidade do 1º herói: coloque Amane, Chenko ou Yeonwoo na frente (dá para ter sem gastar). Os outros dois heróis só aumentam a tropa que você leva; as habilidades deles não contam.\n{{ks_brilho}} Tropa: a maior parte arqueiros. Cerca de 60% na Gen 1, 70% na Gen 2 e 80% ou mais da Gen 3 em diante.\n{{ks_brilho}} Nunca mande como joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin e Charles. A 1ª habilidade deles não é de ataque.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Boa notícia: o seu servidor de Kingshot ganhou duas salas novas da CYRON. A sala do Urso e a sala dos Heróis."
+   "fala": "Boa notícia: o seu servidor de Kingshot ganhou três novidades da CYRON: a sala do Urso, a sala dos Heróis e a agenda do reino."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "E tem a agenda do reino. Toque em Criar agenda do reino, digite o número do reino e mande aqui o print do calendário do jogo.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "A CYRON lê o print e cria a agenda: a imagem da semana com os eventos do reino, e um aviso a cada dia, em cada língua.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "As duas salas são só de ler, então a informação nunca se perde na conversa. Crie as suas agora, na sala da CYRON!"
+   "fala": "As salas são só de ler, então a informação nunca se perde na conversa. Crie as suas agora, na sala da CYRON!"
   }
  ]
 }

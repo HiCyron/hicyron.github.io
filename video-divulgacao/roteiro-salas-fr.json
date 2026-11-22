@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Salons Kingshot",
-  "sub": "🐻 Ours · 📖 Héros",
+  "sub": "🐻 Ours · 📖 Héros · 📅 Calendrier",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Crée les tiens maintenant",
   "ctaL3": "Seulement sur les serveurs débloqués par l'équipe CYRON",
+  "btAgenda": "Créer le calendrier du royaume",
+  "enviar": "Envoyer",
+  "anotado": "📅 Royaume 1500 noté. Envoie maintenant ici les captures du calendrier du jeu.",
+  "printTit": "Calendrier",
+  "lido": "✅ J'ai lu 12 événements du royaume 1500. Le calendrier est dans <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Royaume 1500 · cette semaine",
+  "virada": "⏳ Le jour du jeu change dans 5 h",
+  "dias": [
+   "LUN",
+   "MAR",
+   "MER",
+   "JEU",
+   "VEN",
+   "SAM",
+   "DIM"
+  ],
+  "hojeTit": "📅 Aujourd'hui",
+  "comeca": "commence",
+  "termina": "se termine",
+  "emH": [
+   "dans 2 h",
+   "dans 5 h"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Héros pour l'Ours**\nLes meilleurs pour le Piège à Ours (Bear Trap), selon la note de la communauté.\n\n{{ks_rally}} **Pour mener le rallye (le meilleur de chaque génération)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Pour rejoindre le rallye**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= s'obtient sans payer*",
   "dicasUrso": "{{ks_pergaminho}} **Conseils**\n{{ks_brilho}} Pour rejoindre le rallye de quelqu'un d'autre, seule la 1re compétence du 1er héros compte : mets Amane, Chenko ou Yeonwoo devant (ils s'obtiennent sans payer). Les deux autres héros augmentent seulement les troupes que tu envoies ; leurs compétences ne comptent pas.\n{{ks_brilho}} Troupes : surtout des archers. Environ 60 % en Gen 1, 70 % en Gen 2 et 80 % ou plus à partir de la Gen 3.\n{{ks_brilho}} N'envoie jamais en joiner : Jabel, Helga, Long Fei, Gordon, Diana, Edwin et Charles. Leur 1re compétence n'est pas une compétence d'attaque.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Bonne nouvelle : ton serveur Kingshot vient de recevoir deux nouveaux salons de CYRON. Le salon de l'Ours et le salon des Héros."
+   "fala": "Bonne nouvelle : ton serveur Kingshot vient de recevoir trois nouveautés de CYRON : le salon de l'Ours, le salon des Héros et le calendrier du royaume."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "Et il y a le calendrier du royaume. Touche Créer le calendrier du royaume, tape le numéro de ton royaume et envoie ici une capture du calendrier du jeu.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON lit la capture et crée le calendrier : l'image de la semaine avec les événements du royaume, et un avis chaque jour, dans chaque langue.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "Les deux salons sont en lecture seule, donc l'information ne se perd jamais dans la discussion. Crée les tiens maintenant, dans le salon de CYRON !"
+   "fala": "Les salons sont en lecture seule, donc l'information ne se perd jamais dans la discussion. Crée les tiens maintenant, dans le salon de CYRON !"
   }
  ]
 }

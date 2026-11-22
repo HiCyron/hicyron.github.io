@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Каналы Kingshot",
-  "sub": "🐻 Медведь · 📖 Герои",
+  "sub": "🐻 Медведь · 📖 Герои · 📅 Календарь",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Создай свои сейчас",
   "ctaL3": "Только на серверах, открытых командой CYRON",
+  "btAgenda": "Создать календарь королевства",
+  "enviar": "Отправить",
+  "anotado": "📅 Королевство 1500 сохранено. Теперь пришли сюда скриншоты календаря из игры.",
+  "printTit": "Календарь",
+  "lido": "✅ Прочитала 12 событий королевства 1500. Календарь — в <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Королевство 1500 · эта неделя",
+  "virada": "⏳ Игровой день сменится через 5 ч",
+  "dias": [
+   "ПН",
+   "ВТ",
+   "СР",
+   "ЧТ",
+   "ПТ",
+   "СБ",
+   "ВС"
+  ],
+  "hojeTit": "📅 Сегодня",
+  "comeca": "начинается",
+  "termina": "заканчивается",
+  "emH": [
+   "через 2 ч",
+   "через 5 ч"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Герои для Медведя**\nЛучшие для Ловушки Медведя (Bear Trap) по оценке сообщества.\n\n{{ks_rally}} **Чтобы вести ралли (лучший в каждом поколении)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Чтобы присоединиться к ралли**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= можно получить бесплатно*",
   "dicasUrso": "{{ks_pergaminho}} **Советы**\n{{ks_brilho}} Когда присоединяешься к чужому ралли, считается только 1-й навык 1-го героя: ставь вперёд Amane, Chenko или Yeonwoo (их можно получить бесплатно). Остальные два героя только увеличивают войска, которые ты отправляешь; их навыки не считаются.\n{{ks_brilho}} Войска: в основном лучники. Около 60% на Gen 1, 70% на Gen 2 и 80% и больше начиная с Gen 3.\n{{ks_brilho}} Никогда не отправляй участником: Jabel, Helga, Long Fei, Gordon, Diana, Edwin и Charles. Их 1-й навык не атакующий.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Хорошие новости: на твоём сервере Kingshot появились два новых канала от CYRON. Канал Медведя и канал Героев."
+   "fala": "Хорошие новости: на твоём сервере Kingshot появились три новинки от CYRON: канал Медведя, канал Героев и календарь королевства."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "А ещё есть календарь королевства. Нажми Создать календарь королевства, введи номер королевства и пришли сюда скриншот календаря из игры.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON читает скриншот и создаёт календарь: картинку недели с событиями королевства и объявление каждый день, на каждом языке.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "Оба канала только для чтения, поэтому информация никогда не теряется в чате. Создай свои прямо сейчас, в канале CYRON!"
+   "fala": "Каналы только для чтения, поэтому информация никогда не теряется в чате. Создай свои прямо сейчас, в канале CYRON!"
   }
  ]
 }

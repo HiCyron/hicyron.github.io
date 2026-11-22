@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Salas de Kingshot",
-  "sub": "🐻 Oso · 📖 Héroes",
+  "sub": "🐻 Oso · 📖 Héroes · 📅 Agenda",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Crea las tuyas ahora",
   "ctaL3": "Solo en servidores liberados por el equipo de CYRON",
+  "btAgenda": "Crear agenda del reino",
+  "enviar": "Enviar",
+  "anotado": "📅 Reino 1500 anotado. Ahora manda aquí las capturas del calendario del juego.",
+  "printTit": "Calendario",
+  "lido": "✅ Leí 12 eventos del reino 1500. La agenda está en <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Reino 1500 · esta semana",
+  "virada": "⏳ El día del juego cambia en 5 h",
+  "dias": [
+   "LUN",
+   "MAR",
+   "MIÉ",
+   "JUE",
+   "VIE",
+   "SÁB",
+   "DOM"
+  ],
+  "hojeTit": "📅 Hoy",
+  "comeca": "empieza",
+  "termina": "termina",
+  "emH": [
+   "en 2 h",
+   "en 5 h"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Héroes para el Oso**\nLos mejores para la Trampa del Oso (Bear Trap), según la nota de la comunidad.\n\n{{ks_rally}} **Para liderar el rally (el mejor de cada generación)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **Para unirse al rally**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= se consigue sin gastar*",
   "dicasUrso": "{{ks_pergaminho}} **Consejos**\n{{ks_brilho}} Para unirte al rally de otra persona, solo cuenta la 1.ª habilidad del 1.er héroe: pon a Amane, Chenko o Yeonwoo al frente (se consiguen sin gastar). Los otros dos héroes solo aumentan las tropas que llevas; sus habilidades no cuentan.\n{{ks_brilho}} Tropas: la mayoría arqueros. Cerca del 60% en Gen 1, 70% en Gen 2 y 80% o más desde la Gen 3.\n{{ks_brilho}} Nunca envíes como joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin y Charles. Su 1.ª habilidad no es de ataque.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Buenas noticias: tu servidor de Kingshot acaba de recibir dos salas nuevas de CYRON. La sala del Oso y la sala de los Héroes."
+   "fala": "Buenas noticias: tu servidor de Kingshot acaba de recibir tres novedades de CYRON: la sala del Oso, la sala de los Héroes y la agenda del reino."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "Y también está la agenda del reino. Toca Crear agenda del reino, escribe el número de tu reino y manda aquí una captura del calendario del juego.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON lee la captura y crea la agenda: la imagen de la semana con los eventos del reino, y un aviso cada día, en cada idioma.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "Las dos salas son solo de lectura, así la información nunca se pierde en el chat. ¡Crea las tuyas ahora, en la sala de CYRON!"
+   "fala": "Las salas son solo de lectura, así la información nunca se pierde en el chat. ¡Crea las tuyas ahora, en la sala de CYRON!"
   }
  ]
 }

@@ -6,7 +6,7 @@
  "final": 2.2,
  "textos": {
   "titulo": "Kingshot Rooms",
-  "sub": "🐻 Bear · 📖 Heroes",
+  "sub": "🐻 Bear · 📖 Heroes · 📅 Calendar",
   "vantagens": [
    [
     "🎯",
@@ -78,6 +78,37 @@
   "ctaBotao": "⚙️-cyron → 🐻 📖",
   "ctaL2": "Create yours now",
   "ctaL3": "Only on servers unlocked by the CYRON team",
+  "btAgenda": "Create kingdom calendar",
+  "enviar": "Submit",
+  "anotado": "📅 Kingdom 1500 saved. Now send the game calendar screenshots here.",
+  "printTit": "Calendar",
+  "lido": "✅ Read 12 events from kingdom 1500. The calendar lives in <b>#📆-agenda</b>.",
+  "semanaTit": "📅 Kingdom 1500 · this week",
+  "virada": "⏳ The game day resets in 5 h",
+  "dias": [
+   "MON",
+   "TUE",
+   "WED",
+   "THU",
+   "FRI",
+   "SAT",
+   "SUN"
+  ],
+  "hojeTit": "📅 Today",
+  "comeca": "starts",
+  "termina": "ends",
+  "emH": [
+   "in 2 h",
+   "in 5 h"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
   "fichaUrso": "{{ks_urso}} **Heroes for the Bear**\nThe best for the Bear Trap, by community rating.\n\n{{ks_rally}} **To lead the rally (the best of each generation)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **To join the rally**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= free to get*",
   "dicasUrso": "{{ks_pergaminho}} **Tips**\n{{ks_brilho}} To join someone else's rally, only the 1st skill of the 1st hero counts: put Amane, Chenko or Yeonwoo in front (free to get). The other two heroes only raise the troops you bring; their skills don't count.\n{{ks_brilho}} Troops: mostly archers. About 60% at Gen 1, 70% at Gen 2 and 80% or more from Gen 3 on.\n{{ks_brilho}} Never send as joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin and Charles. Their 1st skill is not an attack skill.",
   "heroi1": {
@@ -96,7 +127,7 @@
  "cenas": [
   {
    "id": "intro",
-   "fala": "Good news: your Kingshot server just got two new rooms from CYRON. The Bear room and the Heroes room."
+   "fala": "Good news: your Kingshot server just got three new things from CYRON: the Bear room, the Heroes room and the kingdom calendar."
   },
   {
    "id": "vantagens",
@@ -134,8 +165,18 @@
    "pausa": 0.9
   },
   {
+   "id": "agenda",
+   "fala": "There's also the kingdom calendar. Tap Create kingdom calendar, type your kingdom number and send a screenshot of the game calendar here.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON reads the screenshot and builds the calendar: the week picture with your kingdom's events, and a notice every day, in every language.",
+   "pausa": 1
+  },
+  {
    "id": "cta",
-   "fala": "Both rooms are read only, so the information never gets lost in the chat. Create yours now, in the CYRON room!"
+   "fala": "These rooms are read only, so the information never gets lost in the chat. Create yours now, in the CYRON room!"
   }
  ]
 }

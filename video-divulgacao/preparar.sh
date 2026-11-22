@@ -10,6 +10,7 @@ cp ../cyron/img/cyron-corpo.webp ../cyron/img/cyron-og.jpg img/
 mkdir -p img/ks img/herois
 cp ../discord-bot-gateway/img/kingshot/*.gif img/ks/
 cp ../discord-bot-gateway/img/kingshot/herois/*.gif img/herois/
+mkdir -p img/eventos && cp ../discord-bot-gateway/img/eventos/*.png img/eventos/
 cd fontes
 for p in noto-sans noto-sans-sc noto-sans-thai; do
   [ -d "$p" ] && continue
