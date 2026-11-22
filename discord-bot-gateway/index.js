@@ -13561,6 +13561,14 @@ function cartaoDaOfertaDoJogo() {
   };
 }
 
+/* Pura. As mensagens minhas de oferta entre as da sala: o link do vídeo das
+   salas, ou o cartão com os botões de criar. */
+function ofertasNaSala(mensagens, eu) {
+  return [...(mensagens?.values?.() || [])].filter((m) => m?.author?.id === eu && (
+    String(m.content || "").startsWith(`${SITE_DO_CYRON}video/salas-kingshot-`) ||
+    (m.components || []).some((l) => (l.components || []).some((c) => String(c.customId || c.custom_id || "").startsWith("jogo:criar:")))));
+}
+
 /* O 🐻 da ficha: libera o servidor e manda a oferta para a ⚙️-cyron de lá.
    Devolve a frase para o dono. */
 async function oferecerSalasDoJogo(servidor) {
@@ -13572,6 +13580,12 @@ async function oferecerSalasDoJogo(servidor) {
   const motor = await motorDoGuild(guild.id).catch(() => MOTOR_AUTO);
   const carta = await cartaoNaLingua(cartaoDaOfertaDoJogo(), lingua, motor);
   await porAjuste(marcaDaOferta(servidor.id), new Date().toISOString());
+  /* Oferta de novo = a anterior sai (dono, 22/11: "vai apagar o anterior e mandar
+     o certo?"): mandar outra vez é corrigir, e duas ofertas na sala confundem. */
+  let apagadas = 0;
+  for (const m of ofertasNaSala(await canal.messages?.fetch?.({ limit: 50 }).catch(() => null), client.user?.id)) {
+    if (await m.delete().then(() => true).catch(() => false)) apagadas++;
+  }
   const video = await canal.send({ content: videoDasSalas(lingua), allowedMentions: { parse: [] } }).catch(() => null);
   const foi = await canal.send(carta).then(() => true).catch((e) => {
     console.error(`salas do jogo: não mandei a oferta em ${guild.name}:`, e?.message || e);
@@ -13580,7 +13594,8 @@ async function oferecerSalasDoJogo(servidor) {
   if (!foi) return `Não consegui escrever na ⚙️-cyron de **${guild.name}**.`;
   console.log(`salas do jogo: oferta em ${guild.name} (${lingua})`);
   return `🐻 Oferta enviada para a ⚙️-cyron de **${guild.name}**, em \`${lingua}\`` +
-    (video ? (VIDEOS_DAS_SALAS.has(lingua) ? ", com o vídeo nessa língua." : ", com o vídeo em inglês (ainda não há vídeo nessa língua).") : ", sem o vídeo (não consegui mandar).");
+    (video ? (VIDEOS_DAS_SALAS.has(lingua) ? ", com o vídeo nessa língua." : ", com o vídeo em inglês (ainda não há vídeo nessa língua).") : ", sem o vídeo (não consegui mandar).") +
+    (apagadas ? ` A oferta anterior saiu (${apagadas} mensagem${apagadas > 1 ? "s" : ""}).` : "");
 }
 
 const JANELA_DO_REINO = {
