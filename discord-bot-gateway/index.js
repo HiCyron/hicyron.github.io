@@ -2782,6 +2782,26 @@ function linhaDeReacoes(totais) {
   return (totais || []).map((t) => `${comoSeLe(t.chave)} ${t.quantos}`).join("  ·  ");
 }
 
+/* As reações agora moram no CORPO do cartão, e não mais no rodapé (dono,
+   22/11: "eu reagi com um emoji diferente e só apareceu o nome"). No rodapé o
+   Discord não desenha emoji do servidor; no corpo desenha. A linha vai por
+   último, em letra miúda (-#) como a assinatura, com a chave crua
+   (`<:beleza:123>`), e marcada com um caractere invisível para ser trocada
+   sem mexer no resto do cartão. */
+const MARCA_DAS_REACOES = "\u2063";
+function linhaDeReacoesNoCorpo(totais) {
+  return (totais || []).map((t) => `${String(t.chave || "")} ${t.quantos}`).join("  ·  ");
+}
+/* Pura. O corpo do cartão com a linha das reações no fim (a anterior sai;
+   sem reação, sai e não volta). Cabe nos 4096 do embed: se faltar espaço,
+   corta o corpo, nunca a linha. */
+function comReacoes(descricao, linha) {
+  const base = String(descricao || "").split(`\n-# ${MARCA_DAS_REACOES}`)[0];
+  if (!linha) return base;
+  const fim = `\n-# ${MARCA_DAS_REACOES}${linha}`;
+  return base.slice(0, 4096 - fim.length) + fim;
+}
+
 /* O que uma mensagem contribui para a soma.
 
    Duas coisas ficam de fora, por motivos diferentes:
@@ -2830,7 +2850,7 @@ async function atravessarReacoes(familia) {
   if (!vivas.length) return;
 
   const totais = somarReacoes(vivas.map(reacoesDaMensagem));
-  const linha = linhaDeReacoes(totais);
+  const linha = linhaDeReacoesNoCorpo(totais);
 
   /* As copias levam a soma no rodape. O rodape estava livre: a assinatura mora
      no corpo, porque la' o Discord desenha link e no rodape nao. */
@@ -2847,9 +2867,11 @@ async function atravessarReacoes(familia) {
       /* Sem edicao quando nada mudou: o Discord marca a mensagem como editada,
          e um cartao que diz "editado" sem ter mudado uma letra faz quem le
          desconfiar do que esta lendo. */
-      if ((embed.footer?.text || "") === linha) { guardarPe(m.id, linha); continue; }
+      const antes = embed.description || "", depois = comReacoes(antes, linha);
+      /* O rodapé velho (de antes das reações irem para o corpo) sai junto. */
+      if (depois === antes && !embed.footer?.text) { guardarPe(m.id, linha); continue; }
       const deu = await clienteDoWebhook(url).editMessage(m.id, {
-        embeds: [{ ...embed.toJSON(), footer: linha ? { text: linha } : undefined }],
+        embeds: [{ ...embed.toJSON(), description: depois, footer: undefined }],
       }).catch((e) => {
         console.error("reacoes: nao consegui pintar o rodape:", e?.message || e);
         return null;
@@ -4630,7 +4652,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
            apagava a figurinha do cartao em todas as salas. */
         const figura = figuraQueFica(montar(juntas, cabecalhoQueFica), velho.figura);
         await webhook.editMessage(velho.id, {
-          embeds: [{ ...figura.embed, ...(pe ? { footer: { text: pe } } : {}) }],
+          embeds: [{ ...figura.embed, description: comReacoes(figura.embed.description, pe) }],
         });
         /* Na sala 🌍: cartao que nasceu curto ("ok") ficou sem topico; se a
            emenda o tornou legivel de verdade, o topico nasce agora. */

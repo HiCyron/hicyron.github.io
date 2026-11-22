@@ -1122,7 +1122,7 @@ function conferirCartao(onde, embed, componentes = []) {
   const { espelharMensagem, ultimaFalaDaSala } = carregar([
     "JANELA_DE_GRUPO", "LIMITE_DO_CARTAO", "MAX_SALAS_LEMBRADAS", "TEXTO_MAXIMO",
     "LINGUAS_MENU", "bandeiraDoIdioma", "seloDeOrigem", "NOME_MIUDO", "creditoDaCyron", "MOTIVOS_QUE_DOEM", "anotarSemTraducao",
-    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe",
+    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe", "MARCA_DAS_REACOES", "comReacoes",
     "falasNoCartao", "MAX_CARTOES_LEMBRADOS", "guardarFalas",
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
@@ -7057,7 +7057,7 @@ function conferirCartao(onde, embed, componentes = []) {
 {
   const { somarReacoes, linhaDeReacoes, reacoesDaMensagem, guardarPe,
           MAX_REACOES_NO_PE, MAX_PES_LEMBRADOS, peDoCartao } =
-    carregar(["MAX_REACOES_NO_PE", "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe",
+    carregar(["MAX_REACOES_NO_PE", "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe", "MARCA_DAS_REACOES", "comReacoes",
               "somarReacoes", "comoSeLe", "linhaDeReacoes", "IDIOMA_DO_PAIS",
               "paisDaBandeira", "idiomaDaBandeira", "reacoesDaMensagem"]);
 
@@ -7126,6 +7126,21 @@ function conferirCartao(onde, embed, componentes = []) {
   /* Texto que só PARECE emoji de servidor continua inteiro: cortar aqui seria
      inventar um nome que ninguém escreveu. */
   ok("meia sintaxe não é emoji", linhaDeReacoes([{ chave: "<:pepe>", quantos: 1 }]), "<:pepe> 1");
+  {
+    /* as reações no CORPO do cartão (dono, 22/11: "reagi com um emoji diferente e só apareceu o nome") */
+    const R = carregar(["MARCA_DAS_REACOES", "linhaDeReacoesNoCorpo", "comReacoes"]);
+    ok("no corpo vai a chave crua: o Discord desenha o emoji do servidor", R.linhaDeReacoesNoCorpo([{ chave: "🥹", quantos: 2 }, { chave: "<:beleza:123>", quantos: 1 }]), "🥹 2  ·  <:beleza:123> 1");
+    const corpo = "Ainda estou trabalhando\n-# [Tee](https://discord.com/users/1) · 🇬🇧 → 🇧🇷";
+    const com = R.comReacoes(corpo, "🥹 2  ·  <:beleza:123> 1");
+    verdade("a linha vai por último, miúda, depois da assinatura", com.startsWith(corpo + "\n-# ") && com.endsWith("🥹 2  ·  <:beleza:123> 1"));
+    ok("trocar a linha não empilha (a anterior sai)", R.comReacoes(com, "👍 3"), corpo + "\n-# " + R.MARCA_DAS_REACOES + "👍 3");
+    ok("sem reação: a linha sai e o corpo volta como era", R.comReacoes(com, ""), corpo);
+    ok("cabe nos 4096: corta o corpo, nunca a linha", [R.comReacoes("x".repeat(5000), "👍 1").length <= 4096, R.comReacoes("x".repeat(5000), "👍 1").endsWith("👍 1")].join(), "true,true");
+    const at = semComentarios(pedaco("atravessarReacoes"));
+    verdade("as cópias recebem a soma no corpo (e o rodapé velho sai)", /const linha = linhaDeReacoesNoCorpo\(totais\)/.test(at) &&
+      /description: depois, footer: undefined/.test(at) && /depois === antes && !embed\.footer\?\.text/.test(at));
+    verdade("a emenda devolve a linha das reações ao corpo", /description: comReacoes\(figura\.embed\.description, pe\)/.test(fonte));
+  }
   verdade("nenhum sinal de código sobra na linha",
     !/[<>]/.test(linhaDeReacoes([{ chave: "<:pepe:1>", quantos: 1 }, { chave: "👍", quantos: 2 }])));
 
@@ -7222,12 +7237,12 @@ function conferirCartao(onde, embed, componentes = []) {
      editado sem ter mudado uma letra faz quem lê desconfiar do que está
      lendo. */
   verdade("não edito quando a linha é a mesma",
-    /embed\.footer\?\.text \|\| ""\) === linha/.test(soma));
+    /depois === antes && !embed\.footer\?\.text/.test(soma));
 
-  /* A soma vai no RODAPÉ, e não na descrição: a descrição é onde mora a
-     assinatura clicável, porque o Discord não desenha link no rodapé. Trocar
-     os dois de lugar mataria a assinatura. */
-  verdade("a soma mora no rodapé", /footer: linha \? \{ text: linha \}/.test(soma));
+  /* A soma mora no FIM do corpo, depois da assinatura (que continua no
+     corpo, clicável): no rodapé o Discord não desenha emoji do servidor (dono,
+     22/11: "reagi com um emoji diferente e só apareceu o nome"). */
+  verdade("a soma mora no fim do corpo, e o rodapé velho sai", /description: depois, footer: undefined/.test(soma));
 
   /* Bot não edita mensagem de gente, e não existe API para reagir no lugar de
      outra pessoa. Na original, o único sinal possível é o próprio bot reagir
@@ -7246,8 +7261,8 @@ function conferirCartao(onde, embed, componentes = []) {
   const espelho = pedaco("espelharMensagem");
   verdade("a emenda devolve o rodapé das reações",
     /const pe = peDoCartao\.get\(velho\.id\);/.test(espelho));
-  verdade("e o põe de volta no embed emendado",
-    /\.\.\.\(pe \? \{ footer: \{ text: pe \} \} : \{\}\)/.test(espelho));
+  verdade("e o põe de volta no corpo do embed emendado",
+    /description: comReacoes\(figura\.embed\.description, pe\)/.test(espelho));
 }
 
 /* ====== apagar e corrigir atravessam as salas ======
@@ -7646,7 +7661,7 @@ function conferirCartao(onde, embed, componentes = []) {
   const { espelharMensagem, ultimaFalaDaSala } = carregar([
     "JANELA_DE_GRUPO", "LIMITE_DO_CARTAO", "MAX_SALAS_LEMBRADAS", "TEXTO_MAXIMO",
     "LINGUAS_MENU", "bandeiraDoIdioma", "seloDeOrigem", "NOME_MIUDO", "creditoDaCyron", "MOTIVOS_QUE_DOEM", "anotarSemTraducao",
-    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe",
+    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe", "MARCA_DAS_REACOES", "comReacoes",
     "falasNoCartao", "MAX_CARTOES_LEMBRADOS", "guardarFalas",
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
@@ -14957,7 +14972,7 @@ function conferirCartao(onde, embed, componentes = []) {
   const { espelharMensagem, ultimaFalaDaSala } = carregar([
     "JANELA_DE_GRUPO", "LIMITE_DO_CARTAO", "MAX_SALAS_LEMBRADAS", "TEXTO_MAXIMO",
     "LINGUAS_MENU", "bandeiraDoIdioma", "seloDeOrigem", "NOME_MIUDO", "creditoDaCyron", "MOTIVOS_QUE_DOEM", "anotarSemTraducao",
-    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe",
+    "peDoCartao", "MAX_PES_LEMBRADOS", "guardarPe", "MARCA_DAS_REACOES", "comReacoes",
     "falasNoCartao", "MAX_CARTOES_LEMBRADOS", "guardarFalas",
     "figurinhaDe", "textoDaEnquete", "midiaDeLink",
     "VIDEO_QUE_TOCA_AQUI", "videoQueODiscordToca",
