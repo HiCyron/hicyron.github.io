@@ -16672,6 +16672,39 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("a oferta na língua do dono, com o vídeo acima e a liberação marcada",
       /linguaDaSalaCyron\(guild\)/.test(ofer) && /cartaoNaLingua\(cartaoDaOfertaDoJogo\(\), lingua, motor\)/.test(ofer) &&
       /porAjuste\(marcaDaOferta\(servidor\.id\)/.test(ofer) && ofer.indexOf("videoDasSalas(lingua)") < ofer.indexOf("canal.send(carta)"));
+    {
+      /* oferta de novo: a anterior sai (dono, 22/11: "vai apagar o anterior e mandar o certo?") */
+      const O = carregar(["SITE_DO_CYRON", "ofertasNaSala"]);
+      const sala = new Map([
+        ["1", { author: { id: "eu" }, content: "https://hicyron.github.io/video/salas-kingshot-pt.mp4" }],
+        ["2", { author: { id: "eu" }, content: "", components: [{ components: [{ customId: "jogo:criar:urso" }] }] }],
+        ["3", { author: { id: "eu" }, content: "", components: [{ components: [{ customId: "cyron:aba" }] }] }],
+        ["4", { author: { id: "outro" }, content: "https://hicyron.github.io/video/salas-kingshot-pt.mp4" }]]);
+      ok("só as minhas mensagens da oferta (o vídeo e o cartão)", O.ofertasNaSala(sala, "eu").map((m) => m.content ? "video" : "cartao"), ["video", "cartao"]);
+      ok("sala vazia ou sem leitura: nada", [O.ofertasNaSala(null, "eu").length, O.ofertasNaSala(new Map(), "eu").length], [0, 0]);
+      const of = semComentarios(pedaco("oferecerSalasDoJogo"));
+      verdade("a anterior sai antes da nova entrar", of.indexOf("ofertasNaSala(") > 0 && of.indexOf("ofertasNaSala(") < of.indexOf("canal.send({ content: videoDasSalas(lingua)"));
+    }
+    {
+      /* a oferta refeita pelo banco (dono, 22/11: "usa a CYRON para apagar e reenviar") */
+      const refeitas = [], avisos = [];
+      const guardados = Object.fromEntries(["ajustes", "SUBIDA_DOS_EMOJIS", "sb", "porAjuste", "oferecerSalasDoJogo", "avisarNoPainel", "CANAL_NOVOS"]
+        .map((k) => [k, globalThis[k]]));
+      Object.assign(globalThis, {
+        ajustes: async () => ({ "oferta_jogo:s-met": "refazer", "oferta_jogo:s-top": "2026-11-22T20:00:00Z", "jogo_ks:s-met": "urso" }),
+        SUBIDA_DOS_EMOJIS: { pronta: true }, sb: async (q) => [{ id: q.match(/id=eq\.([^&]+)/)[1] }], porAjuste: async () => {},
+        oferecerSalasDoJogo: async (s) => { refeitas.push(s.id); return `oferta de ${s.id}`; }, avisarNoPainel: async (c, t) => { avisos.push(t); },
+        CANAL_NOVOS: "📥-novos",
+      });
+      try {
+        const { refazerOfertasPedidas } = carregar(["refazerOfertasPedidas"]);
+        ok("só a marcada \"refazer\" é refeita", [await refazerOfertasPedidas(), refeitas], [1, ["s-met"]]);
+        ok("e o dono fica sabendo no 📥-novos", avisos, ["🔁 oferta de s-met"]);
+      } finally {
+        Object.assign(globalThis, guardados);
+      }
+      verdade("ao subir e de 10 em 10 minutos", /setTimeout\(refazerOfertas, 4 \* 60 \* 1000\);\s*setInterval\(refazerOfertas, 10 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+    }
     verdade("os botões da oferta chegam ao clique", /customId\.startsWith\("jogo:criar:"\)\) \{\s*return await cliqueDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)));
     verdade("o 🐻 da ficha manda a oferta", /if \(acao === "jogo"\) return inter\.editReply\(await oferecerSalasDoJogo\(servidor\)\)/.test(semComentarios(fonte)));
     const criar = semComentarios(pedaco("criarSalasDoJogo"));
