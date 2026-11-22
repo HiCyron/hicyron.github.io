@@ -2524,9 +2524,13 @@ function emendaNaFalaAnterior(anterior, { autor, agora, respondeAlguem, marcados
    dava um cartao com metade em ingles e metade em arabe, sem nada dizendo o
    que aconteceu -- foi assim que o defeito do teto apareceu. Trecho que ficou
    no original comeca cartao proprio. */
-function emendaNestaSala(velho, ultimoDaSala, juntas, traduzidoAgora = null) {
+function emendaNestaSala(velho, ultimoDaSala, juntas, traduzidoAgora = null, figuraNova = {}) {
   if (!velho || !velho.id || velho.semEmenda) return false;
   if (traduzidoAgora !== null && velho.traduzido !== traduzidoAgora) return false;
+  /* Um cartão mostra UMA imagem e UMA figurinha (dono, 22/11: "mando 2 [GIFs]
+     mas só vai 1?"). Fala nova que traz figura para um lugar que o cartão de
+     cima já ocupa abre cartão próprio: emendar engoliria uma das duas. */
+  if ((figuraNova.image && velho.figura?.image) || (figuraNova.thumbnail && velho.figura?.thumbnail)) return false;
   return ultimoDaSala === velho.id && juntas.length <= LIMITE_DO_CARTAO;
 }
 
@@ -4585,7 +4589,8 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
        cartao por sala, e se so' ela abrisse cartao novo, apagar a primeira
        frase de uma rajada deixaria o cartao dela de pe ali. O topico dela le o
        cartao AO VIVO, entao a frase emendada tambem fica legivel nele. */
-    const emendavel = emendaNestaSala(velho, salaDestino?.lastMessageId, juntas, traduziuAqui);
+    const emendavel = emendaNestaSala(velho, salaDestino?.lastMessageId, juntas, traduziuAqui,
+      { image: !!((midiaLink && !video) || emojisEmbaixo), thumbnail: !!figurinha?.url });
 
     /* A assinatura fica no PE do card, miuda.
 
