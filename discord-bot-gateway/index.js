@@ -24579,8 +24579,33 @@ async function linguaDaSalaCyron(guild) {
   const local = String(guild?.preferredLocale || "");
   if (local && local !== "en-US") return idiomaDoAplicativo(local) || "en";
   const servidor = guild?.id ? await servidorDoGuild(guild.id).catch(() => null) : null;
+  /* O cargo de língua que o dono pegou no próprio servidor (dono, 22/11: a
+     oferta das salas foi em português para a MET, que tem sete línguas e só
+     uma delas é o português -- a regra de baixo acertava o servidor
+     brasileiro e errava o de muitas línguas). */
+  const doCargo = servidor && guild?.ownerId ? await idiomaPeloCargoDoDono(guild, servidor.id).catch(() => "") : "";
+  if (doCargo) return doCargo;
   const salas = servidor ? await canaisEspelho(servidor.id).catch(() => []) : [];
   return (salas || []).some((s) => s.idioma === "pt") ? "pt" : "en";
+}
+
+/* A língua do cargo que o dono do servidor tem, entre os cargos das salas de
+   língua (ou ""). Uma hora de memória: a sala ⚙️-cyron pergunta a língua a
+   cada cartão, e buscar o dono no Discord a cada vez seria uma chamada à toa.
+   Banco fora: não guarda (pergunta de novo na próxima). */
+const linguaDoCargoDoDono = new Map(); // guild -> { idioma, t }
+async function idiomaPeloCargoDoDono(guild, servidorId) {
+  const ja = linguaDoCargoDoDono.get(guild.id);
+  if (ja && Date.now() - ja.t < 60 * 60 * 1000) return ja.idioma;
+  const salas = await sb(`discord_chat_espelho?servidor_id=eq.${servidorId}&role_id=not.is.null&select=idioma,role_id`).catch(() => null);
+  if (salas === null) return "";
+  let idioma = "";
+  if (salas.length) {
+    const dono = await guild.members?.fetch?.(String(guild.ownerId)).catch(() => null);
+    idioma = salas.find((x) => dono?.roles?.cache?.has?.(String(x.role_id)))?.idioma || "";
+  }
+  linguaDoCargoDoDono.set(guild.id, { idioma, t: Date.now() });
+  return idioma;
 }
 
 /* Um texto meu na lingua pedida, com mencao, canal e emoji protegidos. */
