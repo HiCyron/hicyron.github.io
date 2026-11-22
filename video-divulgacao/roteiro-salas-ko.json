@@ -1,0 +1,182 @@
+{
+ "cena": "cena-salas.html",
+ "voz": "ko-KR-SunHiNeural",
+ "taxa": "+12%",
+ "tom": "+0Hz",
+ "final": 2.2,
+ "textos": {
+  "titulo": "킹샷 채널",
+  "sub": "🐻 곰 · 📖 영웅 · 📅 일정",
+  "vantagens": [
+   [
+    "🎯",
+    "같은 전략",
+    "모두가 맞는 영웅을 보내요"
+   ],
+   [
+    "🌍",
+    "내 언어로",
+    "채널마다 번역본이 와요"
+   ],
+   [
+    "🔄",
+    "항상 최신",
+    "매일 새로운 영웅"
+   ],
+   [
+    "🧹",
+    "일이 0",
+    "리더가 다시 설명할 필요 없음"
+   ]
+  ],
+  "celular": "📱 관리자 휴대폰",
+  "hoje": "오늘",
+  "horas": [
+   "오후 7:30",
+   "오후 7:31",
+   "오후 7:32"
+  ],
+  "conversar": "메시지 보내기: #",
+  "soVoce": "👁 나만 볼 수 있어요",
+  "semPermissao": "🔒 읽기 전용 채널: CYRON이 쓰고 모두가 읽어요.",
+  "ofertaTit": "🎮 이 서버에 킹샷 채널이 열렸어요",
+  "ofertaVant": [
+   "✅ 모두가 같은 전략으로",
+   "🌍 각자의 언어로",
+   "🔄 항상 최신",
+   "🧹 리더의 일이 0"
+  ],
+  "btUrso": "곰 채널 만들기",
+  "btHerois": "영웅 채널 만들기",
+  "prontoUrso": "✅ 완료: <b>#🐻-urso</b>. 1분 안에 가이드가 올라와요.",
+  "prontoHerois": "✅ 완료: <b>#📖-herois</b>. 1분 안에 오늘의 영웅이 와요.",
+  "servidor": "[ABC] Kingshot",
+  "cats": [
+   "입장",
+   "연맹",
+   "관리"
+  ],
+  "novo": "NEW",
+  "linguas": [
+   [
+    "한국어",
+    "ko"
+   ],
+   [
+    "ENGLISH",
+    "en"
+   ],
+   [
+    "ESPAÑOL",
+    "es"
+   ]
+  ],
+  "doDia": "📖 오늘의 영웅",
+  "comoUsar": "화살표를 눌러 넘겨 보세요. 연 페이지는 나만 볼 수 있어요.",
+  "listaLend": "🔎 전설 · Gen 1–7",
+  "listaOutros": "🔎 에픽 · 레어",
+  "ctaBotao": "⚙️-cyron → 🐻 📖",
+  "ctaL2": "지금 만들어 보세요",
+  "ctaL3": "CYRON 팀이 열어 준 서버에서만",
+  "btAgenda": "왕국 일정 만들기",
+  "enviar": "제출",
+  "anotado": "📅 왕국 1500 저장됨. 이제 게임 달력 스크린샷을 여기에 보내세요.",
+  "printTit": "달력",
+  "lido": "✅ 왕국 1500의 이벤트 12개를 읽었어요. 일정은 <b>#📆-agenda</b>에 있어요.",
+  "semanaTit": "📅 왕국 1500 · 이번 주",
+  "virada": "⏳ 게임 날짜가 5시간 후 바뀌어요",
+  "dias": [
+   "월",
+   "화",
+   "수",
+   "목",
+   "금",
+   "토",
+   "일"
+  ],
+  "hojeTit": "📅 오늘",
+  "comeca": "시작",
+  "termina": "종료",
+  "emH": [
+   "2시간 후",
+   "5시간 후"
+  ],
+  "evs": [
+   "Strongest Governor",
+   "Alliance Mobilization",
+   "Governor's Duel",
+   "Fishing Tournament",
+   "Bear Trap",
+   "Castle Battle"
+  ],
+  "fichaUrso": "{{ks_urso}} **곰 사냥 영웅**\n커뮤니티 평가 기준, 곰 함정(Bear Trap)에 가장 좋은 영웅.\n\n{{ks_rally}} **랠리 리더용 (세대별 최고)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **랠리 참여용**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= 무과금으로 얻을 수 있음*",
+  "dicasUrso": "{{ks_pergaminho}} **팁**\n{{ks_brilho}} 다른 사람의 랠리에 참여할 때는 첫 번째 영웅의 첫 번째 스킬만 적용돼요. Amane, Chenko, Yeonwoo를 앞에 두세요(무과금으로 얻을 수 있어요). 나머지 두 영웅은 보내는 병력만 늘려 주고, 스킬은 적용되지 않아요.\n{{ks_brilho}} 병력: 대부분 궁병. Gen 1은 약 60%, Gen 2는 70%, Gen 3부터는 80% 이상.\n{{ks_brilho}} 참여자로 절대 보내지 마세요: Jabel, Helga, Long Fei, Gordon, Diana, Edwin, Charles. 첫 번째 스킬이 공격 스킬이 아니에요.",
+  "heroi1": {
+   "linhas": "{{ks_brilho}} **Amane**\n{{ks_tropa_arqueiro}} 궁병\n{{ks_fogo_epico}} **에픽**\n{{ks_galho}}{{ks_urso}} {{ks_nota_splus}} 곰 (참여)\n{{ks_galho}}{{ks_rally}} {{ks_nota_d}} 랠리\n{{ks_galho_fim}}{{ks_guarnicao}} {{ks_nota_d}} 수비\n> {{ks_bau}} *무과금으로 얻을 수 있음*",
+   "retrato": "img/herois/amane.gif",
+   "cor": "#a855f7"
+  },
+  "heroi2": {
+   "linhas": "{{ks_brilho}} **Chenko**\n{{ks_tropa_cavalaria}} 기병\n{{ks_fogo_epico}} **에픽**\n{{ks_galho}}{{ks_urso}} {{ks_nota_splus}} 곰 (참여)\n{{ks_galho}}{{ks_rally}} {{ks_nota_c}} 랠리\n{{ks_galho_fim}}{{ks_guarnicao}} {{ks_nota_c}} 수비\n> {{ks_bau}} *무과금으로 얻을 수 있음*",
+   "retrato": "img/herois/chenko.gif",
+   "cor": "#a855f7"
+  },
+  "pagina1": "📖 1 / 34",
+  "pagina2": "📖 2 / 34"
+ },
+ "cenas": [
+  {
+   "id": "intro",
+   "fala": "좋은 소식이에요. 여러분의 킹샷 서버에 CYRON의 새 기능 세 가지가 생겼어요. 곰 채널, 영웅 채널, 그리고 왕국 일정이에요."
+  },
+  {
+   "id": "vantagens",
+   "fala": "이 채널들 덕분에 모두가 같은 전략으로 플레이해요. 각자 자기 언어로 읽어요. 모든 게 저절로 업데이트돼요. 그리고 리더가 같은 설명을 반복할 필요가 없어요.",
+   "pausa": 0.6
+  },
+  {
+   "id": "oferta",
+   "fala": "만드는 건 쉬워요. CYRON 채널을 열면, 채널마다 버튼이 하나씩 있는 제안이 있어요.",
+   "pausa": 0.5
+  },
+  {
+   "id": "urso",
+   "fala": "곰 채널 만들기를 누르세요. 끝! 채널이 바로 만들어져요.",
+   "pausa": 0.7
+  },
+  {
+   "id": "herois",
+   "fala": "그다음 영웅 채널 만들기를 누르세요. 하나는 지금, 하나는 나중에 만들어도 돼요.",
+   "pausa": 0.7
+  },
+  {
+   "id": "lista",
+   "fala": "채널 목록에 두 채널이 바로 보여요. 그리고 서버의 언어마다 번역된 복사본이 저절로 생겨요.",
+   "pausa": 0.6
+  },
+  {
+   "id": "ficha",
+   "fala": "곰 채널에는 가이드가 있어요. 랠리를 이끌 영웅과 참여할 영웅, 병력, 그리고 팁까지요.",
+   "pausa": 1.2
+  },
+  {
+   "id": "livro",
+   "fala": "영웅 채널에는 매일 새로운 영웅이 올라와요. 랠리, 수비, 곰 점수와 함께요. 화살표를 누르면, 누른 사람에게만 영웅 도감 전체가 열려요.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda",
+   "fala": "왕국 일정도 있어요. 왕국 일정 만들기를 누르고, 왕국 번호를 입력한 다음, 게임 달력 스크린샷을 여기에 보내세요.",
+   "pausa": 0.9
+  },
+  {
+   "id": "agenda2",
+   "fala": "CYRON이 스크린샷을 읽고 일정을 만들어요. 왕국 이벤트가 담긴 이번 주 이미지와 매일의 알림을, 언어마다요.",
+   "pausa": 1
+  },
+  {
+   "id": "cta",
+   "fala": "모든 채널이 읽기 전용이라, 정보가 대화 속에 묻히지 않아요. 지금 CYRON 채널에서 만들어 보세요!"
+  }
+ ]
+}

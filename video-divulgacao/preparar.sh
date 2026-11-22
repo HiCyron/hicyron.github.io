@@ -6,6 +6,11 @@ cd "$(dirname "$0")"
 mkdir -p img fontes
 for f in cyron aceno gg kkk amei mundo traduz_ai uau; do cp ../discord-bot-gateway/img/figurinhas/$f.png img/; done
 cp ../cyron/img/cyron-corpo.webp ../cyron/img/cyron-og.jpg img/
+# as salas do Kingshot: os emojis ks_* e os retratos dos heróis
+mkdir -p img/ks img/herois
+cp ../discord-bot-gateway/img/kingshot/*.gif img/ks/
+cp ../discord-bot-gateway/img/kingshot/herois/*.gif img/herois/
+mkdir -p img/eventos && cp ../discord-bot-gateway/img/eventos/*.png img/eventos/
 cd fontes
 for p in noto-sans noto-sans-sc noto-sans-thai; do
   [ -d "$p" ] && continue

@@ -5020,8 +5020,16 @@ function nomeDaFaixa(faixa) {
    Os numeros: 40 mil/dia no pago sao 1,2 milhao no mes, e cabem dois clientes
    grandes na bolsa. 8 mil no gratis e' o bastante pra um servidor pequeno
    conversar o dia inteiro, e pouco pra alguem morar de graca na minha conta. */
+/* No beta, 100 mil por dia por servidor (dono, 22/11: "tá cheio de erro no
+   canal de erro"). A MET Altecaia, com 7 línguas, gastou os 40 mil do dia em
+   uma hora e caiu nos gratuitos, que a esse volume devolvem 429 e 500. A
+   chave do dono é a F0 da Azure (2 milhões por mês, sem custo): o mês ia em
+   288 mil no dia 22, então há folga. O aviso de cota (85% e 95%) continua de
+   guarda, e o teto de cada plano volta a valer quando o beta acabar. */
+const COTA_DO_DONO_NO_BETA = 100000;
 function cotaDoDonoNoDia(servidor) {
-  return PLANOS[faixaDe(servidor)]?.cotaDoDono ?? PLANOS.gratis.cotaDoDono;
+  const doPlano = PLANOS[faixaDe(servidor)]?.cotaDoDono ?? PLANOS.gratis.cotaDoDono;
+  return BETA || venceEm(BETA_ATE) ? Math.max(doPlano, COTA_DO_DONO_NO_BETA) : doPlano;
 }
 
 /* O plano que VALE agora, que nem sempre e' o que esta gravado.
@@ -10690,7 +10698,7 @@ function chavesQueComecamAssim(nome) {
   return new Set(EVENTOS_DO_JOGO.filter((e) => semAcento(e.nome).startsWith(p)).map((e) => e.chave));
 }
 
-async function calendarioDaMensagem(msg, guildId = msg?.guildId || null) {
+async function calendarioDaMensagem(msg, guildId = msg?.guildId || null, { reino: reinoDado = "" } = {}) {
   const imagens = imagensDaMensagem(msg);
   if (!imagens.length) return { erro: "sem-print" };
   const sharp = await carregarSharp();
@@ -10734,7 +10742,7 @@ async function calendarioDaMensagem(msg, guildId = msg?.guildId || null) {
         let aprendidos = r.aprendidos;
         /* O site do reino (mightpulse): o nome do que o jogo cortou, a hora e
            o que vem depois do print. Sem o site, a sequência pelo ciclo. */
-        const reino = await reinoDoCalendario(guildId);
+        const reino = reinoDado || await reinoDoCalendario(guildId);
         const doSite = reino ? await calendarioDoSite(reino) : null;
         if (doSite?.eventos?.length) {
           const j = juntarComOSite(r.eventos, doSite.eventos, {
@@ -10779,6 +10787,8 @@ async function calendarioDaMensagem(msg, guildId = msg?.guildId || null) {
       emojisNovos ? `${emojisNovos} emoji(s) novo(s) com o ícone do evento` : "", site]
       .filter(Boolean).join(" · ")} · ${imagens.length} print(s) · confira com o jogo antes de usar`.slice(0, 2000),
     eventos: eventos.length, prints: imagens.length, falhas: falhas.length,
+    /* Os eventos em si: a agenda pedida pelo print guarda estes. */
+    lista: eventos, agora,
   };
 }
 
@@ -13408,6 +13418,271 @@ async function padronizarNomes() {
   return feito;
 }
 
+/* ---- 🐻 📖 as salas do jogo em OUTROS servidores (dono, 22/11) ----
+
+   "Oferecer no canal para o adm apenas dos que eu dizer", com "um vídeo
+   ensinando a criar", "as ferramentas para isso, no idioma do adm dono" e
+   "mostra as vantagens". O dono aperta 🐻 na ficha do servidor (/admin); a
+   oferta vai para a ⚙️-cyron de lá, na língua do dono de lá: o vídeo, as
+   vantagens e um botão por sala. Só servidor que o dono liberou aceita o
+   clique -- a oferta encaminhada ou copiada em outro lugar não cria nada. */
+function marcaDaOferta(sid) { return `oferta_jogo:${sid}`; }
+function marcaDoJogo(sid) { return `jogo_ks:${sid}`; }
+const SALAS_DO_JOGO_PADRAO = { urso: { nome: "🐻-urso", tipo: "urso" }, herois: { nome: "📖-herois", tipo: "herois" },
+  /* A agenda do reino (dono, 22/11: "com a foto já podemos criar e o site ajuda"): nasce
+     depois do print, não no clique -- ver calendarioDoPedido. */
+  agenda: { nome: "📆-agenda", tipo: TIPO_AGENDA } };
+const VERSAO_DA_FICHA_DO_URSO = "7";
+/* As línguas que têm o vídeo gravado (cyron/video/salas-kingshot-<língua>.mp4).
+   Fora delas, o vídeo em inglês -- e o texto da oferta na língua do dono. */
+const VIDEOS_DAS_SALAS = new Set(["pt", "en"]);
+
+function videoDasSalas(idioma) {
+  return `${SITE_DO_CYRON}video/salas-kingshot-${VIDEOS_DAS_SALAS.has(idioma) ? idioma : "en"}.mp4`;
+}
+
+/* Pura. As salas que o servidor ligou ("herois,urso" -> Set), só as que existem. */
+function salasLigadas(valor) {
+  return new Set(String(valor || "").split(",").map((x) => x.trim()).filter((x) => x in SALAS_DO_JOGO_PADRAO));
+}
+
+/* Pura. Os alvos dos servidores que ligaram as salas. TOP e 2311 ficam de fora:
+   eles têm os alvos deles, escritos à mão. `servidores`: [{ guildId, nome, sid }]. */
+function alvosDoJogo(servidores, a, fixos = []) {
+  const fora = { salas: [], urso: [], livro: [], agenda: [] };
+  for (const s of servidores || []) {
+    const ligadas = salasLigadas(a?.[marcaDoJogo(s.sid)]);
+    if (!ligadas.size || fixos.some((f) => f.guild?.test?.(String(s.nome || "")))) continue;
+    const conjunto = [...ligadas].sort();
+    fora.salas.push({ guildId: s.guildId, marca: `salas_jogo:${s.sid}:${conjunto.join("+")}`,
+      salas: conjunto.map((k) => SALAS_DO_JOGO_PADRAO[k]), semAgenda: true });
+    if (ligadas.has("urso")) fora.urso.push({ guildId: s.guildId, canal: /^urso(-|$)/,
+      marca: `urso_no_canal:${s.sid}:${VERSAO_DA_FICHA_DO_URSO}`, cobrir: true });
+    if (ligadas.has("herois")) fora.livro.push({ guildId: s.guildId, canal: /^herois(-|$)/,
+      marca: `livro_no_canal:${s.sid}`, cobrir: true });
+    const lida = agendaGuardada(a?.[marcaDaAgendaLida(s.sid)]);
+    if (ligadas.has("agenda") && lida?.reino) fora.agenda.push({ guildId: s.guildId, reino: lida.reino, marca: `agenda_jogo:${s.sid}`, sid: s.sid });
+  }
+  return fora;
+}
+
+/* O que o print do calendário deu, guardado por servidor: o reino e os eventos
+   lidos (com o que o site completou). É a reserva da agenda: com o site do
+   reino no ar, a agenda usa o site; sem ele, usa o que foi lido. */
+function marcaDaAgendaLida(sid) { return `agenda_ks:${sid}`; }
+
+/* Pura. A agenda guardada, ou null. */
+function agendaGuardada(valor) {
+  try {
+    const v = JSON.parse(String(valor || ""));
+    if (!v || !/^\d{1,5}$/.test(String(v.reino || ""))) return null;
+    return { reino: String(v.reino), lidoEm: Number(v.lidoEm) || 0,
+      eventos: (Array.isArray(v.eventos) ? v.eventos : []).filter((e) => e && e.nome && Number(e.inicio) && Number(e.fim)) };
+  } catch { return null; }
+}
+
+/* Pura. Os eventos lidos que ainda valem para a agenda (os que não acabaram),
+   ou null quando não sobrou nenhum -- aí é hora de um print novo. */
+function eventosDoPrint(valor, agora = Date.now()) {
+  const g = agendaGuardada(valor);
+  const vivos = (g?.eventos || []).filter((e) => Number(e.fim) > agora)
+    .map((e) => ({ nome: e.nome, ...(e.site ? { site: e.site } : {}), inicio: Number(e.inicio), fim: Number(e.fim) }));
+  return vivos.length ? vivos : null;
+}
+
+/* Os alvos de agora. Sem servidor ligado (o caso de quase sempre), nem olha
+   a lista de servidores. */
+async function alvosLigados(a) {
+  const sids = new Set(Object.keys(a || {}).filter((k) => k.startsWith("jogo_ks:") && salasLigadas(a[k]).size)
+    .map((k) => k.slice("jogo_ks:".length)));
+  if (!sids.size) return { salas: [], urso: [], livro: [], agenda: [] };
+  const lista = [];
+  for (const g of client.guilds.cache.values()) {
+    const s = await servidorDoGuild(g.id).catch(() => null);
+    if (s && sids.has(String(s.id))) lista.push({ guildId: g.id, nome: g.name, sid: s.id });
+  }
+  return alvosDoJogo(lista, a, [...SALAS_DO_JOGO, ...URSO_NO_CANAL, ...LIVRO_NO_CANAL, ...AGENDA_DO_JOGO]);
+}
+
+/* O servidor de um alvo: pelo id (os ligados) ou pelo nome (TOP e 2311). */
+function guildDoAlvo(alvo) {
+  return alvo.guildId ? client.guilds.cache.get(String(alvo.guildId)) : client.guilds.cache.find((g) => alvo.guild.test(g.name));
+}
+
+/* Pura. Os canais onde a ficha do Urso já está (o 4º campo da marca, só nos ligados). */
+function canaisDaFicha(valor) {
+  return new Set((String(valor || "").split("|")[3] || "").split(",").filter(Boolean));
+}
+
+/* A oferta: as vantagens primeiro (é o que faz o ADM querer), depois o que
+   cada sala tem, e um botão por sala. O vídeo vai numa mensagem própria,
+   logo acima: o link sozinho faz o Discord desenhar o player. */
+function cartaoDaOfertaDoJogo() {
+  return {
+    embeds: [{
+      color: 0xC9A227,
+      title: "🎮 Salas do Kingshot liberadas para este servidor",
+      description: [
+        "O vídeo acima mostra tudo em um minuto. As vantagens:",
+        "",
+        "✅ **Todo mundo na mesma estratégia**: o Urso rende mais quando todos mandam os heróis certos.",
+        "🌍 **Na língua de cada um**: cada sala de idioma recebe a sua cópia traduzida, sozinha.",
+        "🔄 **Sempre em dia**: um herói novo todo dia, e a ficha é atualizada quando o jogo muda.",
+        "🧹 **Zero trabalho para a liderança**: ninguém precisa copiar guia, explicar de novo ou traduzir.",
+        "🔒 **Sala só de ler**: a informação não se perde no meio da conversa.",
+        "",
+        "🐻 **Sala do Urso**: os heróis certos, a tropa e as dicas para quem lidera e para quem entra.",
+        "📖 **Sala dos Heróis**: um herói por dia, com as notas de Rally, Guarnição e Urso. As setas abrem o livro inteiro, só para quem tocou.",
+        "📅 **Agenda do reino**: a imagem da semana com os eventos do reino e um aviso por dia. Você digita o número do reino e manda o print do calendário do jogo.",
+        "",
+        "Toque no botão da sala que você quer. Dá para criar uma agora e as outras depois.",
+      ].join("\n"),
+    }],
+    components: [{ type: 1, components: [
+      { type: 2, custom_id: "jogo:criar:urso", style: 3, emoji: { name: "🐻" }, label: "Criar sala do Urso" },
+      { type: 2, custom_id: "jogo:criar:herois", style: 3, emoji: { name: "📖" }, label: "Criar sala dos Heróis" },
+      { type: 2, custom_id: "jogo:criar:agenda", style: 3, emoji: { name: "📅" }, label: "Criar agenda do reino" },
+    ] }],
+    allowedMentions: { parse: [] },
+  };
+}
+
+/* O 🐻 da ficha: libera o servidor e manda a oferta para a ⚙️-cyron de lá.
+   Devolve a frase para o dono. */
+async function oferecerSalasDoJogo(servidor) {
+  const guild = client.guilds.cache.get(String(servidor.guild_id));
+  if (!guild) return "Não estou nesse servidor agora.";
+  const canal = servidor.canal_config && await guild.channels.fetch(String(servidor.canal_config)).catch(() => null);
+  if (typeof canal?.send !== "function") return "Esse servidor não tem a sala ⚙️-cyron (ou eu não consigo ver ela).";
+  const lingua = await linguaDaSalaCyron(guild).catch(() => "en");
+  const motor = await motorDoGuild(guild.id).catch(() => MOTOR_AUTO);
+  const carta = await cartaoNaLingua(cartaoDaOfertaDoJogo(), lingua, motor);
+  await porAjuste(marcaDaOferta(servidor.id), new Date().toISOString());
+  const video = await canal.send({ content: videoDasSalas(lingua), allowedMentions: { parse: [] } }).catch(() => null);
+  const foi = await canal.send(carta).then(() => true).catch((e) => {
+    console.error(`salas do jogo: não mandei a oferta em ${guild.name}:`, e?.message || e);
+    return false;
+  });
+  if (!foi) return `Não consegui escrever na ⚙️-cyron de **${guild.name}**.`;
+  console.log(`salas do jogo: oferta em ${guild.name} (${lingua})`);
+  return `🐻 Oferta enviada para a ⚙️-cyron de **${guild.name}**, em \`${lingua}\`` +
+    (video ? (VIDEOS_DAS_SALAS.has(lingua) ? ", com o vídeo nessa língua." : ", com o vídeo em inglês (ainda não há vídeo nessa língua).") : ", sem o vídeo (não consegui mandar).");
+}
+
+const JANELA_DO_REINO = {
+  custom_id: "jogo:reino", title: "📅 Reino · Kingdom",
+  components: [{ type: 1, components: [{ type: 4, custom_id: "reino", style: 1, required: true, min_length: 1, max_length: 6,
+    label: "Número do reino · Kingdom number", placeholder: "2311" }] }],
+};
+const PEDIDO_DO_CALENDARIO_VALE = 30 * 60 * 1000;
+const pedidosDeCalendario = new Map(); // "guild:pessoa" -> { reino, canal, expira }
+
+/* Pura. Só os dígitos do reino (até 5), ou "". */
+function reinoDigitado(texto) {
+  const d = String(texto || "").replace(/\D/g, "");
+  return d.length >= 1 && d.length <= 5 ? d : "";
+}
+
+/* A janela do reino: anota o pedido e pede o print, nesta mesma sala. */
+async function reinoDasSalasDoJogo(inter) {
+  const lingua = inter.guild ? await linguaDaSalaCyron(inter.guild).catch(() => "en") : "en";
+  const fala = async (t) => textoNaLingua(t, lingua).catch(() => t);
+  if (!inter.guildId || !podeAdministrar(inter)) return inter.reply({ flags: 64, content: await fala("Só quem pode Gerenciar o Servidor cria a agenda.") });
+  const reino = reinoDigitado(inter.fields?.getTextInputValue?.("reino"));
+  if (!reino) return inter.reply({ flags: 64, content: await fala("Digite só o número do reino, por exemplo 2311.") });
+  await inter.deferReply({ flags: 64 });
+  const servidor = await servidorDoGuild(inter.guildId).catch(() => null);
+  const a = await ajustes();
+  if (!servidor || a.falhou || !a[marcaDaOferta(servidor.id)]) {
+    return inter.editReply(await fala("As salas do Kingshot ainda não foram liberadas para este servidor."));
+  }
+  pedidosDeCalendario.set(`${inter.guildId}:${inter.user.id}`, { reino, canal: inter.channelId, expira: Date.now() + PEDIDO_DO_CALENDARIO_VALE });
+  const doSite = await calendarioDoSite(reino).catch(() => null);
+  return inter.editReply(await fala(`📅 Reino ${reino} anotado. Agora mande aqui, nesta sala, os prints do calendário do jogo (Eventos → Calendário). ` +
+    "Pode mandar 2 ou 3 de uma vez, rolando a tela." +
+    (doSite?.eventos?.length ? `\nO site do reino ${reino} também tem os eventos: eu uso os dois.` : "")));
+}
+
+/* O print chegou na sala de quem pediu: lê, guarda, cria a agenda e avisa o
+   dono da CYRON (ele confere no jogo, se quiser). Devolve true quando a
+   mensagem era o print do pedido. */
+async function calendarioDoPedido(msg) {
+  const chave = `${msg.guild?.id}:${msg.author?.id}`;
+  const p = pedidosDeCalendario.get(chave);
+  if (!p) return false;
+  if (p.expira < Date.now()) { pedidosDeCalendario.delete(chave); return false; }
+  if (msg.channelId !== p.canal || !imagensDaMensagem(msg).length) return false;
+  const lingua = await linguaDaSalaCyron(msg.guild).catch(() => "en");
+  const fala = async (t) => textoNaLingua(t, lingua).catch(() => t);
+  await msg.react("⏳").catch(() => {});
+  const r = await calendarioDaMensagem(msg, msg.guild.id, { reino: p.reino }).catch((e) => ({ erro: String(e?.message || e) }));
+  await msg.reactions?.cache?.get("⏳")?.users?.remove(client.user.id).catch(() => {});
+  const lista = (r?.lista || []).filter((e) => e?.nome && e.inicio && e.fim);
+  if (!lista.length) {
+    await msg.reply({ content: await fala("Não consegui ler esse print. Mande o print da tela do calendário do jogo inteira, sem cortar, e eu tento de novo."),
+      allowedMentions: { repliedUser: false } }).catch(() => {});
+    return true;
+  }
+  pedidosDeCalendario.delete(chave);
+  const servidor = await servidorDoGuild(msg.guild.id).catch(() => null);
+  if (!servidor) return true;
+  await porAjuste(marcaDaAgendaLida(servidor.id), JSON.stringify({ reino: p.reino, lidoEm: Date.now(),
+    eventos: lista.map((e) => ({ nome: e.nome, ...(e.site ? { site: e.site } : {}), inicio: e.inicio, fim: e.fim })) }));
+  const a = await ajustes();
+  const ligadas = salasLigadas(a[marcaDoJogo(servidor.id)]);
+  ligadas.add("agenda");
+  const conjunto = [...ligadas].sort();
+  await porAjuste(marcaDoJogo(servidor.id), conjunto.join(","));
+  await porAjuste(`salas_jogo:${servidor.id}:${conjunto.join("+")}`, null);
+  await criarSalasDoJogo().catch((e) => console.log("salas do jogo: a agenda falhou:", e?.message || e));
+  cacheFontes.delete(servidor.id);
+  const canalId = [...(await fontesReplica(servidor.id))].find(([, t]) => t === TIPO_AGENDA)?.[0];
+  /* A semana entra na próxima volta da agenda (de 5 em 5 minutos); esta é para não esperar. */
+  setTimeout(() => agendaDoJogoNosCanais().catch((e) => console.log("agenda do jogo: a primeira falhou:", e?.message || e)), 60 * 1000);
+  await msg.reply({ content: await fala(canalId
+    ? `✅ Li ${lista.length} eventos do reino ${p.reino}. A agenda fica em <#${canalId}>: a imagem da semana e o aviso de cada dia chegam em alguns minutos, em cada língua.`
+    : `✅ Li ${lista.length} eventos do reino ${p.reino}, mas não consegui criar a sala da agenda. Confira se a CYRON pode Gerenciar Canais e mande o print de novo.`),
+    allowedMentions: { repliedUser: false } }).catch(() => {});
+  /* O dono confere (dono, 22/11: "qualquer coisa eu entro no reino e vejo"). */
+  avisarNoPainel(CANAL_NOVOS, `📅 **${msg.guild.name}** mandou o calendário do reino **${p.reino}** · ${lista.length} eventos\n` +
+    `${String(r.corpo || "").slice(0, 1500)}\n-# ${String(r.rodape || "").slice(0, 300)}`).catch(() => {});
+  console.log(`agenda do jogo: ${msg.guild.name} mandou o calendário do reino ${p.reino} (${lista.length} eventos)`);
+  return true;
+}
+
+/* O botão da oferta, lá no servidor. Cria a sala pedida (a outra, se já estava
+   ligada, continua), e a ficha ou o livro chegam em seguida. Apertar de novo
+   não duplica: a sala com o mesmo nome é adotada. */
+async function cliqueDasSalasDoJogo(inter) {
+  const tipo = String(inter.customId || "").split(":")[2];
+  const lingua = inter.guild ? await linguaDaSalaCyron(inter.guild).catch(() => "en") : "en";
+  const fala = async (t) => textoNaLingua(t, lingua).catch(() => t);
+  const dizer = async (t) => inter.reply({ flags: 64, content: await fala(t) });
+  if (!(tipo in SALAS_DO_JOGO_PADRAO) || !inter.guildId) return dizer("Esse botão não vale aqui.");
+  if (!podeAdministrar(inter)) return dizer("Só quem pode Gerenciar o Servidor cria as salas.");
+  const servidor = await servidorDoGuild(inter.guildId).catch(() => null);
+  const a = await ajustes();
+  if (!servidor || a.falhou) return dizer("Não consegui ler o meu cadastro agora. Tente de novo em um minuto.");
+  if (!a[marcaDaOferta(servidor.id)]) return dizer("As salas do Kingshot ainda não foram liberadas para este servidor.");
+  /* A agenda precisa do reino e do print: a janela pede o número (rótulos nas
+     duas línguas, sem esperar tradução -- a janela tem 3 segundos para abrir). */
+  if (tipo === "agenda") return inter.showModal(janelaValida(JANELA_DO_REINO));
+  await inter.deferReply({ flags: 64 });
+  const ligadas = salasLigadas(a[marcaDoJogo(servidor.id)]);
+  ligadas.add(tipo);
+  const conjunto = [...ligadas].sort();
+  await porAjuste(marcaDoJogo(servidor.id), conjunto.join(","));
+  /* A marca da criação sai: apertar de novo confere de novo (sala apagada volta). */
+  await porAjuste(`salas_jogo:${servidor.id}:${conjunto.join("+")}`, null);
+  await criarSalasDoJogo().catch((e) => console.log("salas do jogo: falhou:", e?.message || e));
+  cacheFontes.delete(servidor.id);
+  const canalId = [...(await fontesReplica(servidor.id))].find(([, t]) => t === SALAS_DO_JOGO_PADRAO[tipo].tipo)?.[0];
+  if (!canalId) return inter.editReply(await fala("Não consegui criar a sala. Confira se a CYRON pode Gerenciar Canais e aperte de novo."));
+  setTimeout(() => (tipo === "urso" ? ursoNosCanais() : livroNosCanais())
+    .catch((e) => console.log("salas do jogo: a primeira postagem falhou:", e?.message || e)), 60 * 1000);
+  return inter.editReply(await fala(`✅ Pronto: <#${canalId}>. Em um minuto o conteúdo aparece lá, e as cópias de cada língua chegam logo depois.`));
+}
+
 /* ---- as salas do Urso e dos heróis no Kingdom #2311 (dono, 21/11) ----
 
    Na [TOP] elas já existem (hunting-trap e game-central). No Kingdom #2311
@@ -13423,24 +13698,29 @@ async function criarSalasDoJogo() {
   const a = await ajustes();
   if (a.falhou) return "sem-banco";
   let feito = 0;
-  for (const alvo of SALAS_DO_JOGO) {
+  for (const alvo of [...SALAS_DO_JOGO, ...(await alvosLigados(a)).salas]) {
     if (a[alvo.marca]) continue;
-    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+    const guild = guildDoAlvo(alvo);
     const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
     const fontes = await fontesReplica(servidor.id);
-    const agendaId = [...fontes].find(([, t]) => t === TIPO_AGENDA)?.[0];
-    const agenda = agendaId && (guild.channels.cache.get(agendaId) || await client.channels.fetch(agendaId).catch(() => null));
-    if (!agenda) { console.log(`salas do jogo: não achei a agenda em ${guild.name}`); continue; }
+    /* A sala de referência (lugar e portas): a agenda. Nos servidores ligados
+       pelo dono, que podem não ter agenda, os anúncios ou a primeira origem;
+       sem nenhuma, a sala nasce sozinha, só de ler para todos. */
+    const lista = [...fontes];
+    const refId = (lista.find(([, t]) => t === TIPO_AGENDA) ||
+      (alvo.semAgenda ? lista.find(([, t]) => t === "evento") || lista[0] : null))?.[0];
+    const agenda = refId && (guild.channels.cache.get(refId) || await client.channels.fetch(refId).catch(() => null));
+    if (!agenda && !alvo.semAgenda) { console.log(`salas do jogo: não achei a agenda em ${guild.name}`); continue; }
     await porAjuste(alvo.marca, `${new Date().toISOString()}|começou`);
-    let posicao = agenda.position;
+    let posicao = agenda ? agenda.position : null;
     const feitas = [];
     for (const def of alvo.salas) {
       if ([...fontes.values()].includes(def.tipo)) { feitas.push(`${def.nome}:já era`); continue; }
       let canal = guild.channels.cache.find((c) => c.type === ChannelType.GuildText && mesmoNome(c.name, def.nome));
       if (!canal) {
         /* As portas da agenda (quem vê o quê), e ninguém escreve além da CYRON. */
-        const portas = [...agenda.permissionOverwrites.cache.values()].map((o) => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
+        const portas = agenda ? [...agenda.permissionOverwrites.cache.values()].map((o) => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield })) : [];
         const todos = portas.find((o) => o.id === guild.roles.everyone.id);
         const calar = PermissionFlagsBits.SendMessages | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads |
           PermissionFlagsBits.SendMessagesInThreads;
@@ -13448,11 +13728,11 @@ async function criarSalasDoJogo() {
         else portas.push({ id: guild.roles.everyone.id, type: 0, allow: 0n, deny: calar });
         portas.push({ id: client.user.id, type: 1, allow: PermissionFlagsBits.ViewChannel | PermissionFlagsBits.SendMessages |
           PermissionFlagsBits.EmbedLinks | PermissionFlagsBits.AttachFiles | PermissionFlagsBits.ManageMessages, deny: 0n });
-        canal = await guild.channels.create({ name: temEstiloDoRanking(guild.name) ? nomeNoEstilo(def.nome) : def.nome, type: ChannelType.GuildText, parent: agenda.parentId || undefined,
+        canal = await guild.channels.create({ name: temEstiloDoRanking(guild.name) ? nomeNoEstilo(def.nome) : def.nome, type: ChannelType.GuildText, parent: agenda?.parentId || undefined,
           permissionOverwrites: portas, reason: "CYRON: sala do jogo (o dono pediu)" })
           .catch((e) => { console.error(`salas do jogo: não criei #${def.nome}:`, e?.message || e); return null; });
         if (!canal) continue;
-        await canal.setPosition(++posicao).catch(() => {});
+        if (posicao !== null) await canal.setPosition(++posicao).catch(() => {});
       }
       await sbPost("discord_fonte_replica", { servidor_id: servidor.id, canal_id: canal.id, tipo: def.tipo, gera_replica: true })
         .catch((e) => { if (!/\b23505\b/.test(String(e?.message || ""))) console.error(`salas do jogo: não liguei #${def.nome}:`, e?.message || e); });
@@ -13475,22 +13755,28 @@ async function ursoNosCanais() {
   const a = await ajustes();
   if (a.falhou) return "sem-banco";
   let feito = 0;
-  for (const alvo of URSO_NO_CANAL) {
-    if (a[alvo.marca]) continue;
-    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+  for (const alvo of [...URSO_NO_CANAL, ...(await alvosLigados(a)).urso]) {
+    /* Os ligados pelo dono não param na primeira vez: sala de língua nova
+       ganha a ficha na volta seguinte (a marca guarda onde ela já está). */
+    if (a[alvo.marca] && !alvo.cobrir) continue;
+    const guild = guildDoAlvo(alvo);
     const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
-    const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
+    const todas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
       await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), alvo.canal);
-    if (!salas.length) {
+    if (!todas.length) {
       console.log(`urso: não achei a sala do Urso em ${guild.name}`);
       continue;
     }
+    const jaTem = alvo.cobrir ? canaisDaFicha(a[alvo.marca]) : new Set();
+    const salas = todas.filter((x) => !jaTem.has(String(x.canal)));
+    if (!salas.length) continue;
     if (alvo.esperaCopias && !(await copiasProntas(guild, servidor, salas))) {
       console.log(`urso: as cópias da sala do Urso em ${guild.name} ainda estão nascendo; tento depois`);
       continue;
     }
-    await porAjuste(alvo.marca, `${new Date().toISOString()}|0/${salas.length}`);
+    const ondeEsta = () => (alvo.cobrir ? `|${todas.map((x) => x.idioma).join(",")}|${[...jaTem].join(",")}` : "");
+    await porAjuste(alvo.marca, `${new Date().toISOString()}|0/${salas.length}${ondeEsta()}`);
     let aqui = 0;
     for (const sala of salas) {
       const canal = guild.channels.cache.get(sala.canal) || await client.channels.fetch(sala.canal).catch(() => null);
@@ -13502,10 +13788,12 @@ async function ursoNosCanais() {
         : canal.send({ ...carta, allowedMentions: { parse: [] } }))
         .then(() => true)
         .catch((e) => { console.error(`urso: não postei em #${canal.name}:`, e?.message || e); return false; });
-      if (foi) aqui++;
+      if (foi) { aqui++; jaTem.add(String(sala.canal)); }
     }
     feito += aqui;
-    await porAjuste(alvo.marca, `${new Date().toISOString()}|${aqui}/${salas.length}|${salas.map((x) => x.idioma).join(",")}`);
+    await porAjuste(alvo.marca, alvo.cobrir
+      ? `${new Date().toISOString()}|${aqui}/${salas.length}${ondeEsta()}`
+      : `${new Date().toISOString()}|${aqui}/${salas.length}|${salas.map((x) => x.idioma).join(",")}`);
     console.log(`urso: ficha postada em ${aqui} de ${salas.length} salas de ${guild.name}`);
   }
   return feito ? "postado" : "nada";
@@ -13584,9 +13872,10 @@ async function livroNosCanais(agora = Date.now()) {
   const dia = diaDoLivro(agora);
   const pagina = paginaDoDia(dia);
   let feito = 0;
-  for (const alvo of LIVRO_NO_CANAL) {
-    if (String(a[alvo.marca] || "").startsWith(`${dia}~${VERSAO_DO_LIVRO}|`)) continue;
-    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+  for (const alvo of [...LIVRO_NO_CANAL, ...(await alvosLigados(a)).livro]) {
+    const deHoje = String(a[alvo.marca] || "").startsWith(`${dia}~${VERSAO_DO_LIVRO}|`);
+    if (deHoje && !alvo.cobrir) continue;
+    const guild = guildDoAlvo(alvo);
     const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
     const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
@@ -13594,6 +13883,12 @@ async function livroNosCanais(agora = Date.now()) {
     if (!salas.length) {
       console.log(`livro: não achei a sala dos heróis em ${guild.name}`);
       continue;
+    }
+    /* Nos ligados pelo dono, a página de hoje já está em todas as salas? Sala
+       de língua nova refaz a página do dia (a de cada sala sai pelo id). */
+    if (deHoje) {
+      const postadas = new Set(idsDaMarcaDoLivro(a[alvo.marca]).map(([c]) => String(c)));
+      if (salas.every((x) => postadas.has(String(x.canal)))) continue;
     }
     if (alvo.esperaCopias && !(await copiasProntas(guild, servidor, salas))) {
       console.log(`livro: as cópias da sala dos heróis em ${guild.name} ainda estão nascendo; tento depois`);
@@ -14030,11 +14325,12 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
   const a = await ajustes();
   if (a.falhou) return "sem-banco";
   let feito = 0;
-  for (const alvo of AGENDA_DO_JOGO) {
-    const guild = client.guilds.cache.find((g) => alvo.guild.test(g.name));
+  for (const alvo of [...AGENDA_DO_JOGO, ...(await alvosLigados(a)).agenda]) {
+    const guild = guildDoAlvo(alvo);
     const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
-    const eventos = await eventosDaAgenda(alvo.reino);
+    /* O site do reino primeiro; sem ele, nos servidores que mandaram o print, o que foi lido. */
+    const eventos = (await eventosDaAgenda(alvo.reino)) || (alvo.sid ? eventosDoPrint(a[marcaDaAgendaLida(alvo.sid)], agora) : null);
     if (!eventos) { console.log(`agenda do jogo: o site do reino ${alvo.reino} não respondeu; tento depois`); continue; }
     const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
       await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), SALA_DA_AGENDA);
@@ -22625,6 +22921,8 @@ function botoesDaFicha(servidor) {
       label: servidor.nivel === "pro" ? "Passar p/ Aliança" : "Passar p/ Pro" },
   ] }, { type: 1, components: [
     { type: 2, custom_id: `cli:painel:${servidor.id}`, style: 2, emoji: { name: "📊" }, label: "Ver o painel deles" },
+    /* As salas do Kingshot só onde o dono quer (22/11): a oferta vai para a ⚙️-cyron de lá. */
+    { type: 2, custom_id: `cli:jogo:${servidor.id}`, style: 1, emoji: { name: "🐻" }, label: "Oferecer Urso e Heróis" },
   ] }];
 }
 
@@ -22669,6 +22967,7 @@ async function cliqueDaFicha(inter) {
   const guild = client.guilds.cache.get(String(servidor.guild_id));
 
   if (acao === "painel") return inter.editReply(await painelDeOutroServidor(servidor, "uso"));
+  if (acao === "jogo") return inter.editReply(await oferecerSalasDoJogo(servidor));
 
   if (acao === "mais30") {
     const base = venceEm(servidor.pago_ate) || Date.now();
@@ -26878,6 +27177,10 @@ client.on("interactionCreate", async (inter) => {
     }
     /* 📋 do código de presente: só o código, só para quem tocou -- no
        celular, segurar a mensagem e "copiar texto" pega ele limpo. */
+    /* 🐻 📖 os botões da oferta das salas do Kingshot (só onde o dono liberou). */
+    if (inter.isButton() && inter.customId.startsWith("jogo:criar:")) {
+      return await cliqueDasSalasDoJogo(inter);
+    }
     if (inter.isButton() && inter.customId.startsWith("codigo:copiar:")) {
       return await inter.reply({ flags: 64, content: codigoDoBotao(inter.customId) || "—" });
     }
@@ -26895,6 +27198,7 @@ client.on("interactionCreate", async (inter) => {
       return await cliqueOuvirAudio(inter);
     }
     if (inter.isModalSubmit()) {
+      if (inter.customId === "jogo:reino") return await reinoDasSalasDoJogo(inter);
       if (inter.customId === "cyron:motor") return await salvarMotor(inter);
       if (inter.customId === "cyron:palavras") return await salvarPalavras(inter);
       if (inter.customId === "cyron:codigo") return await resgatarCodigo(inter);
@@ -26987,6 +27291,10 @@ client.on("messageCreate", async (msg) => {
       return;
     }
     if (!msg.author?.bot && !msg.webhookId && !msg.system) anotarConversa(msg.guild.id);
+
+    /* O print do calendário que a agenda do reino pediu (ver calendarioDoPedido). */
+    if (pedidosDeCalendario.size && !msg.author?.bot && !msg.webhookId && await calendarioDoPedido(msg).catch((e) => {
+      console.error("agenda do jogo: não li o print:", e?.message || e); return false; })) return;
 
     /* O canal do painel que segue os anúncios oficiais do Kingshot (ver
        codigoDoAnuncio). Só ali; nada mais acontece com essas mensagens. */

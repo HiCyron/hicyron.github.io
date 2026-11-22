@@ -2153,7 +2153,7 @@ function conferirCartao(onde, embed, componentes = []) {
    Estourar o teto não corta a tradução: corta o acesso à chave do dono. */
 {
   const { cotaDoDonoNoDia, jaGastouHoje, somarGasto, estourouACota, gastoDoDia } =
-    carregar(["PLANOS", "faixaDe", "gastoDoDia", "cotaDoDonoNoDia", "jaGastouHoje", "somarGasto", "estourouACota"]);
+    carregar(["PLANOS", "faixaDe", "gastoDoDia", "COTA_DO_DONO_NO_BETA", "cotaDoDonoNoDia", "jaGastouHoje", "somarGasto", "estourouACota"]);
 
   globalThis.planoDe = (s) => s.plano;
   globalThis.BETA = false; globalThis.BETA_ATE = "";
@@ -2167,6 +2167,11 @@ function conferirCartao(onde, embed, componentes = []) {
   /* Plano desconhecido cai no menor, não no maior: errar para o lado que
      protege a bolsa. */
   ok("plano estranho cai no mais apertado", cotaDoDonoNoDia({ plano: "sei lá" }), 8000);
+  /* No beta, 100 mil por servidor (a MET gastou os 40 mil em uma hora, 22/11). */
+  globalThis.BETA = true;
+  ok("no beta, 100 mil por dia para qualquer um", [cotaDoDonoNoDia({ plano: "gratis" }), cotaDoDonoNoDia({ plano: "pago", nivel: "alianca" })], [100000, 100000]);
+  globalThis.BETA = false;
+  ok("o beta acabou: volta o teto do plano", cotaDoDonoNoDia({ plano: "pago", nivel: "alianca" }), 40000);
 
   /* Sem servidor identificado não há teto: é o caminho do tradutor por tópico
      e dos testes, e travar ali seria travar o que não gasta a bolsa. */
@@ -16501,7 +16506,7 @@ function conferirCartao(onde, embed, componentes = []) {
       cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
     });
     try {
-      const { ursoNosCanais, fichaDoUrsoNaSala } = carregar(["URSO_NO_CANAL", "fichaDoUrsoNaSala", "ursoNosCanais"]);
+      const { ursoNosCanais, fichaDoUrsoNaSala } = carregar(["URSO_NO_CANAL", "fichaDoUrsoNaSala", "ursoNosCanais", "alvosLigados", "guildDoAlvo", "salasLigadas", "canaisDaFicha"]);
       /* na sala em português, a ficha da versão anterior já está lá: é atualizada, não repetida */
       const editadas = [];
       velhas.set("pt", new Map([
@@ -16530,6 +16535,128 @@ function conferirCartao(onde, embed, componentes = []) {
     }
     verdade("só o TOP, só a sala do Urso", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, canal: \/hunting-trap\//.test(pedaco("URSO_NO_CANAL")));
     verdade("o envio para os canais está agendado ao subir", /setTimeout\(\(\) => urso\(2\), 4 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
+  /* 🐻 📖 as salas do Kingshot em outros servidores, só onde o dono liberar (dono, 22/11) */
+  {
+    const J = carregar(["marcaDaOferta", "marcaDoJogo", "SALAS_DO_JOGO_PADRAO", "VERSAO_DA_FICHA_DO_URSO",
+      "salasLigadas", "alvosDoJogo", "canaisDaFicha", "cartaoDaOfertaDoJogo", "marcaDaAgendaLida", "agendaGuardada", "eventosDoPrint",
+      "reinoDigitado"]);
+    ok("o que o servidor ligou, só as salas que existem", [...J.salasLigadas(" urso, x ,herois")].sort().join(), "herois,urso");
+    ok("nada ligado", J.salasLigadas(null).size, 0);
+    const lista = [{ guildId: "g1", nome: "[MET] Altecaia", sid: "s1" }, { guildId: "g2", nome: "[TOP]Best Alliance Kingshot", sid: "s2" },
+      { guildId: "g3", nome: "Outro", sid: "s3" }];
+    const fixos = [{ guild: /^\[TOP\]\s*Best Alliance/i }];
+    const al = J.alvosDoJogo(lista, { "jogo_ks:s1": "urso", "jogo_ks:s2": "urso,herois" }, fixos);
+    ok("só quem ligou, e o TOP fica com os alvos dele", al.salas.map((x) => x.guildId), ["g1"]);
+    ok("a sala pedida, e só ela", al.salas[0].salas.map((x) => x.tipo), ["urso"]);
+    ok("sem livro quando só o Urso foi ligado", al.livro.length, 0);
+    ok("a ficha cobre as salas novas e tem marca própria", [al.urso[0].marca, al.urso[0].cobrir, al.salas[0].semAgenda].join(),
+      "urso_no_canal:s1:" + J.VERSAO_DA_FICHA_DO_URSO + ",true,true");
+    const dois = J.alvosDoJogo(lista, { "jogo_ks:s1": "urso,herois" });
+    ok("ligar a segunda sala muda a marca da criação (confere de novo)", dois.salas[0].marca, "salas_jogo:s1:herois+urso");
+    ok("e o livro entra", dois.livro[0].marca, "livro_no_canal:s1");
+    ok("canais da ficha: o 4º campo da marca", [...J.canaisDaFicha("t|2/2|en,pt|11,22")], ["11", "22"]);
+    ok("marca dos de sempre (sem 4º campo): nenhum", J.canaisDaFicha("t|3/3|en,en,pt").size, 0);
+    const oferta = J.cartaoDaOfertaDoJogo();
+    conferirCartao("a oferta das salas do Kingshot", oferta.embeds[0], oferta.components);
+    ok("um botão por sala, e o da agenda do reino", oferta.components[0].components.map((b) => b.custom_id),
+      ["jogo:criar:urso", "jogo:criar:herois", "jogo:criar:agenda"]);
+
+    /* 📅 a agenda do reino pela foto do calendário (dono, 22/11: "com a foto já podemos criar e o site ajuda") */
+    ok("o reino: só os dígitos", [J.reinoDigitado(" #2311 "), J.reinoDigitado("reino 1500"), J.reinoDigitado("abc"), J.reinoDigitado("1234567")],
+      ["2311", "1500", "", ""]);
+    const lida = JSON.stringify({ reino: "1500", lidoEm: 5, eventos: [{ nome: "Urso", inicio: 100, fim: 200 },
+      { nome: "Castelo", site: "Castle Battle", inicio: 300, fim: 900 }, { nome: "", inicio: 1, fim: 2 }] });
+    ok("a agenda guardada: o reino e os eventos inteiros", [J.agendaGuardada(lida).reino, J.agendaGuardada(lida).eventos.length], ["1500", 2]);
+    ok("guardado estragado ou sem reino: nada", [J.agendaGuardada("{x"), J.agendaGuardada(JSON.stringify({ eventos: [] }))], [null, null]);
+    ok("na agenda, só o que não acabou", J.eventosDoPrint(lida, 250), [{ nome: "Castelo", site: "Castle Battle", inicio: 300, fim: 900 }]);
+    ok("tudo acabou: hora de um print novo", J.eventosDoPrint(lida, 1000), null);
+    const comAgenda = J.alvosDoJogo(lista, { "jogo_ks:s1": "agenda,urso", [J.marcaDaAgendaLida("s1")]: lida }, fixos);
+    ok("a agenda dos ligados: o reino do print e marca própria", comAgenda.agenda, [{ guildId: "g1", reino: "1500", marca: "agenda_jogo:s1", sid: "s1" }]);
+    ok("ligada sem print guardado: sem agenda ainda", J.alvosDoJogo(lista, { "jogo_ks:s1": "agenda" }, fixos).agenda.length, 0);
+    ok("a sala da agenda nasce junto com as outras", comAgenda.salas[0].salas.map((x) => x.nome), ["📆-agenda", "🐻-urso"]);
+    const pedido = semComentarios(pedaco("calendarioDoPedido"));
+    verdade("o print só vale de quem pediu, na sala onde pediu, e com imagem",
+      /pedidosDeCalendario\.get\(chave\)/.test(pedido) && /msg\.channelId !== p\.canal \|\| !imagensDaMensagem\(msg\)\.length/.test(pedido));
+    verdade("lê com o reino digitado e guarda o que leu", /calendarioDaMensagem\(msg, msg\.guild\.id, \{ reino: p\.reino \}\)/.test(pedido) &&
+      /porAjuste\(marcaDaAgendaLida\(servidor\.id\)/.test(pedido));
+    verdade("print que não deu leitura: pede outro, e o pedido continua", pedido.indexOf("if (!lista.length)") < pedido.indexOf("pedidosDeCalendario.delete(chave);\n  const servidor"));
+    verdade("o dono fica sabendo de cada leitura", /avisarNoPainel\(CANAL_NOVOS, `📅/.test(pedido));
+    const janela = semComentarios(pedaco("cliqueDasSalasDoJogo"));
+    verdade("o botão da agenda abre a janela do reino (antes de qualquer resposta)", janela.indexOf('if (tipo === "agenda") return inter.showModal') < janela.indexOf("await inter.deferReply"));
+    verdade("a janela e o print chegam onde devem", /customId === "jogo:reino"\) return await reinoDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)) &&
+      /await calendarioDoPedido\(msg\)/.test(semComentarios(fonte)));
+    const ag = semComentarios(pedaco("agendaDoJogoNosCanais"));
+    verdade("a agenda dos ligados: o site primeiro, o print de reserva",
+      /\(await eventosDaAgenda\(alvo\.reino\)\) \|\| \(alvo\.sid \? eventosDoPrint\(a\[marcaDaAgendaLida\(alvo\.sid\)\], agora\) : null\)/.test(ag) &&
+      /\.\.\.\(await alvosLigados\(a\)\)\.agenda/.test(ag));
+    verdade("a leitura devolve os eventos e aceita o reino dado", /lista: eventos, agora/.test(pedaco("calendarioDaMensagem")) &&
+      /const reino = reinoDado \|\| await reinoDoCalendario\(guildId\)/.test(pedaco("calendarioDaMensagem")));
+    verdade("as vantagens vêm antes do que cada sala tem", oferta.embeds[0].description.indexOf("✅") < oferta.embeds[0].description.indexOf("🐻 **"));
+
+    /* a ficha nos ligados: a primeira vez em todas as salas, depois só na sala de língua nova */
+    const nomes = { f: "🐻-urso", en: "urso-en", pt: "urso-pt", es: "urso-es" };
+    const replicas = [{ canal_id: "en", idioma: "en", tipo: "urso" }, { canal_id: "pt", idioma: "pt", tipo: "urso" }];
+    const fontes = new Map([["f", "urso"]]);
+    const postados = [];
+    let marcas = { "jogo_ks:s-met": "urso" };
+    const canal = (id) => ({ name: nomes[id], send: async (m) => { postados.push([id, m.embeds[0].description]); },
+      messages: { fetch: async () => new Map() } });
+    const guild = { id: "gmet", name: "[MET] Altecaia", channels: { cache: { get: (id) => (nomes[id] ? canal(id) : null) } } };
+    const guardados = Object.fromEntries(["client", "SUBIDA_DOS_EMOJIS", "ajustes", "porAjuste", "servidorDoGuild",
+      "replicasDoIdioma", "fontesReplica", "cartaoDoUrso"].map((k) => [k, globalThis[k]]));
+    Object.assign(globalThis, {
+      SUBIDA_DOS_EMOJIS: { pronta: true },
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: Object.assign(new Map([["gmet", guild]]), { find(f) { return [...this.values()].find(f); } }) },
+        channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-met" }),
+      replicasDoIdioma: async () => replicas, fontesReplica: async () => fontes,
+      cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
+      marcaDoJogo: J.marcaDoJogo, SALAS_DO_JOGO_PADRAO: J.SALAS_DO_JOGO_PADRAO, VERSAO_DA_FICHA_DO_URSO: J.VERSAO_DA_FICHA_DO_URSO,
+      alvosDoJogo: J.alvosDoJogo, salasLigadas: J.salasLigadas, canaisDaFicha: J.canaisDaFicha,
+    });
+    try {
+      const { ursoNosCanais } = carregar(["URSO_NO_CANAL", "SALAS_DO_JOGO", "LIVRO_NO_CANAL", "AGENDA_DO_JOGO", "fichaDoUrsoNaSala", "ursoNosCanais",
+        "alvosLigados", "guildDoAlvo"]);
+      ok("liberado e ligado: posta", await ursoNosCanais(), "postado");
+      ok("a ficha em todas as salas, na língua de cada uma", postados.map((p) => p.join(":")), ["f:urso-en", "en:urso-en", "pt:urso-pt"]);
+      verdade("a marca guarda onde a ficha está", /\|3\/3\|en,en,pt\|f,en,pt$/.test(marcas["urso_no_canal:s-met:" + J.VERSAO_DA_FICHA_DO_URSO]));
+      postados.length = 0;
+      ok("de novo, nada novo: nada", await ursoNosCanais(), "nada");
+      replicas.push({ canal_id: "es", idioma: "es", tipo: "urso" });
+      ok("sala de língua nova: só ela recebe", await ursoNosCanais(), "postado");
+      ok("e só uma ficha", postados.map((p) => p.join(":")), ["es:urso-es"]);
+      verdade("a marca soma a sala nova", canaisDaFichaOk(marcas["urso_no_canal:s-met:" + J.VERSAO_DA_FICHA_DO_URSO]));
+      function canaisDaFichaOk(v) { return ["f", "en", "pt", "es"].every((c) => J.canaisDaFicha(v).has(c)); }
+      marcas = { ...marcas, "jogo_ks:s-met": "" };
+      postados.length = 0;
+      replicas.push({ canal_id: "pt2", idioma: "pt", tipo: "urso" });
+      ok("desligado: não posta mais", await ursoNosCanais(), "nada");
+    } finally {
+      Object.assign(globalThis, guardados);
+    }
+
+    const clique = semComentarios(pedaco("cliqueDasSalasDoJogo"));
+    verdade("o clique só vale onde o dono liberou, e só para quem administra",
+      /if \(!podeAdministrar\(inter\)\)/.test(clique) && /if \(!a\[marcaDaOferta\(servidor\.id\)\]\) return dizer/.test(clique));
+    verdade("apertar de novo confere de novo (a marca da criação sai)", /porAjuste\(`salas_jogo:\$\{servidor\.id\}:\$\{conjunto\.join\("\+"\)\}`, null\)/.test(clique));
+    const ofer = semComentarios(pedaco("oferecerSalasDoJogo"));
+    verdade("a oferta na língua do dono, com o vídeo acima e a liberação marcada",
+      /linguaDaSalaCyron\(guild\)/.test(ofer) && /cartaoNaLingua\(cartaoDaOfertaDoJogo\(\), lingua, motor\)/.test(ofer) &&
+      /porAjuste\(marcaDaOferta\(servidor\.id\)/.test(ofer) && ofer.indexOf("videoDasSalas(lingua)") < ofer.indexOf("canal.send(carta)"));
+    verdade("os botões da oferta chegam ao clique", /customId\.startsWith\("jogo:criar:"\)\) \{\s*return await cliqueDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)));
+    verdade("o 🐻 da ficha manda a oferta", /if \(acao === "jogo"\) return inter\.editReply\(await oferecerSalasDoJogo\(servidor\)\)/.test(semComentarios(fonte)));
+    const criar = semComentarios(pedaco("criarSalasDoJogo"));
+    verdade("sem agenda, nos ligados: a sala nasce mesmo assim", /if \(!agenda && !alvo\.semAgenda\)/.test(criar) &&
+      /if \(posicao !== null\)/.test(criar) && /parent: agenda\?\.parentId/.test(criar));
+    const V = carregar(["videoDasSalas", "VIDEOS_DAS_SALAS", "SITE_DO_CYRON"]);
+    ok("vídeo na língua quando existe", V.videoDasSalas("pt"), "https://hicyron.github.io/video/salas-kingshot-pt.mp4");
+    ok("senão, em inglês", V.videoDasSalas("ja"), "https://hicyron.github.io/video/salas-kingshot-en.mp4");
+    verdade("cada língua da lista tem o vídeo no site", [...V.VIDEOS_DAS_SALAS].every((l) =>
+      existsSync(new URL(`../cyron/video/salas-kingshot-${l}.mp4`, import.meta.url))));
   }
 
   /* 📖 o livro dos heróis no game-central (no lugar da dica do Saul) */
@@ -16605,7 +16732,7 @@ function conferirCartao(onde, embed, componentes = []) {
     });
     try {
       const { livroNosCanais, paginasDoLivroNaSala, idsDaMarcaDoLivro } =
-        carregar(["LIVRO_NO_CANAL", "VERSAO_DO_LIVRO", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais"]);
+        carregar(["LIVRO_NO_CANAL", "VERSAO_DO_LIVRO", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais", "alvosLigados", "guildDoAlvo", "salasLigadas"]);
       const agora = Date.parse("2026-11-17T12:00:00Z");
       const heroi = H.LIVRO[H.paginaDoDia("2026-11-17")].name;
       ok("posta", await livroNosCanais(agora), "postado");
