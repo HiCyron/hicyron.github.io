@@ -13435,7 +13435,7 @@ const SALAS_DO_JOGO_PADRAO = { urso: { nome: "🐻-urso", tipo: "urso" }, herois
 const VERSAO_DA_FICHA_DO_URSO = "7";
 /* As línguas que têm o vídeo gravado (cyron/video/salas-kingshot-<língua>.mp4).
    Fora delas, o vídeo em inglês -- e o texto da oferta na língua do dono. */
-const VIDEOS_DAS_SALAS = new Set(["pt", "en"]);
+const VIDEOS_DAS_SALAS = new Set(["pt", "en", "es", "tr", "fr", "ko", "ru", "de", "id", "ar"]);
 
 function videoDasSalas(idioma) {
   return `${SITE_DO_CYRON}video/salas-kingshot-${VIDEOS_DAS_SALAS.has(idioma) ? idioma : "en"}.mp4`;
@@ -13479,6 +13479,20 @@ function agendaGuardada(valor) {
     return { reino: String(v.reino), lidoEm: Number(v.lidoEm) || 0,
       eventos: (Array.isArray(v.eventos) ? v.eventos : []).filter((e) => e && e.nome && Number(e.inicio) && Number(e.fim)) };
   } catch { return null; }
+}
+
+/* Pura. O site do reino com o que só o print trouxe (dono, 22/11, no teste do
+   reino 2492: os dois "Fundo" das Ofertas estavam no print e sumiram da
+   imagem, porque o site não os tem). O evento do print que o site também tem
+   -- mesmo nome, em qualquer das duas línguas, com as datas se cruzando -- fica
+   o do site; o resto entra. Sem site, o print; sem print, o site. */
+function juntarSiteEPrint(doSite, doPrint) {
+  if (!doPrint?.length) return doSite || null;
+  if (!doSite?.length) return doPrint;
+  const nomes = (e) => [e.nome, e.site].filter(Boolean).map((n) => normalizarHeroi(n)).filter(Boolean);
+  const cruza = (a, b) => Number(a.inicio) < Number(b.fim) && Number(b.inicio) < Number(a.fim);
+  const extras = doPrint.filter((p) => !doSite.some((s) => cruza(p, s) && nomes(p).some((n) => nomes(s).includes(n))));
+  return [...doSite, ...extras];
 }
 
 /* Pura. Os eventos lidos que ainda valem para a agenda (os que não acabaram),
@@ -14329,8 +14343,10 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
     const guild = guildDoAlvo(alvo);
     const servidor = guild && await servidorDoGuild(guild.id).catch(() => null);
     if (!servidor) continue;
-    /* O site do reino primeiro; sem ele, nos servidores que mandaram o print, o que foi lido. */
-    const eventos = (await eventosDaAgenda(alvo.reino)) || (alvo.sid ? eventosDoPrint(a[marcaDaAgendaLida(alvo.sid)], agora) : null);
+    /* Nos servidores que mandaram o print: o site do reino junto com o que só o
+       print trouxe (sem site, só o print). TOP e 2311: o site, como sempre. */
+    const doSite = await eventosDaAgenda(alvo.reino);
+    const eventos = alvo.sid ? juntarSiteEPrint(doSite, eventosDoPrint(a[marcaDaAgendaLida(alvo.sid)], agora)) : doSite;
     if (!eventos) { console.log(`agenda do jogo: o site do reino ${alvo.reino} não respondeu; tento depois`); continue; }
     const salas = salasDoUrso((id) => guild.channels.cache.get(id)?.name || "",
       await replicasDoIdioma(servidor.id), await fontesReplica(servidor.id), SALA_DA_AGENDA);
