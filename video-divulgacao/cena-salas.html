@@ -1,0 +1,287 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="fontes/noto-sans/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans/package/900.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/500.css">
+<link rel="stylesheet" href="fontes/noto-sans-sc/package/700.css">
+<link rel="stylesheet" href="fontes/noto-sans-thai/package/500.css">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1080px; height: 1920px; overflow: hidden; background: #0b0d1a; }
+  body { font-family: "Noto Sans", "Noto Sans SC", "Noto Sans Thai", "Noto Color Emoji", sans-serif; color: #fff; }
+  #palco { position: absolute; inset: 0; overflow: hidden;
+    background: radial-gradient(1200px 900px at 50% 30%, #3a2a14 0%, #1b1424 55%, #0a0910 100%); }
+  .luz { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .45; }
+  #etiqueta { position: absolute; top: 52px; left: 0; right: 0; text-align: center; }
+  #etiqueta span { display: inline-block; font-weight: 900; font-size: 40px; padding: 14px 32px; border-radius: 40px;
+    background: rgba(201,162,39,.95); color: #1b1408; box-shadow: 0 10px 30px rgba(201,162,39,.4); }
+  #fone { position: absolute; left: 60px; top: 150px; width: 960px; height: 1290px; border-radius: 54px;
+    background: #313338; overflow: hidden; box-shadow: 0 40px 90px rgba(0,0,0,.6), 0 0 0 10px #0d0e14, 0 0 0 12px #2a2c3a; }
+  .pag { position: absolute; inset: 0; display: flex; flex-direction: column; background: #313338; }
+  .cab { flex: 0 0 auto; height: 112px; display: flex; align-items: center; gap: 18px; padding: 0 30px;
+    background: #2b2d31; border-bottom: 2px solid #1f2023; font-weight: 700; font-size: 40px; color: #f2f3f5; }
+  .cab .menu { font-size: 44px; color: #b5bac1; padding: 6px 8px; }
+  .cab .h { color: #80848e; font-size: 48px; font-weight: 500; }
+  .rolo { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; padding-bottom: 10px; }
+  .msg { overflow: hidden; }
+  .msg .in { display: flex; gap: 20px; padding: 12px 26px; }
+  .av { flex: 0 0 auto; width: 76px; height: 76px; border-radius: 50%; overflow: hidden; }
+  .av img { width: 100%; height: 100%; object-fit: cover; }
+  .cbody { flex: 1; min-width: 0; }
+  .linha1 { display: flex; align-items: center; gap: 12px; }
+  .nome { font-weight: 700; font-size: 32px; }
+  .app { font-weight: 700; font-size: 20px; background: #5865f2; color: #fff; border-radius: 8px; padding: 2px 9px; }
+  .hora { font-size: 23px; color: #949ba4; }
+  .emb { margin-top: 8px; background: #2b2d31; border-left: 7px solid #c9a227; border-radius: 10px; padding: 16px 20px;
+    display: flex; gap: 16px; max-width: 800px; }
+  .emb .e { flex: 1; min-width: 0; }
+  .emb .tit { font-weight: 700; font-size: 31px; color: #f2f3f5; margin-bottom: 8px; line-height: 1.25; }
+  .emb .d { font-weight: 500; font-size: 29px; line-height: 1.38; color: #dbdee1; }
+  .emb .d.mini { font-size: 25px; line-height: 1.36; }
+  .emb .d b { color: #f2f3f5; }
+  .emb .d .cita { border-left: 5px solid #4e5058; padding-left: 14px; display: block; margin-top: 4px; }
+  .emb .canto { width: 150px; height: 150px; object-fit: contain; flex: 0 0 auto; border-radius: 12px; }
+  .ks { width: 1.25em; height: 1.25em; vertical-align: -0.3em; object-fit: contain; }
+  .video { margin-top: 8px; width: 560px; height: 316px; border-radius: 12px; overflow: hidden; position: relative;
+    background: linear-gradient(135deg, #3a2a14, #12152e); display: grid; place-items: center; }
+  .video img { position: absolute; height: 290px; bottom: 0; left: 30px; }
+  .video .play { width: 110px; height: 110px; border-radius: 50%; background: rgba(0,0,0,.6); display: grid; place-items: center; font-size: 54px; z-index: 2; }
+  .video .vt { position: absolute; right: 22px; top: 22px; font-weight: 900; font-size: 30px; text-align: right; z-index: 2; color: #ffe27a; }
+  .bts { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+  .bt { font-weight: 700; font-size: 27px; padding: 14px 22px; border-radius: 10px; background: #248046; color: #fff; }
+  .bt.cinza { background: #4e5058; } .bt.azul { background: #5865f2; } .bt.feito { background: #3b3d44; color: #b5bac1; }
+  .sel { margin-top: 10px; max-width: 800px; background: #1e1f22; border-radius: 10px; padding: 16px 22px; font-size: 27px;
+    color: #b5bac1; display: flex; justify-content: space-between; }
+  .efem { font-size: 23px; color: #949ba4; margin-top: 8px; }
+  .txt { font-weight: 500; font-size: 30px; line-height: 1.32; color: #dbdee1; margin-top: 4px; }
+  .txt b { color: #00a8fc; font-weight: 500; }
+  .fechado { flex: 0 0 auto; margin: 6px 22px 22px; height: 90px; border-radius: 45px; background: #2b2d31; display: flex;
+    align-items: center; justify-content: center; font-size: 27px; color: #949ba4; }
+  .entrada { flex: 0 0 auto; margin: 6px 22px 22px; height: 90px; border-radius: 45px; background: #383a40; display: flex;
+    align-items: center; padding: 0 30px; font-size: 30px; color: #949ba4; }
+  /* lista de canais */
+  #veu { position: absolute; inset: 0; background: #000; opacity: 0; z-index: 6; }
+  #gaveta { position: absolute; left: 0; top: 0; bottom: 0; width: 780px; background: #2b2d31; z-index: 7; overflow: hidden; }
+  #gaveta .srv { height: 116px; display: flex; align-items: center; gap: 20px; padding: 0 30px; font-weight: 900; font-size: 38px; border-bottom: 2px solid #1f2023; }
+  #gaveta .srv .icone { width: 78px; height: 78px; border-radius: 24px; background: linear-gradient(135deg,#f0a33a,#b8641e); display: grid; place-items: center; font-size: 40px; }
+  #gaveta .cat { font-size: 23px; font-weight: 700; color: #949ba4; letter-spacing: 2px; padding: 18px 34px 4px; }
+  #gaveta .ch { margin: 2px 18px; padding: 9px 18px; border-radius: 12px; font-size: 32px; color: #949ba4; display: flex; gap: 12px; align-items: center; overflow: hidden; }
+  #gaveta .ch .h { color: #80848e; }
+  #gaveta .ch.atual { background: #404249; color: #fff; }
+  #gaveta .ch.alvo { background: #4e5058; color: #fff; }
+  #gaveta .novo { font-size: 18px; font-weight: 900; background: #f23f43; color: #fff; border-radius: 8px; padding: 2px 8px; }
+  /* palco: abertura, vantagens, fechamento */
+  #intro, #vant, #cta { position: absolute; left: 0; right: 0; text-align: center; }
+  .t1 { font-weight: 900; font-size: 100px; line-height: 1.05; margin-top: 20px;
+    background: linear-gradient(90deg, #ffe27a, #f0a33a, #ffd1a1); -webkit-background-clip: text; color: transparent; }
+  .t2 { font-weight: 700; font-size: 54px; color: #ffe9c2; margin-top: 18px; }
+  .medalhas { display: flex; justify-content: center; gap: 40px; margin-top: 30px; }
+  .medalhas img { width: 170px; height: 170px; object-fit: contain; border-radius: 30px; background: rgba(255,255,255,.06); padding: 12px; }
+  #vant .item { display: flex; align-items: center; gap: 30px; margin: 0 80px 34px; padding: 30px 36px; border-radius: 34px; text-align: left;
+    background: rgba(255,255,255,.07); border: 2px solid rgba(255,226,122,.35); box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+  #vant .ic { font-size: 84px; width: 120px; text-align: center; }
+  #vant .a { font-weight: 900; font-size: 54px; color: #ffe27a; }
+  #vant .b { font-weight: 500; font-size: 36px; color: #e8e2d4; margin-top: 4px; }
+  .botao { display: inline-block; font-weight: 900; font-size: 60px; padding: 30px 64px; border-radius: 80px;
+    background: linear-gradient(90deg, #c9a227, #e07a2f); color: #1b1408; box-shadow: 0 20px 60px rgba(224,122,47,.5); }
+  .l2 { font-weight: 900; font-size: 58px; margin-top: 44px; color: #ffe27a; }
+  .l3 { font-weight: 500; font-size: 34px; margin-top: 22px; color: #e8e2d4; padding: 0 80px; }
+  #legenda { position: absolute; left: 50px; right: 50px; top: 1500px; text-align: center; font-weight: 900;
+    font-size: 68px; line-height: 1.15; text-transform: uppercase; -webkit-text-stroke: 10px #0b0d1a; paint-order: stroke fill; }
+  #legenda span { display: inline-block; margin: 0 9px; }
+  #legenda.cjk span { margin: 0; }
+  #legenda span.agora { color: #ffd84d; }
+  /* árabe: o texto corre da direita para a esquerda (a legenda e os cartões) */
+  .rtl #legenda { direction: rtl; }
+  .rtl .emb .d, .rtl .emb .tit, .rtl .txt, .rtl .efem, .rtl .fechado, .rtl #vant .item { direction: rtl; }
+  .rtl .emb .d, .rtl .emb .tit, .rtl .txt, .rtl .efem, .rtl #vant .item { text-align: right; }
+  #dedo { position: absolute; width: 92px; height: 92px; border-radius: 50%; background: rgba(255,255,255,.5);
+    border: 6px solid rgba(255,255,255,.92); pointer-events: none; z-index: 50; opacity: 0; }
+</style></head>
+<body><div id="palco"></div>
+<script>
+const P = document.getElementById("palco");
+let TL = null, TX = {};
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeIO = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const h = (html) => { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; };
+const cenaDe = (id) => TL.cenas.find((c) => c.id === id);
+const ini = (id) => cenaDe(id).inicio, fimFala = (id) => cenaDe(id).fim;
+// o instante numa fração da fala da cena: funciona em qualquer língua (chinês sem espaços inclusive)
+const q = (id, f) => { const c = cenaDe(id); return c.inicio + (c.fim - c.inicio) * f; };
+
+// o texto do cartão como o Discord desenha: **negrito**, *itálico*, > citação e os emojis ks_*
+function md(s) {
+  return String(s).split("\n").map((l) => {
+    const cita = l.startsWith("> ");
+    let x = (cita ? l.slice(2) : l).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*(.+?)\*/g, "<i>$1</i>")
+      .replace(/\{\{(ks_\w+)\}\}/g, (m, n) => `<img class="ks" src="img/ks/${n}.gif">`);
+    return cita ? `<span class="cita">${x}</span>` : x;
+  }).join("<br>");
+}
+
+function msg({ t = -1, hora = "", corpo = "", id = "" } = {}) {
+  return `<div class="msg" data-t="${t}" ${id ? `id="${id}"` : ""}><div class="in"><div class="av"><img src="img/cyron-og.jpg"></div><div class="cbody">
+    <div class="linha1"><span class="nome">CYRON</span><span class="app">APP</span><span class="hora">${hora}</span></div>${corpo}</div></div></div>`;
+}
+function cartao(texto, { cor = "#c9a227", tit = "", canto = "", mini = false } = {}) {
+  return `<div class="emb" style="border-left-color:${cor}"><div class="e">${tit ? `<div class="tit">${tit}</div>` : ""}<div class="d${mini ? " mini" : ""}">${texto}</div></div>
+    ${canto ? `<img class="canto" src="${canto}">` : ""}</div>`;
+}
+function pagina(id, canal, msgs, { fechado = false } = {}) {
+  return `<div class="pag" id="pg-${id}"><div class="cab"><span class="menu">☰</span><span class="h">#</span>${canal}</div>
+    <div class="rolo">${msgs.join("")}</div>
+    ${fechado ? `<div class="fechado">${TX.semPermissao}</div>` : `<div class="entrada">${TX.conversar}${canal}</div>`}</div>`;
+}
+
+const EV = { paginas: [], rotulos: [], gavetas: [], toques: [], trocas: [] };
+
+function montarHistoria() {
+  const [h1, h2, h3] = TX.horas, hoje = (x) => `${TX.hoje} ${x}`;
+  const tUrso = q("urso", 0.22), tHer = q("herois", 0.3);
+  const paginas = [
+    pagina("cyron", "⚙️-cyron", [
+      msg({ hora: hoje(h1), corpo: `<div class="video"><img src="img/cyron-corpo.webp"><span class="play">▶</span><span class="vt">${TX.titulo}<br>${TX.sub}</span></div>` }),
+      msg({ hora: hoje(h1), corpo: cartao(TX.ofertaVant.join("<br>"), { tit: TX.ofertaTit }) +
+        `<div class="bts"><span class="bt" id="bt-urso">🐻 ${TX.btUrso}</span><span class="bt" id="bt-herois">📖 ${TX.btHerois}</span></div>` }),
+      msg({ t: tUrso + 0.45, hora: hoje(h2), corpo: `<div class="txt">${TX.prontoUrso}</div><div class="efem">${TX.soVoce}</div>` }),
+      msg({ t: tHer + 0.45, hora: hoje(h2), corpo: `<div class="txt">${TX.prontoHerois}</div><div class="efem">${TX.soVoce}</div>` })]),
+    pagina("urso", "🐻-urso", [msg({ hora: hoje(h3), corpo: cartao(md(TX.fichaUrso), { cor: "#b8641e", mini: true }) }),
+      msg({ t: q("ficha", 0.7), hora: hoje(h3), corpo: cartao(md(TX.dicasUrso), { cor: "#b8641e", mini: true }) })], { fechado: true }),
+    pagina("herois", "📖-herois", [
+      msg({ hora: hoje(h3), corpo: cartao(md(TX.heroi1.linhas) + `<br><span style="color:#949ba4;font-size:23px">${TX.comoUsar}</span>`,
+        { tit: TX.doDia, cor: TX.heroi1.cor, canto: TX.heroi1.retrato }) +
+        `<div class="bts"><span class="bt azul">◀️</span><span class="bt cinza">${TX.pagina1}</span><span class="bt azul" id="bt-prox">▶️</span></div>
+         <div class="sel"><span>${TX.listaLend}</span><span>▾</span></div><div class="sel"><span>${TX.listaOutros}</span><span>▾</span></div>` }),
+      msg({ t: q("livro", 0.82) + 0.35, hora: hoje(h3), corpo: cartao(md(TX.heroi2.linhas), { cor: TX.heroi2.cor, canto: TX.heroi2.retrato }) +
+        `<div class="bts"><span class="bt azul">◀️</span><span class="bt cinza">${TX.pagina2}</span><span class="bt azul">▶️</span></div><div class="efem">${TX.soVoce}</div>` })],
+      { fechado: true }),
+  ];
+  const F = document.getElementById("fone");
+  paginas.forEach((p) => F.appendChild(h(p)));
+
+  const pg = (t, id) => EV.paginas.push({ t, id });
+  const toque = (t, alvo) => EV.toques.push({ t, alvo });
+  const troca = (t, sel, fn) => EV.trocas.push({ t, sel, fn });
+
+  pg(-1, "cyron"); EV.rotulos.push({ t: -1, texto: TX.celular });
+  // os botões da oferta
+  toque(tUrso, "#bt-urso");
+  troca(tUrso + 0.15, "#bt-urso", (e, d) => { e.className = d ? "bt feito" : "bt"; });
+  toque(tHer, "#bt-herois");
+  troca(tHer + 0.15, "#bt-herois", (e, d) => { e.className = d ? "bt feito" : "bt"; });
+  // a lista: as salas novas, e depois as cópias de cada língua
+  const tAbre = q("lista", 0.02), tCopias = q("lista", 0.5);
+  EV.gavetas.push({ abre: tAbre, toca: null, fecha: fimFala("lista") + 0.3, alvo: null });
+  toque(tAbre - 0.12, ".pag.atual .menu");
+  troca(tCopias, "#gaveta", (e, d) => { e.querySelectorAll(".copia").forEach((c) => { c.style.display = d ? "flex" : "none"; }); });
+  // a ficha do Urso
+  const tFicha = ini("ficha") - 0.1;
+  EV.gavetas.push({ abre: tFicha - 0.7, toca: tFicha, fecha: tFicha + 0.25, alvo: "urso" });
+  toque(tFicha - 0.82, ".pag.atual .menu"); toque(tFicha, "#ch-urso"); pg(tFicha + 0.05, "urso");
+  // o livro dos heróis
+  const tLivro = ini("livro") - 0.1;
+  EV.gavetas.push({ abre: tLivro - 0.7, toca: tLivro, fecha: tLivro + 0.25, alvo: "herois" });
+  toque(tLivro - 0.82, ".pag.atual .menu"); toque(tLivro, "#ch-herois"); pg(tLivro + 0.05, "herois");
+  toque(q("livro", 0.82), "#bt-prox");
+  EV.paginas.sort((a, b) => a.t - b.t);
+}
+
+function montar(tl, tx) {
+  TL = tl; TX = tx || {};
+  if (TX.rtl) document.body.classList.add("rtl");
+  [["#c9a227", 700, 300, 220], ["#e07a2f", 600, 780, 1250], ["#5865f2", 500, 120, 1520]].forEach(([c, s, x, y], i) => {
+    const b = h(`<div class="luz" style="background:${c};width:${s}px;height:${s}px;left:${x - s / 2}px;top:${y - s / 2}px"></div>`); b.dataset.i = i; P.appendChild(b); });
+  P.appendChild(h('<div id="etiqueta"><span></span></div>'));
+  P.appendChild(h('<div id="fone"></div>'));
+  montarHistoria();
+  const F = document.getElementById("fone");
+  F.appendChild(h('<div id="veu"></div>'));
+  const ch = (nome, { id = "", novo = false, copia = false } = {}) =>
+    `<div class="ch${copia ? " copia" : ""}" ${id ? `id="ch-${id}"` : ""} ${copia ? 'style="display:none"' : ""}><span class="h">#</span>${nome}${novo ? ` <span class="novo">${TX.novo}</span>` : ""}</div>`;
+  const [cEnt, cAli, cAdm] = TX.cats;
+  F.appendChild(h(`<div id="gaveta"><div class="srv"><span class="icone">👑</span>${TX.servidor}</div>
+    <div class="cat">${cEnt}</div>${ch("🌐-idioma-language")}
+    <div class="cat">${cAli}</div>${ch("📢-anuncios")}${ch("🐻-urso", { id: "urso", novo: true })}${ch("📖-herois", { id: "herois", novo: true })}
+    ${TX.linguas.map(([cat, l]) => `<div class="cat">${cat}</div>${ch("💬-chat-" + l)}${ch("🐻-urso-" + l, { copia: true })}${ch("📖-herois-" + l, { copia: true })}`).join("")}
+    <div class="cat">${cAdm}</div>${ch("⚙️-cyron", { id: "cyron" })}</div>`));
+  P.appendChild(h(`<div id="intro" style="top:230px"><img src="img/cyron-corpo.webp" style="height:700px"><div class="t1">${TX.titulo}</div><div class="t2">${TX.sub}</div>
+    <div class="medalhas"><img src="img/ks/ks_urso.gif"><img src="img/herois/amane.gif"><img src="img/ks/ks_rally.gif"></div></div>`));
+  P.appendChild(h(`<div id="vant" style="top:260px">${TX.vantagens.map(([ic, a, b], i) =>
+    `<div class="item" id="v${i}"><div class="ic">${ic}</div><div><div class="a">${a}</div><div class="b">${b}</div></div></div>`).join("")}</div>`));
+  P.appendChild(h(`<div id="cta" style="top:300px"><img src="img/aceno.png" style="width:500px"><div style="margin-top:46px"><span class="botao">${TX.ctaBotao}</span></div>
+    <div class="l2">${TX.ctaL2}</div><div class="l3">${TX.ctaL3}</div></div>`));
+  P.appendChild(h('<div id="dedo"></div>'));
+  P.appendChild(h(`<div id="legenda" class="${TX.cjk ? "cjk" : ""}"></div>`));
+  medir();
+}
+function medir() { document.querySelectorAll(".msg").forEach((m) => { m.style.maxHeight = "none"; m.dataset.h = m.scrollHeight; }); }
+
+function vis(e, op, ty = 0, sc = 1, tx = 0) { e.style.opacity = op; e.style.transform = `translate(${tx}px,${ty}px) scale(${sc})`; e.style.visibility = op <= 0.001 ? "hidden" : "visible"; }
+const ultimo = (lista, t) => { let r = null; for (const x of lista) if (x.t <= t) r = x; return r; };
+const abertura = (t, a, f, dur = 0.32) => f == null ? easeOut(clamp((t - a) / dur)) : Math.min(easeOut(clamp((t - a) / dur)), 1 - easeOut(clamp((t - f) / dur)));
+
+function render(t) {
+  document.querySelectorAll(".luz").forEach((b) => { const i = +b.dataset.i; b.style.transform = `translate(${Math.sin(t * .4 + i * 2) * 60}px,${Math.cos(t * .33 + i) * 50}px)`; });
+  const F = document.getElementById("fone");
+  const atual = ultimo(EV.paginas, t);
+  F.querySelectorAll(".pag").forEach((p) => { const id = p.id.slice(3); p.classList.toggle("atual", id === atual.id); p.style.zIndex = id === atual.id ? 2 : 1; vis(p, id === atual.id ? 1 : 0); });
+  F.querySelectorAll(".msg").forEach((m) => { const tm = +m.dataset.t, alt = +m.dataset.h || 200;
+    if (tm < 0) { m.style.maxHeight = "none"; m.style.opacity = 1; return; }
+    const k = easeIO(clamp((t - tm) / 0.4)); m.style.maxHeight = (alt * k) + "px"; m.style.opacity = clamp((t - tm) / 0.3); });
+  // lista de canais
+  let gk = 0, gev = null;
+  for (const g of EV.gavetas) { const k = abertura(t, g.abre, g.fecha, 0.32); if (k > gk) { gk = k; gev = g; } }
+  const gav = document.getElementById("gaveta"); gav.style.transform = `translateX(${-(1 - gk) * 100}%)`; gav.style.visibility = gk > 0.001 ? "visible" : "hidden";
+  document.getElementById("veu").style.opacity = gk * 0.55;
+  gav.querySelectorAll(".ch").forEach((c) => { const id = c.id.slice(3);
+    c.classList.toggle("atual", !!id && id === atual.id && !(gev && gev.toca !== null && t >= gev.toca));
+    c.classList.toggle("alvo", !!(gev && gev.alvo && gev.alvo === id && gev.toca !== null && t >= gev.toca - 0.1)); });
+  EV.trocas.forEach((x) => { const e = document.querySelector(x.sel); if (e) { const d = t >= x.t; if (e.dataset.d !== String(d)) { e.dataset.d = String(d); x.fn(e, d); } } });
+  // o dedo
+  const dedo = document.getElementById("dedo"); let op = 0;
+  for (const tq of EV.toques) { const dt = t - tq.t, dur = 0.35;
+    if (dt > -0.5 && dt < dur + 0.25) { const alvo = document.querySelector(tq.alvo); if (!alvo) continue; const r = alvo.getBoundingClientRect();
+      if (r.width === 0) continue;
+      dedo.style.left = (r.left + Math.min(r.width / 2, 260) - 46) + "px"; dedo.style.top = (r.top + r.height / 2 - 46) + "px";
+      if (dt < 0) { op = clamp(1 + dt / 0.5); dedo.style.transform = `scale(${1.35 - 0.35 * op})`; }
+      else if (dt < dur) { op = 1; dedo.style.transform = "scale(0.85)"; }
+      else { op = clamp(1 - (dt - dur) / 0.25); dedo.style.transform = `scale(${0.9 + (dt - dur)})`; } } }
+  dedo.style.opacity = op;
+  // o celular entra na oferta e sai no fim
+  const tEntra = ini("oferta") - 0.3, tSai = ini("cta") - 0.2;
+  const fe = easeOut(clamp((t - tEntra) / 0.6)), fs = easeOut(clamp((t - tSai) / 0.5));
+  vis(F, fe * (1 - fs), (1 - fe) * 220 + fs * 220, 1);
+  const r = ultimo(EV.rotulos, t), et = document.getElementById("etiqueta");
+  et.firstElementChild.textContent = r.texto;
+  vis(et, fe * (1 - fs), 0, 1);
+  // abertura, vantagens e fechamento
+  const tVant = ini("vantagens") - 0.25;
+  const fi = easeOut(clamp((t - 0.1) / 0.6)) * (1 - easeOut(clamp((t - tVant) / 0.4)));
+  vis(document.getElementById("intro"), fi, Math.sin(t * 2.2) * 8, 0.9 + 0.1 * fi);
+  const fv = easeOut(clamp((t - tVant) / 0.4)) * (1 - easeOut(clamp((t - tEntra) / 0.4)));
+  vis(document.getElementById("vant"), fv, 0, 1);
+  [0.04, 0.3, 0.55, 0.76].forEach((f, i) => { const k = easeOut(clamp((t - q("vantagens", f)) / 0.45));
+    vis(document.getElementById("v" + i), k, (1 - k) * 60, 0.92 + 0.08 * k); });
+  const fcta = easeOut(clamp((t - ini("cta")) / 0.6));
+  vis(document.getElementById("cta"), fcta, (1 - fcta) * 120 + Math.sin(t * 3) * 6, 1);
+  legenda(t);
+}
+
+function legenda(t) {
+  const L = document.getElementById("legenda");
+  const c = TL.cenas.find((x) => t >= x.inicio - 0.05 && t <= x.fim + 0.25);
+  if (!c || !c.palavras.length) { L.innerHTML = ""; return; }
+  const max = TX.cjk ? 9 : 5;
+  const grupos = []; let a = [];
+  for (const p of c.palavras) { a.push(p); if (p.quebra || a.length === max) { grupos.push(a); a = []; } }
+  if (a.length) grupos.push(a);
+  let g = grupos.findIndex((gr) => t < gr[gr.length - 1].t1 + 0.08); if (g < 0) g = grupos.length - 1;
+  const chave = c.id + ":" + g;
+  if (L.dataset.chave !== chave) { L.dataset.chave = chave; L.innerHTML = grupos[g].map((p) => `<span>${p.texto}</span>`).join(TX.cjk ? "" : " "); }
+  [...L.children].forEach((s, i) => { const p = grupos[g][i]; const agora = t >= p.t0 - 0.02 && t < p.t1 + 0.05;
+    s.className = agora ? "agora" : ""; s.style.transform = `scale(${agora ? 1.08 : 1})`; });
+}
+</script></body></html>

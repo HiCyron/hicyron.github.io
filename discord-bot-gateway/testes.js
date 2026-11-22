@@ -16501,7 +16501,7 @@ function conferirCartao(onde, embed, componentes = []) {
       cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
     });
     try {
-      const { ursoNosCanais, fichaDoUrsoNaSala } = carregar(["URSO_NO_CANAL", "fichaDoUrsoNaSala", "ursoNosCanais"]);
+      const { ursoNosCanais, fichaDoUrsoNaSala } = carregar(["URSO_NO_CANAL", "fichaDoUrsoNaSala", "ursoNosCanais", "alvosLigados", "guildDoAlvo", "salasLigadas", "canaisDaFicha"]);
       /* na sala em português, a ficha da versão anterior já está lá: é atualizada, não repetida */
       const editadas = [];
       velhas.set("pt", new Map([
@@ -16530,6 +16530,95 @@ function conferirCartao(onde, embed, componentes = []) {
     }
     verdade("só o TOP, só a sala do Urso", /guild: \/\^\\\[TOP\\\]\\s\*Best Alliance\/i, canal: \/hunting-trap\//.test(pedaco("URSO_NO_CANAL")));
     verdade("o envio para os canais está agendado ao subir", /setTimeout\(\(\) => urso\(2\), 4 \* 60 \* 1000\)/.test(semComentarios(fonte)));
+  }
+
+  /* 🐻 📖 as salas do Kingshot em outros servidores, só onde o dono liberar (dono, 22/11) */
+  {
+    const J = carregar(["marcaDaOferta", "marcaDoJogo", "SALAS_DO_JOGO_PADRAO", "VERSAO_DA_FICHA_DO_URSO",
+      "salasLigadas", "alvosDoJogo", "canaisDaFicha", "cartaoDaOfertaDoJogo"]);
+    ok("o que o servidor ligou, só as salas que existem", [...J.salasLigadas(" urso, x ,herois")].sort().join(), "herois,urso");
+    ok("nada ligado", J.salasLigadas(null).size, 0);
+    const lista = [{ guildId: "g1", nome: "[MET] Altecaia", sid: "s1" }, { guildId: "g2", nome: "[TOP]Best Alliance Kingshot", sid: "s2" },
+      { guildId: "g3", nome: "Outro", sid: "s3" }];
+    const fixos = [{ guild: /^\[TOP\]\s*Best Alliance/i }];
+    const al = J.alvosDoJogo(lista, { "jogo_ks:s1": "urso", "jogo_ks:s2": "urso,herois" }, fixos);
+    ok("só quem ligou, e o TOP fica com os alvos dele", al.salas.map((x) => x.guildId), ["g1"]);
+    ok("a sala pedida, e só ela", al.salas[0].salas.map((x) => x.tipo), ["urso"]);
+    ok("sem livro quando só o Urso foi ligado", al.livro.length, 0);
+    ok("a ficha cobre as salas novas e tem marca própria", [al.urso[0].marca, al.urso[0].cobrir, al.salas[0].semAgenda].join(),
+      "urso_no_canal:s1:" + J.VERSAO_DA_FICHA_DO_URSO + ",true,true");
+    const dois = J.alvosDoJogo(lista, { "jogo_ks:s1": "urso,herois" });
+    ok("ligar a segunda sala muda a marca da criação (confere de novo)", dois.salas[0].marca, "salas_jogo:s1:herois+urso");
+    ok("e o livro entra", dois.livro[0].marca, "livro_no_canal:s1");
+    ok("canais da ficha: o 4º campo da marca", [...J.canaisDaFicha("t|2/2|en,pt|11,22")], ["11", "22"]);
+    ok("marca dos de sempre (sem 4º campo): nenhum", J.canaisDaFicha("t|3/3|en,en,pt").size, 0);
+    const oferta = J.cartaoDaOfertaDoJogo();
+    conferirCartao("a oferta das salas do Kingshot", oferta.embeds[0], oferta.components);
+    ok("um botão por sala", oferta.components[0].components.map((b) => b.custom_id), ["jogo:criar:urso", "jogo:criar:herois"]);
+    verdade("as vantagens vêm antes do que cada sala tem", oferta.embeds[0].description.indexOf("✅") < oferta.embeds[0].description.indexOf("🐻 **"));
+
+    /* a ficha nos ligados: a primeira vez em todas as salas, depois só na sala de língua nova */
+    const nomes = { f: "🐻-urso", en: "urso-en", pt: "urso-pt", es: "urso-es" };
+    const replicas = [{ canal_id: "en", idioma: "en", tipo: "urso" }, { canal_id: "pt", idioma: "pt", tipo: "urso" }];
+    const fontes = new Map([["f", "urso"]]);
+    const postados = [];
+    let marcas = { "jogo_ks:s-met": "urso" };
+    const canal = (id) => ({ name: nomes[id], send: async (m) => { postados.push([id, m.embeds[0].description]); },
+      messages: { fetch: async () => new Map() } });
+    const guild = { id: "gmet", name: "[MET] Altecaia", channels: { cache: { get: (id) => (nomes[id] ? canal(id) : null) } } };
+    const guardados = Object.fromEntries(["client", "SUBIDA_DOS_EMOJIS", "ajustes", "porAjuste", "servidorDoGuild",
+      "replicasDoIdioma", "fontesReplica", "cartaoDoUrso"].map((k) => [k, globalThis[k]]));
+    Object.assign(globalThis, {
+      SUBIDA_DOS_EMOJIS: { pronta: true },
+      ajustes: async () => marcas,
+      porAjuste: async (k, v) => { marcas = { ...marcas, [k]: v }; },
+      client: { user: { id: "eu" }, guilds: { cache: Object.assign(new Map([["gmet", guild]]), { find(f) { return [...this.values()].find(f); } }) },
+        channels: { fetch: async () => null } },
+      servidorDoGuild: async () => ({ id: "s-met" }),
+      replicasDoIdioma: async () => replicas, fontesReplica: async () => fontes,
+      cartaoDoUrso: async (idioma) => ({ embeds: [{ description: `urso-${idioma}` }] }),
+      marcaDoJogo: J.marcaDoJogo, SALAS_DO_JOGO_PADRAO: J.SALAS_DO_JOGO_PADRAO, VERSAO_DA_FICHA_DO_URSO: J.VERSAO_DA_FICHA_DO_URSO,
+      alvosDoJogo: J.alvosDoJogo, salasLigadas: J.salasLigadas, canaisDaFicha: J.canaisDaFicha,
+    });
+    try {
+      const { ursoNosCanais } = carregar(["URSO_NO_CANAL", "SALAS_DO_JOGO", "LIVRO_NO_CANAL", "fichaDoUrsoNaSala", "ursoNosCanais",
+        "alvosLigados", "guildDoAlvo"]);
+      ok("liberado e ligado: posta", await ursoNosCanais(), "postado");
+      ok("a ficha em todas as salas, na língua de cada uma", postados.map((p) => p.join(":")), ["f:urso-en", "en:urso-en", "pt:urso-pt"]);
+      verdade("a marca guarda onde a ficha está", /\|3\/3\|en,en,pt\|f,en,pt$/.test(marcas["urso_no_canal:s-met:" + J.VERSAO_DA_FICHA_DO_URSO]));
+      postados.length = 0;
+      ok("de novo, nada novo: nada", await ursoNosCanais(), "nada");
+      replicas.push({ canal_id: "es", idioma: "es", tipo: "urso" });
+      ok("sala de língua nova: só ela recebe", await ursoNosCanais(), "postado");
+      ok("e só uma ficha", postados.map((p) => p.join(":")), ["es:urso-es"]);
+      verdade("a marca soma a sala nova", canaisDaFichaOk(marcas["urso_no_canal:s-met:" + J.VERSAO_DA_FICHA_DO_URSO]));
+      function canaisDaFichaOk(v) { return ["f", "en", "pt", "es"].every((c) => J.canaisDaFicha(v).has(c)); }
+      marcas = { ...marcas, "jogo_ks:s-met": "" };
+      postados.length = 0;
+      replicas.push({ canal_id: "pt2", idioma: "pt", tipo: "urso" });
+      ok("desligado: não posta mais", await ursoNosCanais(), "nada");
+    } finally {
+      Object.assign(globalThis, guardados);
+    }
+
+    const clique = semComentarios(pedaco("cliqueDasSalasDoJogo"));
+    verdade("o clique só vale onde o dono liberou, e só para quem administra",
+      /if \(!podeAdministrar\(inter\)\)/.test(clique) && /if \(!a\[marcaDaOferta\(servidor\.id\)\]\) return dizer/.test(clique));
+    verdade("apertar de novo confere de novo (a marca da criação sai)", /porAjuste\(`salas_jogo:\$\{servidor\.id\}:\$\{conjunto\.join\("\+"\)\}`, null\)/.test(clique));
+    const ofer = semComentarios(pedaco("oferecerSalasDoJogo"));
+    verdade("a oferta na língua do dono, com o vídeo acima e a liberação marcada",
+      /linguaDaSalaCyron\(guild\)/.test(ofer) && /cartaoNaLingua\(cartaoDaOfertaDoJogo\(\), lingua, motor\)/.test(ofer) &&
+      /porAjuste\(marcaDaOferta\(servidor\.id\)/.test(ofer) && ofer.indexOf("videoDasSalas(lingua)") < ofer.indexOf("canal.send(carta)"));
+    verdade("os botões da oferta chegam ao clique", /customId\.startsWith\("jogo:criar:"\)\) \{\s*return await cliqueDasSalasDoJogo\(inter\)/.test(semComentarios(fonte)));
+    verdade("o 🐻 da ficha manda a oferta", /if \(acao === "jogo"\) return inter\.editReply\(await oferecerSalasDoJogo\(servidor\)\)/.test(semComentarios(fonte)));
+    const criar = semComentarios(pedaco("criarSalasDoJogo"));
+    verdade("sem agenda, nos ligados: a sala nasce mesmo assim", /if \(!agenda && !alvo\.semAgenda\)/.test(criar) &&
+      /if \(posicao !== null\)/.test(criar) && /parent: agenda\?\.parentId/.test(criar));
+    const V = carregar(["videoDasSalas", "VIDEOS_DAS_SALAS", "SITE_DO_CYRON"]);
+    ok("vídeo na língua quando existe", V.videoDasSalas("pt"), "https://hicyron.github.io/video/salas-kingshot-pt.mp4");
+    ok("senão, em inglês", V.videoDasSalas("ja"), "https://hicyron.github.io/video/salas-kingshot-en.mp4");
+    verdade("cada língua da lista tem o vídeo no site", [...V.VIDEOS_DAS_SALAS].every((l) =>
+      existsSync(new URL(`../cyron/video/salas-kingshot-${l}.mp4`, import.meta.url))));
   }
 
   /* 📖 o livro dos heróis no game-central (no lugar da dica do Saul) */
@@ -16605,7 +16694,7 @@ function conferirCartao(onde, embed, componentes = []) {
     });
     try {
       const { livroNosCanais, paginasDoLivroNaSala, idsDaMarcaDoLivro } =
-        carregar(["LIVRO_NO_CANAL", "VERSAO_DO_LIVRO", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais"]);
+        carregar(["LIVRO_NO_CANAL", "VERSAO_DO_LIVRO", "paginasDoLivroNaSala", "idsDaMarcaDoLivro", "livroNosCanais", "alvosLigados", "guildDoAlvo", "salasLigadas"]);
       const agora = Date.parse("2026-11-17T12:00:00Z");
       const heroi = H.LIVRO[H.paginaDoDia("2026-11-17")].name;
       ok("posta", await livroNosCanais(agora), "postado");

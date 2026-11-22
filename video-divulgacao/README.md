@@ -46,3 +46,17 @@ gatilho não achou a palavra na fala (aí o elemento cairia no meio da cena).
 Vozes: `python3 -m edge_tts --list-voices` (ex.: `id-ID-GadisNeural`, `zh-CN-XiaoxiaoNeural`, `th-TH-PremwadeeNeural`).
 
 No ambiente da nuvem, o `narrar.py` usa sozinho o certificado do proxy (`/root/.ccr/ca-bundle.crt`).
+
+**Salas do Kingshot** (`fazer-roteiro-salas.mjs` + `cena-salas.html`, ~70 a 90 s, em 10 línguas): o vídeo que vai na
+oferta das salas 🐻 Urso e 📖 Heróis, na ⚙️-cyron dos servidores que o dono liberou (botão 🐻 na ficha do /admin).
+Mostra as vantagens, a oferta com os dois botões, as salas nascendo na lista (com as cópias de cada língua), a ficha do
+Urso e o herói do dia. A ficha e as páginas dos heróis saem dos mesmos dados da CYRON (`discord-bot-gateway/herois.js`).
+Uma cena serve todas as línguas: os textos da tela vêm do roteiro, e os toques caem numa fração da fala (não numa palavra),
+então funcionam até sem espaço entre as palavras. O árabe usa `"rtl": true`.
+
+1. `node fazer-roteiro-salas.mjs [línguas]` — gera `roteiro-salas-<língua>.json` (pt en es tr fr ko ru de id ar).
+2. `python3 narrar.py roteiro-salas-pt.json saida-salas-pt`, depois `musica.py` e `gravar.mjs`, como acima.
+3. Versão leve para o site: `ffmpeg -i saida-salas-pt/video.mp4 -vf scale=720:1280 -crf 27 ... ../cyron/video/salas-kingshot-pt.mp4`
+   (a CYRON aponta para `hicyron.github.io/video/salas-kingshot-<língua>.mp4`; a lista fica em `VIDEOS_DAS_SALAS`).
+
+As vozes russas do serviço não respondem: o russo usa a voz multilíngue `en-US-AvaMultilingualNeural`.

@@ -1,0 +1,141 @@
+{
+ "cena": "cena-salas.html",
+ "voz": "en-US-AvaMultilingualNeural",
+ "taxa": "+4%",
+ "tom": "+0Hz",
+ "final": 2.2,
+ "textos": {
+  "titulo": "Kingshot Rooms",
+  "sub": "🐻 Bear · 📖 Heroes",
+  "vantagens": [
+   [
+    "🎯",
+    "Same strategy",
+    "everyone sends the right heroes"
+   ],
+   [
+    "🌍",
+    "In your language",
+    "each room gets a translated copy"
+   ],
+   [
+    "🔄",
+    "Always up to date",
+    "a new hero every day"
+   ],
+   [
+    "🧹",
+    "Zero work",
+    "leaders never explain it again"
+   ]
+  ],
+  "celular": "📱 Admin's phone",
+  "hoje": "Today at",
+  "horas": [
+   "7:30 PM",
+   "7:31 PM",
+   "7:32 PM"
+  ],
+  "conversar": "Message #",
+  "soVoce": "👁 Only you can see this",
+  "semPermissao": "🔒 Read-only room: CYRON writes, everyone reads.",
+  "ofertaTit": "🎮 Kingshot rooms unlocked for this server",
+  "ofertaVant": [
+   "✅ Everyone on the same strategy",
+   "🌍 In everyone's language",
+   "🔄 Always up to date",
+   "🧹 Zero work for leaders"
+  ],
+  "btUrso": "Create Bear room",
+  "btHerois": "Create Heroes room",
+  "prontoUrso": "✅ Done: <b>#🐻-urso</b>. The guide shows up there in a minute.",
+  "prontoHerois": "✅ Done: <b>#📖-herois</b>. The hero of the day arrives in a minute.",
+  "servidor": "[ABC] Kingshot",
+  "cats": [
+   "WELCOME",
+   "ALLIANCE",
+   "ADMIN"
+  ],
+  "novo": "NEW",
+  "linguas": [
+   [
+    "ENGLISH",
+    "en"
+   ],
+   [
+    "ESPAÑOL",
+    "es"
+   ],
+   [
+    "PORTUGUÊS",
+    "pt"
+   ]
+  ],
+  "doDia": "📖 Hero of the day",
+  "comoUsar": "Tap the arrows to flip pages. Only you see the pages you open.",
+  "listaLend": "🔎 Legendary · Gen 1–7",
+  "listaOutros": "🔎 Epic and Rare",
+  "ctaBotao": "⚙️-cyron → 🐻 📖",
+  "ctaL2": "Create yours now",
+  "ctaL3": "Only on servers unlocked by the CYRON team",
+  "fichaUrso": "{{ks_urso}} **Heroes for the Bear**\nThe best for the Bear Trap, by community rating.\n\n{{ks_rally}} **To lead the rally (the best of each generation)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **To join the rally**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= free to get*",
+  "dicasUrso": "{{ks_pergaminho}} **Tips**\n{{ks_brilho}} To join someone else's rally, only the 1st skill of the 1st hero counts: put Amane, Chenko or Yeonwoo in front (free to get). The other two heroes only raise the troops you bring; their skills don't count.\n{{ks_brilho}} Troops: mostly archers. About 60% at Gen 1, 70% at Gen 2 and 80% or more from Gen 3 on.\n{{ks_brilho}} Never send as joiner: Jabel, Helga, Long Fei, Gordon, Diana, Edwin and Charles. Their 1st skill is not an attack skill.",
+  "heroi1": {
+   "linhas": "{{ks_brilho}} **Amane**\n{{ks_tropa_arqueiro}} Archer\n{{ks_fogo_epico}} **Epic**\n{{ks_galho}}{{ks_urso}} {{ks_nota_splus}} Bear (joiner)\n{{ks_galho}}{{ks_rally}} {{ks_nota_d}} Rally\n{{ks_galho_fim}}{{ks_guarnicao}} {{ks_nota_d}} Garrison\n> {{ks_bau}} *Free to get*",
+   "retrato": "img/herois/amane.gif",
+   "cor": "#a855f7"
+  },
+  "heroi2": {
+   "linhas": "{{ks_brilho}} **Chenko**\n{{ks_tropa_cavalaria}} Cavalry\n{{ks_fogo_epico}} **Epic**\n{{ks_galho}}{{ks_urso}} {{ks_nota_splus}} Bear (joiner)\n{{ks_galho}}{{ks_rally}} {{ks_nota_c}} Rally\n{{ks_galho_fim}}{{ks_guarnicao}} {{ks_nota_c}} Garrison\n> {{ks_bau}} *Free to get*",
+   "retrato": "img/herois/chenko.gif",
+   "cor": "#a855f7"
+  },
+  "pagina1": "📖 1 / 34",
+  "pagina2": "📖 2 / 34"
+ },
+ "cenas": [
+  {
+   "id": "intro",
+   "fala": "Good news: your Kingshot server just got two new rooms from CYRON. The Bear room and the Heroes room."
+  },
+  {
+   "id": "vantagens",
+   "fala": "With them, everyone plays the same strategy. Everyone reads in their own language. Everything updates by itself. And your leaders never have to explain it all again.",
+   "pausa": 0.6
+  },
+  {
+   "id": "oferta",
+   "fala": "Creating them is easy. Open the CYRON room: the offer is there, with one button for each room.",
+   "pausa": 0.5
+  },
+  {
+   "id": "urso",
+   "fala": "Tap Create Bear room. Done: the room is created right away.",
+   "pausa": 0.7
+  },
+  {
+   "id": "herois",
+   "fala": "Then tap Create Heroes room. You can create one now and the other later.",
+   "pausa": 0.7
+  },
+  {
+   "id": "lista",
+   "fala": "In the channel list, both rooms show up. And every language on the server gets its own translated copy, automatically.",
+   "pausa": 0.6
+  },
+  {
+   "id": "ficha",
+   "fala": "The Bear room has the guide: the right heroes to lead and to join the rally, the troops, and the tips.",
+   "pausa": 1.2
+  },
+  {
+   "id": "livro",
+   "fala": "The Heroes room gets a new hero every day, with the Rally, Garrison and Bear ratings. The arrows open the whole book, just for whoever tapped.",
+   "pausa": 0.9
+  },
+  {
+   "id": "cta",
+   "fala": "Both rooms are read only, so the information never gets lost in the chat. Create yours now, in the CYRON room!"
+  }
+ ]
+}

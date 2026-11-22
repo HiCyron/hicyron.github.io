@@ -1,0 +1,142 @@
+{
+ "cena": "cena-salas.html",
+ "voz": "ar-SA-ZariyahNeural",
+ "taxa": "+12%",
+ "tom": "+0Hz",
+ "final": 2.2,
+ "textos": {
+  "rtl": true,
+  "titulo": "قنوات كينغ شوت",
+  "sub": "🐻 الدب · 📖 الأبطال",
+  "vantagens": [
+   [
+    "🎯",
+    "نفس الاستراتيجية",
+    "الجميع يرسل الأبطال الصحيحين"
+   ],
+   [
+    "🌍",
+    "بلغتك",
+    "كل قناة تحصل على نسخة مترجمة"
+   ],
+   [
+    "🔄",
+    "محدّث دائمًا",
+    "بطل جديد كل يوم"
+   ],
+   [
+    "🧹",
+    "بلا مجهود",
+    "القادة لا يعيدون الشرح"
+   ]
+  ],
+  "celular": "📱 هاتف المشرف",
+  "hoje": "اليوم الساعة",
+  "horas": [
+   "19:30",
+   "19:31",
+   "19:32"
+  ],
+  "conversar": "أرسل رسالة إلى #",
+  "soVoce": "👁 أنت فقط من يمكنه رؤية هذا",
+  "semPermissao": "🔒 قناة للقراءة فقط: CYRON يكتب والجميع يقرأ.",
+  "ofertaTit": "🎮 تم فتح قنوات كينغ شوت لهذا الخادم",
+  "ofertaVant": [
+   "✅ الجميع على نفس الاستراتيجية",
+   "🌍 بلغة كل شخص",
+   "🔄 محدّث دائمًا",
+   "🧹 بلا مجهود على القادة"
+  ],
+  "btUrso": "إنشاء قناة الدب",
+  "btHerois": "إنشاء قناة الأبطال",
+  "prontoUrso": "✅ تم: <b>#🐻-urso</b>. سيظهر الدليل هناك خلال دقيقة.",
+  "prontoHerois": "✅ تم: <b>#📖-herois</b>. بطل اليوم يصل خلال دقيقة.",
+  "servidor": "[ABC] Kingshot",
+  "cats": [
+   "الدخول",
+   "التحالف",
+   "الإدارة"
+  ],
+  "novo": "جديد",
+  "linguas": [
+   [
+    "العربية",
+    "ar"
+   ],
+   [
+    "ENGLISH",
+    "en"
+   ],
+   [
+    "ESPAÑOL",
+    "es"
+   ]
+  ],
+  "doDia": "📖 بطل اليوم",
+  "comoUsar": "اضغط على الأسهم لتقليب الصفحات. أنت فقط ترى الصفحات التي تفتحها.",
+  "listaLend": "🔎 أسطوري · Gen 1–7",
+  "listaOutros": "🔎 ملحمي ونادر",
+  "ctaBotao": "⚙️-cyron → 🐻 📖",
+  "ctaL2": "أنشئ قناتيك الآن",
+  "ctaL3": "فقط في الخوادم التي فتحها فريق CYRON",
+  "fichaUrso": "{{ks_urso}} **أبطال الدب**\nالأفضل لفخ الدب (Bear Trap) حسب تقييم المجتمع.\n\n{{ks_rally}} **لقيادة الحشد (الأفضل في كل جيل)**\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Marlin** {{ks_gen_2}} {{ks_bau}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Petra** {{ks_gen_3}}\n{{ks_galho}}{{ks_nota_a}} {{ks_tropa_arqueiro}} **Rosa** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Thrud** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_s}} {{ks_tropa_arqueiro}} **Yang** {{ks_gen_6}}\n{{ks_galho_fim}}{{ks_nota_s}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n\n{{ks_joiner}} **للانضمام إلى الحشد**\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Amane** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Chenko** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Yeonwoo** {{ks_bau}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_infantaria}} **Amadeus** {{ks_gen_1}} VIP\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Margot** {{ks_gen_4}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Vivian** {{ks_gen_5}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_cavalaria}} **Ava** {{ks_gen_7}}\n{{ks_galho}}{{ks_nota_splus}} {{ks_tropa_arqueiro}} **Wee & Woo** {{ks_gen_7}}\n{{ks_galho_fim}}{{ks_nota_a}} {{ks_tropa_cavalaria}} **Hilde** {{ks_gen_2}}\n\n> {{ks_bau}} *= يمكن الحصول عليه مجانًا*",
+  "dicasUrso": "{{ks_pergaminho}} **نصائح**\n{{ks_brilho}} عند الانضمام إلى حشد شخص آخر، تُحسب فقط المهارة الأولى للبطل الأول: ضع Amane أو Chenko أو Yeonwoo في المقدمة (يمكن الحصول عليهم مجانًا). البطلان الآخران يزيدان القوات التي ترسلها فقط؛ مهاراتهما لا تُحسب.\n{{ks_brilho}} القوات: أغلبها رماة. حوالي 60% في Gen 1، و70% في Gen 2، و80% أو أكثر من Gen 3 فصاعدًا.\n{{ks_brilho}} لا ترسل أبدًا كمنضم: Jabel وHelga وLong Fei وGordon وDiana وEdwin وCharles. مهارتهم الأولى ليست مهارة هجوم.",
+  "heroi1": {
+   "linhas": "{{ks_brilho}} **Amane**\n{{ks_tropa_arqueiro}} رماة\n{{ks_fogo_epico}} **ملحمي**\n{{ks_galho}}{{ks_urso}} {{ks_nota_splus}} الدب (منضم)\n{{ks_galho}}{{ks_rally}} {{ks_nota_d}} الحشد\n{{ks_galho_fim}}{{ks_guarnicao}} {{ks_nota_d}} الحامية\n> {{ks_bau}} *يمكن الحصول عليه مجانًا*",
+   "retrato": "img/herois/amane.gif",
+   "cor": "#a855f7"
+  },
+  "heroi2": {
+   "linhas": "{{ks_brilho}} **Chenko**\n{{ks_tropa_cavalaria}} فرسان\n{{ks_fogo_epico}} **ملحمي**\n{{ks_galho}}{{ks_urso}} {{ks_nota_splus}} الدب (منضم)\n{{ks_galho}}{{ks_rally}} {{ks_nota_c}} الحشد\n{{ks_galho_fim}}{{ks_guarnicao}} {{ks_nota_c}} الحامية\n> {{ks_bau}} *يمكن الحصول عليه مجانًا*",
+   "retrato": "img/herois/chenko.gif",
+   "cor": "#a855f7"
+  },
+  "pagina1": "📖 1 / 34",
+  "pagina2": "📖 2 / 34"
+ },
+ "cenas": [
+  {
+   "id": "intro",
+   "fala": "خبر رائع: حصل خادم كينغ شوت الخاص بك على قناتين جديدتين من سايرون. قناة الدب وقناة الأبطال."
+  },
+  {
+   "id": "vantagens",
+   "fala": "معهما يلعب الجميع بنفس الاستراتيجية. كل شخص يقرأ بلغته. كل شيء يتحدّث تلقائيًا. ولا يحتاج القادة إلى إعادة الشرح من جديد.",
+   "pausa": 0.6
+  },
+  {
+   "id": "oferta",
+   "fala": "إنشاؤهما سهل. افتح قناة سايرون: ستجد العرض هناك، مع زر لكل قناة.",
+   "pausa": 0.5
+  },
+  {
+   "id": "urso",
+   "fala": "اضغط على إنشاء قناة الدب. تم: تُنشأ القناة فورًا.",
+   "pausa": 0.7
+  },
+  {
+   "id": "herois",
+   "fala": "ثم اضغط على إنشاء قناة الأبطال. يمكنك إنشاء واحدة الآن والأخرى لاحقًا.",
+   "pausa": 0.7
+  },
+  {
+   "id": "lista",
+   "fala": "في قائمة القنوات تظهر القناتان. وكل لغة في الخادم تحصل على نسختها المترجمة تلقائيًا.",
+   "pausa": 0.6
+  },
+  {
+   "id": "ficha",
+   "fala": "في قناة الدب تجد الدليل: الأبطال المناسبين لقيادة الحشد والانضمام إليه، والقوات، والنصائح.",
+   "pausa": 1.2
+  },
+  {
+   "id": "livro",
+   "fala": "في قناة الأبطال يصل بطل جديد كل يوم، مع تقييمات الحشد والحامية والدب. الأسهم تفتح الكتاب كاملًا، لمن ضغط فقط.",
+   "pausa": 0.9
+  },
+  {
+   "id": "cta",
+   "fala": "القناتان للقراءة فقط، لذلك لا تضيع المعلومات أبدًا في المحادثة. أنشئ قناتيك الآن، في قناة سايرون!"
+  }
+ ]
+}
