@@ -17332,9 +17332,14 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("a chave da semana olha cada vez de cada evento da liderança", /daLideranca\.flatMap\(\(l\) => l\.ocorrencias\.map\(\(o\) => \(\{ nome: l\.nome, \.\.\.o \}\)\)\)/.test(pub));
         verdade("a semana: edita a mensagem da sala; só manda nova quando ela sumiu", pub.indexOf("velha.edit") > 0 && pub.indexOf("velha.edit") < pub.indexOf("canal.send(carga)"));
         verdade("o id da mensagem nova é guardado na hora (reiniciar no meio não duplica)", /estado\.semana\[sala\.canal\] = nova\.id;\s*await salvar\(\)/.test(pub));
-        const novoDia = pub.slice(pub.indexOf("if (estado.dia !== dia)"));
-        verdade("o aviso do dia: o de ontem sai antes do novo", novoDia.indexOf("estado.avisos[sala.canal]).catch") > 0 && novoDia.indexOf("estado.avisos[sala.canal]).catch") < novoDia.indexOf("cargaDoDia("));
-        const meio = pub.slice(pub.indexOf("estado.aviso !== chaveA"), pub.indexOf("if (estado.dia !== dia)"));
+        const novoDia = pub.slice(pub.indexOf("if (estado.dia !== dia)"), pub.indexOf("if (estado.chave !== chave)"));
+        verdade("na virada: a imagem e o aviso saem e voltam JUNTOS no fim da sala (o aviso logo embaixo da imagem)",
+          /for \(const id of \[estado\.semana\[sala\.canal\], estado\.avisos\[sala\.canal\]\]\) if \(id\) await canal\.messages\?\.delete\?\.\(id\)/.test(novoDia) &&
+          novoDia.indexOf("canal.send(semana)") > 0 && novoDia.indexOf("canal.send(semana)") < novoDia.indexOf("canal.send(doDia)"));
+        verdade("as cargas são montadas antes de apagar (sem o que pôr no lugar, nada sai)",
+          novoDia.indexOf("cargaDaSemana(") < novoDia.indexOf("messages?.delete?.(id)") && novoDia.indexOf("cargaDoDia(") < novoDia.indexOf("messages?.delete?.(id)") &&
+          /continue;\s*\}$/.test(novoDia.trim()));
+        const meio = pub.slice(pub.indexOf("if (estado.aviso !== chaveA)"));
         verdade("no meio do dia: o aviso é editado quando um evento começa ou acaba (e sai se não sobrou nada)",
           /velho\.edit\(carga\)/.test(meio) && /if \(!carga\) \{\s*if \(velho\) await velho\.delete\(\)/.test(meio) && /estado\.aviso = chaveA;\s*await salvar\(\)/.test(meio));
         verdade("a agenda confere de 5 em 5 minutos", /setInterval\(\(\) => agendaJogo\(0\), 5 \* 60 \* 1000\)/.test(fonte));
