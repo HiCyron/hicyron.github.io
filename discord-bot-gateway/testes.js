@@ -14272,8 +14272,9 @@ function conferirCartao(onde, embed, componentes = []) {
     globalThis.idiomaEscolhido = async () => escolhida;
     globalThis.servidorDoGuild = async (id) => (id ? { id: `s-${id}` } : null);
     globalThis.canaisEspelho = async () => salasDoServidor;
+    globalThis.sb = async () => [];
     const L = carregar(["LINGUAS_MENU", "idiomaDoAplicativo", "linguaDaSalaCyron", "porMolde", "falaFixa",
-      "componentesNaLingua", "textoNaLingua", "cartaoNaLingua"]);
+      "componentesNaLingua", "textoNaLingua", "cartaoNaLingua", "linguaDoCargoDoDono", "idiomaPeloCargoDoDono"]);
     escolhida = "ja";
     ok("a língua que o dono escolheu no bot manda", await L.linguaDaSalaCyron({ ownerId: "d", preferredLocale: "pt-BR" }), "ja");
     escolhida = "";
@@ -14293,6 +14294,17 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("sem nada, inglês", await L.linguaDaSalaCyron({ ownerId: "d" }), "en");
     salasDoServidor = [{ idioma: "pt" }];
     ok("a língua do servidor (não en-US) continua mandando", await L.linguaDaSalaCyron({ id: "g", ownerId: "d", preferredLocale: "id" }), "id");
+    /* o cargo de língua do dono (22/11: a MET, de sete línguas, recebeu a oferta em português) */
+    salasDoServidor = [{ idioma: "en" }, { idioma: "pt" }, { idioma: "tr" }];
+    globalThis.sb = async () => [{ idioma: "pt", role_id: "r-pt" }, { idioma: "tr", role_id: "r-tr" }];
+    const dono = (cargos) => ({ fetch: async () => ({ roles: { cache: new Set(cargos) } }) });
+    ok("o dono tem o cargo do turco: turco", await L.linguaDaSalaCyron({ id: "met", ownerId: "d", preferredLocale: "en-US", members: dono(["r-tr"]) }), "tr");
+    ok("uma hora de memória: não busca o dono de novo", await L.linguaDaSalaCyron({ id: "met", ownerId: "d", preferredLocale: "en-US", members: dono(["r-pt"]) }), "tr");
+    ok("dono sem cargo de língua: a regra de antes", await L.linguaDaSalaCyron({ id: "outro", ownerId: "d", preferredLocale: "en-US", members: dono([]) }), "pt");
+    escolhida = "ja";
+    ok("a escolha no bot ainda vem antes do cargo", await L.linguaDaSalaCyron({ id: "met2", ownerId: "d", preferredLocale: "en-US", members: dono(["r-tr"]) }), "ja");
+    escolhida = "";
+    globalThis.sb = async () => [];
 
     globalThis.traduzirComCache = async (t, idioma) => `[${idioma}] ${t}`;
     const linhas = [{ type: 1, components: [
