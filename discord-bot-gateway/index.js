@@ -4659,6 +4659,9 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
 
   for (const destino of lista) {
     if (destino.canal_id === origem.canal_id) continue;
+    /* Sala que eu perdi de vista: fica de fora ate' a proxima tentativa (ver
+       SALA_SEM_ACESSO). Calada aqui, porque o aviso ja' saiu uma vez. */
+    if (salaSemAcesso(destino.canal_id)) continue;
     const le = idiomaQueLe(destino);
 
     const corpo = tirarEmojisDoTexto(traduzido.get(le) ?? texto, emojisEmbaixo?.ids);
@@ -4857,7 +4860,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
 
       let posta;
       try {
-        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino));
+        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino, msg.guild?.name));
       } catch (e) {
         /* O BOTAO NUNCA PODE CUSTAR A MENSAGEM.
 
@@ -4871,7 +4874,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         if (!comBotao || /Unknown Webhook/i.test(e?.message || "")) throw e;
         console.log(`espelho: a sala de ${destino.idioma} recusou o botao de imagem; mando sem.`);
         delete carga.components;
-        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino));
+        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino, msg.guild?.name));
       }
       if (posta?.id) {
         /* Cartao novo na sala 🌍 ganha o topico 🌐 -- se tiver o que ler. */
@@ -4916,7 +4919,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
           e?.message || e));
       }
     } catch (e) {
-      console.error("espelho: nao consegui postar em", destino.idioma, e?.message || e);
+      /* Sem acesso a' sala o aviso proprio ja' saiu; este seria o mesmo
+         problema contado duas vezes. */
+      if (!salaSemAcesso(destino.canal_id)) {
+        console.error("espelho: nao consegui postar em", destino.idioma, e?.message || e);
+      }
     }
   }
 
@@ -6702,13 +6709,42 @@ async function refazerWebhookDaReplica(servidorId, destino) {
 const WEBHOOK_REFEITO_EM = new Map(); // canal_id -> quando refiz
 const ESPERA_PARA_REFAZER_WEBHOOK = 30 * 60 * 1000;
 
-async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now()) {
+/* SALA QUE EXISTE MAS QUE EU NAO ENXERGO.
+
+   Foi o que o conserto acima encontrou no [MET], na mesma sala th: o webhook
+   sumiu as 02:55 e, quando fui fazer outro, o Discord respondeu "sem acesso"
+   ao canal -- alguem tirou da CYRON a permissao de ver o #chat-th. A
+   varredura conta canal escondido como vivo (de proposito), entao a linha
+   fica, e cada fala do servidor tentava a sala de novo: um "Unknown Webhook"
+   por mensagem no canal de erros, com o cartao dizendo que eu ja' tinha
+   consertado.
+
+   Sem acesso, nao ha' o que eu conserte sozinha: quem resolve e' um ADM de
+   la'. Entao: um aviso que diz exatamente isso, e a sala fica de fora pela
+   mesma meia hora da espera -- uma tentativa (e um aviso) por meia hora, e
+   nao um erro por fala. Quando o acesso voltar, a tentativa seguinte refaz
+   o webhook e a sala volta sozinha. */
+const SALA_SEM_ACESSO = new Map(); // canal_id -> quando descobri
+function salaSemAcesso(canalId, agora = Date.now()) {
+  const t = SALA_SEM_ACESSO.get(canalId);
+  return !!t && agora - t < ESPERA_PARA_REFAZER_WEBHOOK;
+}
+
+async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now(), onde = "") {
   const ultimo = WEBHOOK_REFEITO_EM.get(destino.canal_id);
   if (ultimo && agora - ultimo < ESPERA_PARA_REFAZER_WEBHOOK) return null;
   WEBHOOK_REFEITO_EM.set(destino.canal_id, agora);
   try {
-    const canal = await client.channels.fetch(destino.canal_id).catch(() => null);
-    if (!canal) return null;
+    let porque = null;
+    const canal = await client.channels.fetch(destino.canal_id).catch((e) => { porque = e; return null; });
+    if (!canal) {
+      if (porque?.code === 50001 || porque?.code === 50013 || /Missing Access|Missing Permissions/i.test(porque?.message || "")) {
+        SALA_SEM_ACESSO.set(destino.canal_id, agora);
+        console.error(`espelho: sem acesso à sala de ${destino.idioma}${onde ? ` em ${onde}` : ""} — ` +
+          "o webhook sumiu e eu não enxergo o canal para fazer outro");
+      }
+      return null;
+    }
 
     const existentes = await canal.fetchWebhooks().catch(() => null);
     const meu = existentes?.find((w) => w.owner?.id === client.user.id && w.token && w.url !== destino.webhook);
@@ -6736,12 +6772,12 @@ async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now()) 
 
    Reenviar nao duplica: o primeiro envio falhou com webhook inexistente,
    entao nada chegou do outro lado. */
-async function enviarNaSalaDoEspelho(webhook, carga, servidorId, destino) {
+async function enviarNaSalaDoEspelho(webhook, carga, servidorId, destino, onde = "") {
   try {
     return { posta: await webhook.send(carga), webhook };
   } catch (e) {
     if (!/Unknown Webhook/i.test(e?.message || "")) throw e;
-    const novo = await refazerWebhookDoEspelho(servidorId, destino);
+    const novo = await refazerWebhookDoEspelho(servidorId, destino, Date.now(), onde);
     if (!novo) throw e;
     const outro = clienteDoWebhook(novo);
     return { posta: await outro.send(carga), webhook: outro };
@@ -21021,6 +21057,19 @@ const EXPLICA_ERRO = [
       "Quem clicou viu “Esta interação falhou”.",
     fazer: "Nada, se for raro: a pessoa clica de novo e funciona. Se aparecer várias vezes no mesmo " +
       "dia, me mostre — é sinal de que algum botão está fazendo trabalho pesado antes de responder.",
+  },
+  {
+    /* ANTES da regra do "apagaram": aqui o webhook sumiu E eu nao enxergo o
+       canal, e isso eu nao conserto sozinha -- precisa de um ADM de la'. */
+    quando: /sem acesso à sala de/i,
+    titulo: "Perdi o acesso a uma sala de conversa",
+    precisaDeVoce: true,
+    oque: "O webhook da sala foi apagado e eu não consigo mais ver o canal para fazer outro: alguém tirou " +
+      "da CYRON a permissão de ver aquela sala. As falas desse idioma não chegam lá até isso voltar.\n\n" +
+      "Para não encher este canal, eu deixo a sala de fora e tento de novo a cada 30 minutos.",
+    fazer: "Peça a um ADM do servidor indicado para devolver à CYRON **Ver canal** e **Gerenciar webhooks** " +
+      "na sala daquele idioma (ou sincronizar a sala com a categoria). Na tentativa seguinte eu refaço o " +
+      "webhook e a sala volta sozinha.",
   },
   {
     quando: /Unknown Message|Unknown Channel|Unknown Webhook/i,

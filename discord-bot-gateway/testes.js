@@ -194,8 +194,8 @@ Object.assign(globalThis, carregar(["comoFunciona"]));
 Object.assign(globalThis, carregar(["nomeSimples", "mesmoNome"]));
 /* O envio da sala de conversa passa pelo conserto do webhook morto: todo teste
    que carrega o espelharMensagem precisa dele no escopo. */
-Object.assign(globalThis, carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK",
-  "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]));
+Object.assign(globalThis, carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK", "SALA_SEM_ACESSO",
+  "salaSemAcesso", "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]));
 /* As salas do jogo ficam fora do menu de fontes: o painel e o clique do menu
    consultam esta lista. */
 Object.assign(globalThis, carregar(["TIPOS_DAS_SALAS_DO_JOGO"]));
@@ -17949,8 +17949,8 @@ function conferirCartao(onde, embed, componentes = []) {
   globalThis.clienteDoWebhook = (url) => ({ send: async (c) => { enviados.push([url, c]); return { id: "m1" }; } });
   const morto = { send: async () => { throw new Error("Unknown Webhook"); } };
 
-  const { enviarNaSalaDoEspelho } = carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK",
-    "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]);
+  const { enviarNaSalaDoEspelho, salaSemAcesso } = carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK",
+    "SALA_SEM_ACESSO", "salaSemAcesso", "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]);
   const falha = (p) => p.then(() => null, (e) => e?.message || String(e));
 
   {
@@ -18002,6 +18002,32 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("e não mexe no banco", patches.length, antes);
   }
 
+  /* A SALA QUE EXISTE MAS QUE EU NÃO ENXERGO -- o [MET] de verdade: o canal
+     responde "sem acesso". Não há o que eu conserte sozinha; o aviso diz isso
+     uma vez, e a sala sai da fila por meia hora em vez de um erro por fala. */
+  {
+    const antes = patches.length;
+    const fetchAntes = client.channels.fetch;
+    client.channels.fetch = async () => { throw Object.assign(new Error("Missing Access"), { code: 50001 }); };
+    const erros = [], console0 = console.error;
+    console.error = (...x) => erros.push(x.join(" "));
+    const destino = { canal_id: "escondido", idioma: "th", webhook: "https://w/morto" };
+    const r = await falha(enviarNaSalaDoEspelho(morto, { content: "x" }, "srv", destino, "[MET] Altecaia"));
+    console.error = console0;
+    client.channels.fetch = fetchAntes;
+    ok("sem acesso ao canal: a fala falha (não há webhook a fazer)", r, "Unknown Webhook");
+    ok("e não mexe no banco", patches.length, antes);
+    verdade("o aviso diz qual sala, em qual servidor, e por quê",
+      erros.length === 1 && /sem acesso à sala de th em \[MET\] Altecaia/.test(erros[0]));
+    verdade("a sala fica de fora pela meia hora", salaSemAcesso("escondido") &&
+      !salaSemAcesso("escondido", Date.now() + 31 * 60 * 1000));
+    verdade("e uma sala que só sumiu (sem 'sem acesso') não entra nessa conta", !salaSemAcesso("sumiu"));
+    const { explicarErro } = carregar(["EXPLICA_ERRO", "explicarErro"]);
+    const cartao = explicarErro("espelho", erros[0].replace(/^espelho: /, ""));
+    verdade("o cartão é o de acesso perdido, e não o 'apagaram, já consertei'",
+      /Perdi o acesso/.test(String(cartao?.titulo)) && cartao?.precisaDeVoce === true);
+  }
+
   {
     const antes = patches.length;
     const semPermissao = { send: async () => { throw new Error("Missing Permissions"); } };
@@ -18017,7 +18043,11 @@ function conferirCartao(onde, embed, componentes = []) {
      teste verde por cima dizendo que não. */
   const espelho = semComentarios(pedaco("espelharMensagem"));
   ok("o envio da sala passa pelo conserto (e o reenvio sem botão também)",
-    (espelho.match(/\(\{ posta, webhook \} = await enviarNaSalaDoEspelho\(webhook, carga, servidorId, destino\)\)/g) || []).length, 2);
+    (espelho.match(/\(\{ posta, webhook \} = await enviarNaSalaDoEspelho\(webhook, carga, servidorId, destino, msg\.guild\?\.name\)\)/g) || []).length, 2);
+  verdade("sala sem acesso fica de fora do laço, calada",
+    /for \(const destino of lista\) \{\s*if \(destino\.canal_id === origem\.canal_id\) continue;\s*if \(salaSemAcesso\(destino\.canal_id\)\) continue;/.test(espelho));
+  verdade("e não conta o mesmo problema duas vezes no canal de erros",
+    /if \(!salaSemAcesso\(destino\.canal_id\)\) \{\s*console\.error\("espelho: nao consegui postar em"/.test(espelho));
   verdade("o webhook da sala pode ser trocado no meio (o vídeo vai pelo novo)",
     /let webhook = clienteDoWebhook\(destino\.webhook\)/.test(espelho));
   verdade("webhook morto não vira 'recusou o botão'",
