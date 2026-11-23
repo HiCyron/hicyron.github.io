@@ -12032,6 +12032,60 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("o token vai no cabeçalho, nunca no log", !/console\.(log|error)\([^)]*chave\b/.test(idx.slice(idx.indexOf("async function avisarDiscordBotList"), idx.indexOf("async function janelaDasChaves"))));
 }
 
+/* ====== o top.gg (aprovada em 23/11) ======
+   A página mostrava "0 servidores": o número só aparece se o bot contar. O
+   token do painel novo é da API v1 (Bearer, PATCH em metrics); o antigo, da
+   v0 (sem prefixo, POST em stats). Não dá para saber pelo token, então a v1
+   primeiro e a v0 só quando a v1 recusa a autorização. */
+{
+  const guarda = { client: globalThis.client, ajustes: globalThis.ajustes, decifrar: globalThis.decifrar };
+  globalThis.client = { user: { id: "1498142929041096856" }, guilds: { cache: { size: 42 } } };
+  let guardado = "cifrado";
+  globalThis.ajustes = async () => (guardado ? { topgg_chave: guardado } : {});
+  globalThis.decifrar = (v) => `claro:${v}`;
+  const { avisarTopgg } = carregar(["TOPGG_API", "chaveDoTopgg", "avisarTopgg"]);
+  const resposta = (status) => ({ ok: status < 300, status });
+  const pedidos = [];
+  const lista = (...status) => async (url, o) => { pedidos.push({ url, o }); return resposta(status[pedidos.length - 1] ?? 500); };
+
+  ok("v1 aceitou: manda o número uma vez só", await avisarTopgg(lista(204)), { ok: true, guilds: 42, via: "v1" });
+  verdade("pela v1: PATCH em metrics, com Bearer", pedidos[0].url === "https://top.gg/api/v1/projects/@me/metrics" &&
+    pedidos[0].o.method === "PATCH" && pedidos[0].o.headers.Authorization === "Bearer claro:cifrado");
+  ok("com o número de servidores no corpo", JSON.parse(pedidos[0].o.body), { server_count: 42 });
+
+  pedidos.length = 0;
+  ok("token antigo: a v1 recusa e a v0 aceita", await avisarTopgg(lista(401, 200)), { ok: true, guilds: 42, via: "v0" });
+  verdade("pela v0: POST em stats do bot, token sem prefixo",
+    pedidos[1].url === "https://top.gg/api/bots/1498142929041096856/stats" && pedidos[1].o.method === "POST" &&
+    pedidos[1].o.headers.Authorization === "claro:cifrado");
+
+  pedidos.length = 0;
+  ok("as duas recusam: diz as duas", (await avisarTopgg(lista(401, 401))).erro, "HTTP 401 (v1) / 401 (v0)");
+  pedidos.length = 0;
+  /* 429 é "espere uma hora": insistir na v0 seria mais um pedido no bloqueio. */
+  ok("pressa (429) não tenta de novo pela outra porta", [(await avisarTopgg(lista(429))).erro, pedidos.length], ["HTTP 429", 1]);
+
+  guardado = null;
+  pedidos.length = 0;
+  ok("sem token, não chama ninguém", [(await avisarTopgg(lista(204))).erro, pedidos.length], ["sem token", 0]);
+  Object.assign(globalThis, guarda);
+
+  const idx = semComentarios(fonte);
+  verdade("o botão 🗳️ top.gg está nas ferramentas do /admin", /botao\("topgg", "🗳️", "top\.gg", 1\)/.test(idx));
+  verdade("ele abre a janela", /acao === "topgg" && inter\.isButton\(\)\) return inter\.showModal\(janelaValida\(await janelaDoTopgg\(\)\)\)/.test(idx));
+  verdade("e a janela é salva", /inter\.customId === "admin:topgg"\) return await salvarTopgg\(inter\)/.test(idx));
+  const salvar = semComentarios(pedaco("salvarTopgg"));
+  verdade("só o dono salva", /if \(!await ehDono\(inter\.user\.id\)\)/.test(salvar));
+  verdade("cifrado antes de ir ao banco", /porAjuste\("topgg_chave", cifrar\(novo\)\)/.test(salvar));
+  verdade("e testado na hora", /await avisarTopgg\(\)/.test(salvar));
+  verdade("o número vai de hora em hora", /async function deHoraEmHora[^]*?avisarTopgg\(\)/.test(idx));
+  verdade("e ao subir", /setTimeout\(\(\) => \{[^]{0,600}avisarTopgg\(\)/.test(idx));
+  verdade("o token nunca vai para o log",
+    !/console\.(log|error)\([^)]*\btoken\b/.test(semComentarios(pedaco("avisarTopgg")) + salvar));
+  const janela = semComentarios(pedaco("janelaDoTopgg"));
+  verdade("a janela não devolve o token guardado na tela", !/value:/.test(janela));
+}
+
 /* ====== o modo do servidor ======
 
    Quem instala o CYRON só pela agenda não pode ganhar porta de idioma,

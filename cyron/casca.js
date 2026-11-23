@@ -19,6 +19,7 @@
     painel: ["meus-servidores", "my-servers"],
     termos: ["termos-de-uso", "terms-of-use"],
     privacidade: ["privacidade", "privacy"],
+    guide: ["guia-completo", "full-guide"],
   };
   var CONVITE = "https://discord.com/oauth2/authorize?client_id=1498142929041096856" +
     "&permissions=327223209040&scope=bot%20applications.commands";
@@ -50,20 +51,28 @@
         '<img class="banner" src="./img/banner.jpg" alt="" width="240" height="85">' +
         "<header>CYRON</header>" +
         '<nav class="canais" aria-label="Canais / Channels">' +
+          /* O MENU, organizado pelo que a pessoa quer fazer (23/11):
+             conhecer -> ver o que faz -> configurar -> pedir ajuda.
+             Antes "o-que-ela-faz" (a seção da home) e "tudo-que-ela-faz" (a
+             página) ficavam lado a lado com quase o mesmo nome, e o guia não
+             estava em lugar nenhum. A mesma lista mora na home (index.html),
+             escrita em HTML para quem lê sem JavaScript; um teste confere que
+             as duas não se separam.
+             "#" é página do site, como um canal; "↗" é só o que sai dele. */
           '<div class="categoria">' + duas("Comece aqui", "Start here") + "</div>" +
           canal("./#boas-vindas", "boas-vindas", "welcome") +
           canal("./#funciona", "como-funciona", "how-it-works") +
-          canal("./#recursos", "o-que-ela-faz", "what-it-does") +
+          canal("./passos.html", "primeiros-passos", "get-started", false, "passos") +
+          '<div class="categoria">' + duas("O que ela faz", "What it does") + "</div>" +
+          canal("./recursos.html", "tudo-que-ela-faz", "everything-it-does", false, "recursos") +
+          canal("./recursos.html#ferramentas", "ferramentas", "tools") +
+          canal("./guide.html", "guia-completo", "full-guide", false, "guide") +
           '<div class="categoria">' + duas("Para o dono", "For owners") + "</div>" +
           canal("./#planos", "planos", "pricing") +
           canal("./#perguntas", "perguntas", "questions") +
-          '<div class="categoria">' + duas("Links", "Links") + "</div>" +
-          canal("./passos.html", "primeiros-passos", "get-started", true, "passos") +
-          canal("./recursos.html", "tudo-que-ela-faz", "everything-it-does", true, "recursos") +
-          canal("./recursos.html#ferramentas", "ferramentas", "tools", true) +
-          canal("./painel.html", "meus-servidores", "my-servers", true, "painel") +
+          canal("./painel.html", "meus-servidores", "my-servers", false, "painel") +
+          '<div class="categoria">' + duas("Ajuda", "Help") + "</div>" +
           canal("https://discord.gg/yDwePceB38", "suporte", "support", true) +
-          '<div class="categoria">' + duas("Regras", "Rules") + "</div>" +
           canal("./termos.html", "termos-de-uso", "terms-of-use", false, "termos") +
           canal("./privacidade.html", "privacidade", "privacy", false, "privacidade") +
         "</nav>" +
@@ -75,7 +84,7 @@
       '<div class="conversa" role="main">' +
         '<div class="topo-canal">' +
           '<button type="button" class="menu-bt" aria-label="Menu" aria-expanded="false">☰</button>' +
-          '<span class="hash">↗</span><span class="titulo">' + duas(nome[0], nome[1]) + "</span>" +
+          '<span class="hash">#</span><span class="titulo">' + duas(nome[0], nome[1]) + "</span>" +
         "</div>" +
       "</div>";
 
