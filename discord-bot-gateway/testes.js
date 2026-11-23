@@ -12150,6 +12150,45 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("e a marca diz quantos e quando", /^1\|/.test(String(marcas.topgg_comandos)));
   Object.assign(globalThis, guarda);
 
+  /* As novidades: uma vez cada, na ordem, dentro das regras deles. */
+  {
+    const { NOVIDADES_DO_TOPGG } = await import("./topgg-pagina.js");
+    const ids = NOVIDADES_DO_TOPGG.map((n) => n.id);
+    ok("cada novidade tem id único", new Set(ids).size, ids.length);
+    for (const n of NOVIDADES_DO_TOPGG) {
+      verdade(`novidade ${n.id}: título de 3 a 100 (tem ${n.title.length})`, n.title.length >= 3 && n.title.length <= 100);
+      verdade(`novidade ${n.id}: texto de 10 a 2.000 (tem ${n.content.length})`, n.content.length >= 10 && n.content.length <= 2000);
+      verdade(`novidade ${n.id}: categoria que o top.gg aceita`, ["announcement", "event", "new_feature"].includes(n.category));
+      verdade(`novidade ${n.id}: não fala do outro projeto`, !/appcyron/i.test(n.title + n.content));
+    }
+    const guarda2 = {};
+    for (const k of ["ajustes", "decifrar", "porAjuste"]) guarda2[k] = globalThis[k];
+    const marcas2 = {};
+    globalThis.ajustes = async () => ({ topgg_chave: "cifrado", ...marcas2 });
+    globalThis.decifrar = (v) => `claro:${v}`;
+    globalThis.porAjuste = async (k, v) => { marcas2[k] = v; };
+    const { postarNovidadeNoTopgg } = carregar(["TOPGG_API", "chaveDoTopgg", "postarNovidadeNoTopgg"]);
+    const lista = [{ id: "a", title: "Primeira", content: "Texto da primeira", category: "announcement" },
+      { id: "b", title: "Segunda", content: "Texto da segunda", category: "new_feature" }];
+    const ped = [];
+    const resp = (status) => async (url, o) => { ped.push({ url, o }); return { ok: status < 300, status, text: async () => "" }; };
+    const r1 = await postarNovidadeNoTopgg(resp(201), lista);
+    verdade("posta a primeira, por POST em announcements, com Bearer", r1.id === "a" &&
+      ped[0].url === "https://top.gg/api/v1/projects/@me/announcements" && ped[0].o.method === "POST" &&
+      ped[0].o.headers.Authorization === "Bearer claro:cifrado");
+    ok("com título, texto e categoria", JSON.parse(ped[0].o.body), { title: "Primeira", content: "Texto da primeira", category: "announcement" });
+    ok("e marca que ela já foi", marcas2.topgg_novidades, "a");
+    ped.length = 0;
+    const r2 = await postarNovidadeNoTopgg(resp(429), lista);
+    verdade("a regra das 4 horas não é erro e não marca", r2.espera === true && marcas2.topgg_novidades === "a");
+    const r3 = await postarNovidadeNoTopgg(resp(201), lista);
+    verdade("a volta seguinte posta a segunda", r3.id === "b" && marcas2.topgg_novidades === "a,b");
+    ped.length = 0;
+    ok("todas postadas: não chama ninguém", [(await postarNovidadeNoTopgg(resp(201), lista)).nada, ped.length], [true, 0]);
+    Object.assign(globalThis, guarda2);
+    verdade("a volta do top.gg posta a próxima novidade", /await postarNovidadeNoTopgg\(\)/.test(semComentarios(pedaco("cuidarDoTopgg"))));
+  }
+
   const cuidar = semComentarios(pedaco("cuidarDoTopgg"));
   verdade("a recusa da página vai ao canal de erros uma vez só", /TOPGG_JA_AVISEI\.has\(pagina\.erro\)/.test(cuidar) &&
     /console\.error\("topgg: o top\.gg recusou o texto da página:"/.test(cuidar));
