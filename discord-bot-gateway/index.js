@@ -10675,7 +10675,11 @@ async function calendarioDoSite(reino, buscar = fetch) {
   const url = urlDoSite(reino);
   if (!url) return null;
   const guardado = SITE_DO_CALENDARIO.get(url);
-  if (guardado && Date.now() - guardado.em < 30 * 60 * 1000) return guardado;
+  /* Meia hora de memória, mas nunca de um dia UTC para o outro (dono, 23/11:
+     a imagem da virada saiu com a semana de ontem -- o guardado era de antes
+     da meia-noite -- e só se corrigiu 35 minutos depois). */
+  const mesmoDia = (a, b) => Math.floor(a / 86400000) === Math.floor(b / 86400000);
+  if (guardado && Date.now() - guardado.em < 30 * 60 * 1000 && mesmoDia(guardado.em, Date.now())) return guardado;
   try {
     const r = await buscar(url, { headers: { "User-Agent": "CYRON Discord bot", Accept: "application/json" }, signal: AbortSignal.timeout(15000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);

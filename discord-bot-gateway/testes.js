@@ -17720,6 +17720,26 @@ function conferirCartao(onde, embed, componentes = []) {
       const buscar = async (url, o) => { pedidos++; cabecalho = o.headers; return { ok: true, status: 200, json: async () => json }; };
       const a1 = await calendarioDoSite("2311", buscar), a2 = await calendarioDoSite("2311", buscar);
       ok("pede uma vez e guarda", [a1.eventos.length, a2.eventos.length, pedidos].join(), "12,12,1");
+      {
+        /* o dia virou: o guardado de ontem não serve (a imagem da virada saiu com a semana velha, 23/11) */
+        const agoraDeVerdade = Date.now;
+        const meiaNoite = Math.ceil(agoraDeVerdade() / 86400000) * 86400000;
+        try {
+          Date.now = () => meiaNoite - 60000;
+          const { calendarioDoSite: cs, SITE_DO_CALENDARIO: memoria } = carregar(["SITE_DO_CALENDARIO", "calendarioDoSite"]);
+          let n = 0;
+          const b2 = async () => { n++; return { ok: true, status: 200, json: async () => json }; };
+          await cs("2311", b2);
+          Date.now = () => meiaNoite + 4 * 60000;
+          await cs("2311", b2);
+          ok("um minuto antes da meia-noite e quatro depois: pede de novo", n, 2);
+          await cs("2311", b2);
+          ok("no mesmo dia, guarda", n, 2);
+          void memoria;
+        } finally {
+          Date.now = agoraDeVerdade;
+        }
+      }
       verdade("sem dado pessoal no pedido: só o nome do bot", /^CYRON/.test(cabecalho["User-Agent"]) && Object.keys(cabecalho).length === 2);
       ok("site fora do ar: o motivo, sem quebrar", (await calendarioDoSite("1234", async () => ({ ok: false, status: 503 }))).erro, "HTTP 503");
       ok("reino que não é número: nem pede", await calendarioDoSite("x", async () => { throw new Error("não devia"); }), null);
