@@ -8177,6 +8177,18 @@ function componentesDoPainel(servidor, fontes, limite, orfas, opcoes, aba = "res
    desse, seria pior: as copias nasceriam com o mesmo nome das salas de
    conversa, duas coisas diferentes chamadas general-chat-pt no mesmo
    servidor. */
+/* As salas do jogo (🐻 Urso, 📖 Heróis) sao fontes, mas nao sao "canais que
+   eu traduzo": quem escreve nelas sou eu -- a ficha do Urso, a pagina do
+   livro --, e quem as liga e' o botao da oferta, nao o menu.
+
+   No menu elas eram uma caixa marcada como qualquer outra, e desmarcar
+   apagava a linha da fonte. Foi o que aconteceu no [MET] em 22/11, 22:32 de
+   Brasilia: o 📖-herois saiu da lista, as 8 copias que ja' existiam ficaram
+   (o livro continuou indo nelas), e a primeira lingua nova, o th, nasceu sem
+   a dela -- sem nada no painel dizendo por que. Fora do menu, elas so' saem
+   apagando o canal, e ai' a varredura limpa tudo junto. */
+const TIPOS_DAS_SALAS_DO_JOGO = new Set(["urso", "herois"]);
+
 async function fontesDeOutroPapel(servidor) {
   const linhas = await sb(
     `discord_fonte_replica?servidor_id=eq.${servidor.id}&gera_replica=is.false&select=canal_id`) || [];
@@ -8196,7 +8208,7 @@ async function fontesDeOutroPapel(servidor) {
    escolhivel. Pra servidor com mais de 25 candidatos, os marcados entram
    primeiro (nenhuma fonte atual pode sumir da lista) e o resto vem por ordem
    do servidor -- e continua dando pra apontar os outros escrevendo `#canal`. */
-async function canaisElegiveis(guild, servidor, fontes) {
+async function canaisElegiveis(guild, servidor, fontes, doJogo = new Set()) {
   const proprios = await canaisMeus(servidor);
   const escolhidos = new Set(fontes.map((f) => f.canal_id));
   const comOutroPapel = await fontesDeOutroPapel(servidor);
@@ -8207,7 +8219,7 @@ async function canaisElegiveis(guild, servidor, fontes) {
   const eu = guild.members?.me;
   const candidatos = [...guild.channels.cache.values()]
     .filter((c) => c.type === ChannelType.GuildText && !proprios.has(c.id) && !comOutroPapel.has(c.id) &&
-      !escondidoDeMim(c, eu))
+      !doJogo.has(c.id) && !escondidoDeMim(c, eu))
     .sort((a, b) => a.rawPosition - b.rawPosition);
 
   if (candidatos.length <= 25) return candidatos;
@@ -18621,7 +18633,11 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
   const vivas = fontes.filter((f) => guild.channels.cache.has(f.canal_id));
   const fila = esperando.get(servidor.id) || [];
   const orfas = await replicasOrfas(guild, servidor);
-  const elegiveis = await canaisElegiveis(guild, servidor, vivas);
+  /* O menu nao mostra as salas do jogo (ver TIPOS_DAS_SALAS_DO_JOGO). A
+     lista do painel, sim: elas continuam sendo canais com copia. */
+  const doJogo = new Set(vivas.filter((f) => TIPOS_DAS_SALAS_DO_JOGO.has(f.tipo)).map((f) => f.canal_id));
+  const doMenu = vivas.filter((f) => !doJogo.has(f.canal_id));
+  const elegiveis = await canaisElegiveis(guild, servidor, doMenu, doJogo);
   /* O `await` aqui foi esquecido quando esta função virou assíncrona, e o
      painel parou de atualizar em TODO servidor.
 
@@ -18643,7 +18659,7 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
 
   /* Um sinal antes do numero, pra dar pra ler sem contar. */
   const marca = (usado, teto) => (usado >= teto ? "🔴" : usado >= teto - 1 ? "🟡" : "🟢");
-  const noTeto = vivas.length >= limite.fontes || idiomas.length >= limite.idiomas;
+  const noTeto = doMenu.length >= limite.fontes || idiomas.length >= limite.idiomas;
   const inalcancaveis = semAlcance.get(servidor.id) || [];
   const cargoRuim = cargoAcimaDeMim.get(servidor.id) || null;
 
@@ -18656,15 +18672,20 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
     espelhoIncluso
       ? {
         _aba: "traducao",
-        name: `${marca(vivas.length, limite.fontes)} ` +
-          await T("Canais que eu traduzo — {0} de {1}", vivas.length, limite.fontes),
+        name: `${marca(doMenu.length, limite.fontes)} ` +
+          await T("Canais que eu traduzo — {0} de {1}", doMenu.length, limite.fontes),
         /* Menção de canal é `<#id>`: número, e não texto. Nunca vai ao
-           tradutor, e é lida igual em qualquer língua. */
-        value: vivas.length
-          ? vivas.map((f) => `<#${f.canal_id}>`).join("\n")
+           tradutor, e é lida igual em qualquer língua.
+
+           As salas do jogo vêm numa linha à parte e não contam no teto: não
+           estão no menu, e ninguém as marcou para traduzir. */
+        value: [doMenu.length
+          ? doMenu.map((f) => `<#${f.canal_id}>`).join("\n")
           : elegiveis.length
             ? "_" + await T("nenhum ainda — escolha no menu aqui embaixo") + "_"
             : "_" + await T("nenhum, e não sobrou canal para escolher: todos os canais de texto daqui já são meus. Crie um canal onde vocês escrevem e ele aparece no menu.") + "_",
+        doJogo.size ? `🎮 ${await T("salas do jogo")}: ${[...doJogo].map((id) => `<#${id}>`).join(" ")}` : "",
+        ].filter(Boolean).join("\n"),
       }
       : {
         _aba: "traducao",
@@ -18930,7 +18951,7 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
     value: [
       espelhoIncluso
         ? await T("🌐 **{0}** de {1} idiomas · 📺 **{2}** de {3} canais traduzidos",
-          idiomas.length, limite.idiomas, vivas.length, limite.fontes)
+          idiomas.length, limite.idiomas, doMenu.length, limite.fontes)
         : await T("🌐 **{0}** pessoas com idioma escolhido", idiomas.length),
       salas.length ? await T("💬 **{0}** salas de conversa", salas.length) : "",
       uso.traducoes
@@ -19009,7 +19030,7 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
       value: [
         `**${await T({ gratis: "Plano grátis", pro: "Plano Pro", alianca: "Plano Aliança" }[faixa])}**${prazo}`,
         await T("🌐 {0} de {1} idiomas · 📺 {2} de {3} canais traduzidos",
-          idiomas.length, limite.idiomas, vivas.length, limite.fontes),
+          idiomas.length, limite.idiomas, doMenu.length, limite.fontes),
         servidor.tradutor_chave
           ? await T("🔑 chave própria de tradutor: sem teto diário")
           : await T("📊 até {0}k caracteres por dia do tradutor da casa", (cotaHoje / 1000).toFixed(0)),
@@ -19071,7 +19092,7 @@ async function montarPainel(guild, servidor, idioma = "", aba = "resumo") {
   /* Os botoes tambem: um painel em japones com botoes em portugues ainda e'
      um painel que o dono nao le. */
   return { embed, extras, componentes: await componentesNaLingua(
-    componentesDoPainel(servidor, vivas, limite, orfas, elegiveis, aba, ligadas), idioma, motor) };
+    componentesDoPainel(servidor, doMenu, limite, orfas, elegiveis, aba, ligadas), idioma, motor) };
 }
 
 async function cartaoDeConfig(guild, servidor) {
@@ -20250,9 +20271,14 @@ async function cliquePainel(inter) {
       }
     }
     const atuais = (await sb(
-      `discord_fonte_replica?servidor_id=eq.${servidor.id}&gera_replica=is.true&tipo=neq.${TIPO_AGENDA}&select=canal_id`)) || [];
-    const invisiveis = atuais.map((a) => a.canal_id).filter((id) => !vistos.has(id));
+      `discord_fonte_replica?servidor_id=eq.${servidor.id}&gera_replica=is.true&tipo=neq.${TIPO_AGENDA}&select=canal_id,tipo`)) || [];
+    /* Sala do jogo fica mesmo que um menu velho a mostre desmarcada: quem a
+       liga e desliga e' a oferta, nao esta lista. */
+    const doJogo = new Set(atuais.filter((a) => TIPOS_DAS_SALAS_DO_JOGO.has(a.tipo)).map((a) => a.canal_id));
+    const invisiveis = atuais.map((a) => a.canal_id).filter((id) => !vistos.has(id) || doJogo.has(id));
     const ids = [...new Set([...(inter.values || []), ...invisiveis])];
+    /* E nao conta no teto: ninguem marcou a sala do Urso para traduzir. */
+    const marcados = ids.filter((id) => !doJogo.has(id)).length;
 
     const proprios = await canaisMeus(servidor);
     const meus = ids.filter((id) => proprios.has(id));
@@ -20267,12 +20293,12 @@ async function cliquePainel(inter) {
     }
 
     const limite = limitesDo(servidor);
-    if (ids.length > limite.fontes) {
+    if (marcados > limite.fontes) {
       const plano = planoDe(servidor);
       await inter.followUp({
         flags: 64,
         content: [
-          `📦 Você marcou **${ids.length} canais**, e no plano **${plano}** eu traduzo até **${limite.fontes}**.`,
+          `📦 Você marcou **${marcados} canais**, e no plano **${plano}** eu traduzo até **${limite.fontes}**.`,
           "",
           "Não mudei nada — os canais de antes continuam valendo. Marque no máximo " +
           `${limite.fontes} e mande de novo.`,

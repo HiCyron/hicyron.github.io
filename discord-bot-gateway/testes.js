@@ -196,6 +196,9 @@ Object.assign(globalThis, carregar(["nomeSimples", "mesmoNome"]));
    que carrega o espelharMensagem precisa dele no escopo. */
 Object.assign(globalThis, carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK",
   "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]));
+/* As salas do jogo ficam fora do menu de fontes: o painel e o clique do menu
+   consultam esta lista. */
+Object.assign(globalThis, carregar(["TIPOS_DAS_SALAS_DO_JOGO"]));
 /* O import do index que o FUNCOES usa (a função dos códigos nasce ligada nos servidores de Kingshot). */
 Object.assign(globalThis, { pareceKingshot: (await import("./codigos-jogo.js")).pareceKingshot });
 
@@ -2930,6 +2933,37 @@ function conferirCartao(onde, embed, componentes = []) {
   globalThis.ajustes = ajustesAntesDoPainel;
   verdade("o fixado (sem aba) é a visão geral",
     (await montarPainel(guild, servidor, "")).embed.fields.some((f) => /Em resumo/.test(f.name)));
+
+  /* AS SALAS DO JOGO NÃO SÃO "CANAIS QUE EU TRADUZO".
+     No [MET], em 22/11, desmarcar o 📖-herois no menu apagou a fonte; o th
+     chegou depois e nasceu sem a sala dele. Fora do menu, elas não saem por
+     engano -- e não comem vaga do plano. */
+  {
+    const guarda = { sb: globalThis.sb, componentesDoPainel: globalThis.componentesDoPainel,
+      canaisElegiveis: globalThis.canaisElegiveis };
+    let doMenu = null, foraDoMenu = null;
+    globalThis.sb = async (rota) => rota.includes("discord_fonte_replica")
+      ? [{ canal_id: "c1", tipo: "texto" }, { canal_id: "c4", tipo: "urso" }, { canal_id: "c5", tipo: "herois" }]
+      : [{ idioma: "de", canal_id: "c2" }];
+    globalThis.componentesDoPainel = (sv, fontes) => { doMenu = fontes.map((f) => f.canal_id); return []; };
+    globalThis.canaisElegiveis = async (g, sv, fontes, doJogo) => { foraDoMenu = [...(doJogo || [])]; return [{ id: "c9", name: "geral" }]; };
+    const comJogo = { id: "g1", channels: { cache: new Map(["c1", "c2", "c4", "c5"].map((c) => [c, {}])) } };
+    const painel = await montarPainel(comJogo, servidor, "", "traducao");
+    ok("o menu só marca o que alguém escolheu traduzir", doMenu, ["c1"]);
+    ok("e as salas do jogo nem aparecem como opção", foraDoMenu, ["c4", "c5"]);
+    const campo = painel.embed.fields.find((f) => /Canais que eu traduzo/.test(f.name));
+    verdade("e não contam no teto do plano", /1 de 10/.test(campo?.name));
+    verdade("mas o painel ainda mostra que elas existem", /🎮/.test(campo?.value) && /<#c4>/.test(campo?.value) &&
+      /<#c5>/.test(campo?.value));
+    Object.assign(globalThis, guarda);
+
+    /* E o clique do menu: um menu velho que ainda as mostre desmarcadas não
+       apaga nada, e elas não entram na conta do "você marcou N canais". */
+    const clique = semComentarios(fonte).slice(semComentarios(fonte).indexOf('if (acao === "fontes")'));
+    verdade("sala do jogo fica mesmo desmarcada num menu velho",
+      /const invisiveis = atuais\.map\(\(a\) => a\.canal_id\)\.filter\(\(id\) => !vistos\.has\(id\) \|\| doJogo\.has\(id\)\)/.test(clique));
+    verdade("e o teto conta só o que foi marcado", /if \(marcados > limite\.fontes\)/.test(clique.slice(0, 4000)));
+  }
   const agenda = (await montarPainel(guild, servidor, "", "agenda")).embed.fields[0];
   verdade("a aba Agenda lista o próximo evento", /Armadilha do Urso 1/.test(agenda.value));
   verdade("e não o que já passou", !/Velho/.test(agenda.value));
@@ -14406,6 +14440,7 @@ function conferirCartao(onde, embed, componentes = []) {
       const { canaisElegiveis } = carregar(["canaisElegiveis"]);
       const menu = await canaisElegiveis(guild, { id: "s1" }, []);
       ok("o menu de canais só oferece o que eu enxergo", menu.map((c) => c.id), ["c1", "c3"]);
+      ok("e nem as salas do jogo", (await canaisElegiveis(guild, { id: "s1" }, [], new Set(["c3"]))).map((c) => c.id), ["c1"]);
     } finally {
       Object.assign(globalThis, antes2);
     }
