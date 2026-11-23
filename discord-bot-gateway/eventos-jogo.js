@@ -233,6 +233,11 @@ const ICONES_FIXOS = [
   [/strongest governor|governador mais forte/, "ks_ev_strongest"], [/castle battle|batalha do castelo/, "ks_ev_castle"],
   [/armament|competicao de armamentos/, "ks_ev_armament"], [/swordland/, "ks_ev_swordland"], [/tri.?alliance/, "ks_ev_tri_alliance"],
   [/mobiliz/, "ks_ev_mobilization"], [/desert trial/, "ks_ev_desert_trial"], [/officer project/, "ks_ev_officer"],
+  /* A Caçada do Bucaneiro (dono, 23/11: "e os emoji?"), recortada do print do 2311.
+     O print só mostrava os desenhos; os guias do jogo dizem qual é qual: no
+     Buccaneer Bounty se abrem os baús (o baú), o Emporium of Enigma troca as
+     pérolas (a pérola) e o Harbor Drill são as tarefas do porto (a bússola). */
+  [/buccaneer bounty|cacada do bucaneiro/, "ks_ev_buccaneer"], [/harbor drill/, "ks_ev_harbor"], [/emporium|emporio/, "ks_ev_emporium"],
 ];
 
 /* Pura. O nome do emoji fixo do evento (ks_ev_...), ou "". */

@@ -17547,7 +17547,8 @@ function conferirCartao(onde, embed, componentes = []) {
           "Hero Rally", "Rally do Herói", "Voyage of Light", "Voyage da Luz", "Champagne Fair", "Sanctuary Battle", "Batalha do Santuário", "Alliance Championship",
           "Campeonato da Aliança", "Governor Duel", "Duelo dos Governadores", "All Out", "Vai com Tudo", "Strongest Governor", "O Governador mais Forte",
           "Castle Battle", "Batalha do Castelo", "Armament Competition", "Competição de Armamentos", "Swordland Showdown", "Tri-Alliance Clash",
-          "Alliance Mobilization", "Mobilização da Aliança", "Desert Trial", "Officer Project"];
+          "Alliance Mobilization", "Mobilização da Aliança", "Desert Trial", "Officer Project",
+          "Buccaneer Bounty", "Caçada do Bucaneiro", "Harbor Drill", "Emporium of Enigma"];
         const faltam = nomes.filter((n) => !iconeFixo(n));
         ok("todo evento do calendário do 2311 tem ícone, em inglês e em português", faltam.join(), "");
         const semArquivo = [...new Set(nomes.map(iconeFixo))].filter((k) => !existsSync(new URL(`./img/eventos/${k}.png`, import.meta.url)));
@@ -17555,6 +17556,8 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("o nome do emoji cabe no Discord com a marca do desenho (até 32)", nomes.every((n) => iconeFixo(n).length + 7 <= 32));
         ok("o par que o print não separa: o lobo é o Desert Trial, a torre é o Swordland", [iconeFixo("Desert Trial"), iconeFixo("Swordland Showdown")].join(), "ks_ev_desert_trial,ks_ev_swordland");
         ok("evento desconhecido: sem ícone fixo (vai o da leitura)", iconeFixo("Evento Novo"), "");
+        ok("a Caçada do Bucaneiro: o baú, a bússola e a pérola", ["Buccaneer Bounty", "Harbor Drill", "Emporium of Enigma"].map(iconeFixo),
+          ["ks_ev_buccaneer", "ks_ev_harbor", "ks_ev_emporium"]);
       }
       /* a PUBLICAÇÃO nas agendas (TOP e Kingdom #2311) */
       ok("os dias da semana na língua da sala", [S.diasDaSemanaEm("pt").join(" "), S.diasDaSemanaEm("en")[0], S.diasDaSemanaEm("tr")[0]].join(" | "), "DOM SEG TER QUA QUI SEX SÁB | SUN | PAZ");

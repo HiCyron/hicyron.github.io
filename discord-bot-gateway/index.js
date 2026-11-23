@@ -14301,7 +14301,7 @@ const AGENDA_DO_JOGO = [
 const SALA_DA_AGENDA = /agenda/;
 /* A versão do DESENHO entra na chave da semana: desenho novo (o urso numa
    linha só, 21/11) = imagem refeita sozinha, mesmo com os mesmos eventos. */
-const VERSAO_DO_DESENHO = "3";
+const VERSAO_DO_DESENHO = "4"; // 4: os ícones da Caçada do Bucaneiro (23/11)
 const HISTORICO_DO_REINO = (reino) => `calendario_historico:${reino}`;
 
 function eventosNaLingua(eventos, idioma) {
