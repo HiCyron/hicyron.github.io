@@ -12078,12 +12078,82 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("só o dono salva", /if \(!await ehDono\(inter\.user\.id\)\)/.test(salvar));
   verdade("cifrado antes de ir ao banco", /porAjuste\("topgg_chave", cifrar\(novo\)\)/.test(salvar));
   verdade("e testado na hora", /await avisarTopgg\(\)/.test(salvar));
-  verdade("o número vai de hora em hora", /async function deHoraEmHora[^]*?avisarTopgg\(\)/.test(idx));
-  verdade("e ao subir", /setTimeout\(\(\) => \{[^]{0,600}avisarTopgg\(\)/.test(idx));
+  verdade("o top.gg é cuidado de hora em hora", /async function deHoraEmHora[^]*?cuidarDoTopgg\(\{ comandos: new Date\(\)\.getUTCHours\(\) === 6 \}\)/.test(idx));
+  verdade("e ao subir, com os comandos", /setTimeout\(\(\) => \{[^]{0,600}cuidarDoTopgg\(\{ comandos: true \}\)/.test(idx));
+  verdade("e logo depois de salvar o token", /if \(r\?\.ok\) cuidarDoTopgg\(\{ comandos: true \}\)/.test(salvar));
   verdade("o token nunca vai para o log",
     !/console\.(log|error)\([^)]*\btoken\b/.test(semComentarios(pedaco("avisarTopgg")) + salvar));
   const janela = semComentarios(pedaco("janelaDoTopgg"));
   verdade("a janela não devolve o token guardado na tela", !/value:/.test(janela));
+}
+
+/* ====== a página do top.gg, cuidada pela CYRON ======
+   O texto mora em topgg-pagina.js e a CYRON o manda quando muda. As regras do
+   top.gg (docs.top.gg): resumo de 3 a 140, página de 300 a 50.000, e só as
+   línguas da lista deles -- texto fora disso volta 422 e a página fica velha. */
+{
+  const { paginaDoTopgg, LINGUAS_DO_TOPGG } = await import("./topgg-pagina.js");
+  for (const beta of [true, false]) {
+    const p = paginaDoTopgg({ beta });
+    for (const [lingua, t] of Object.entries(p.headline)) {
+      verdade(`top.gg (${beta ? "beta" : "planos"}): o resumo em ${lingua} cabe em 3 a 140 (tem ${t.length})`, t.length >= 3 && t.length <= 140);
+      verdade(`top.gg: ${lingua} é uma língua que o top.gg aceita`, LINGUAS_DO_TOPGG.includes(lingua));
+    }
+    for (const [lingua, t] of Object.entries(p.page_content)) {
+      verdade(`top.gg (${beta ? "beta" : "planos"}): a página em ${lingua} cabe em 300 a 50.000 (tem ${t.length})`, t.length >= 300 && t.length <= 50000);
+    }
+    ok("o resumo e a página têm as mesmas línguas", Object.keys(p.headline).sort(), Object.keys(p.page_content).sort());
+    /* O app do dono é outro projeto e não aparece no bot, no site nem nos termos. */
+    verdade("a página não fala do outro projeto", !/appcyron/i.test(JSON.stringify(p)));
+  }
+  verdade("a frase do beta só aparece no beta",
+    /beta/i.test(paginaDoTopgg({ beta: true }).page_content.en) && !/beta/i.test(paginaDoTopgg({ beta: false }).page_content.en));
+
+  const guarda = {};
+  for (const k of ["client", "ajustes", "decifrar", "porAjuste", "paginaDoTopgg", "BETA", "BETA_ATE", "venceEm", "createHash"]) guarda[k] = globalThis[k];
+  const marcas = {};
+  globalThis.client = { application: { commands: { fetch: async () => new Map([
+    ["1", { name: "cyron", description: "Painel", type: 1, options: [] }],
+    ["2", { name: "admin", description: "Só meu" }]]) } } };
+  globalThis.ajustes = async () => ({ topgg_chave: "cifrado", ...marcas });
+  globalThis.decifrar = (v) => `claro:${v}`;
+  globalThis.porAjuste = async (k, v) => { marcas[k] = v; };
+  globalThis.paginaDoTopgg = paginaDoTopgg;
+  globalThis.BETA = true; globalThis.BETA_ATE = null; globalThis.venceEm = () => null;
+  globalThis.createHash = (await import("node:crypto")).createHash;
+  const { sincronizarPaginaDoTopgg, enviarComandosAoTopgg } = carregar(["TOPGG_API", "chaveDoTopgg", "comandosParaLista",
+    "sincronizarPaginaDoTopgg", "enviarComandosAoTopgg"]);
+  const pedidos = [];
+  const responde = (status, texto = "") => async (url, o) => { pedidos.push({ url, o }); return { ok: status < 300, status, text: async () => texto }; };
+
+  const r1 = await sincronizarPaginaDoTopgg(responde(204));
+  verdade("a página vai por PATCH no projeto, com Bearer", r1.ok && pedidos[0].url === "https://top.gg/api/v1/projects/@me" &&
+    pedidos[0].o.method === "PATCH" && pedidos[0].o.headers.Authorization === "Bearer claro:cifrado");
+  const corpo = JSON.parse(pedidos[0].o.body);
+  verdade("com o resumo e a página em português e inglês",
+    corpo.headline.pt && corpo.headline.en && corpo.page_content.pt && corpo.page_content.en);
+  verdade("e guarda a marca do que mandou", String(marcas.topgg_pagina).startsWith(r1.marca + "|"));
+  pedidos.length = 0;
+  ok("o mesmo texto não vai duas vezes", [(await sincronizarPaginaDoTopgg(responde(204))).igual, pedidos.length], [true, 0]);
+  globalThis.BETA = false;
+  pedidos.length = 0;
+  const r3 = await sincronizarPaginaDoTopgg(responde(422, '{"error":"unsupported locale"}'));
+  verdade("o beta acabou: o texto muda e vai de novo", pedidos.length === 1);
+  verdade("e a recusa diz o porquê, sem gravar a marca", !r3.ok && /422/.test(r3.erro) && /unsupported locale/.test(r3.erro) &&
+    String(marcas.topgg_pagina).startsWith(r1.marca + "|"));
+
+  pedidos.length = 0;
+  const rc = await enviarComandosAoTopgg(responde(204));
+  verdade("os comandos vão por PUT, substituindo a lista", rc.ok && pedidos[0].url === "https://top.gg/api/v1/projects/@me/commands" &&
+    pedidos[0].o.method === "PUT");
+  ok("sem o /admin", JSON.parse(pedidos[0].o.body).map((c) => c.name), ["cyron"]);
+  verdade("e a marca diz quantos e quando", /^1\|/.test(String(marcas.topgg_comandos)));
+  Object.assign(globalThis, guarda);
+
+  const cuidar = semComentarios(pedaco("cuidarDoTopgg"));
+  verdade("a recusa da página vai ao canal de erros uma vez só", /TOPGG_JA_AVISEI\.has\(pagina\.erro\)/.test(cuidar) &&
+    /console\.error\("topgg: o top\.gg recusou o texto da página:"/.test(cuidar));
+  verdade("e cada envio que deu certo deixa a marca do número", /porAjuste\("topgg_numero"/.test(cuidar));
 }
 
 /* ====== o modo do servidor ======

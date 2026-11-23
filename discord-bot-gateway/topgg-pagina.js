@@ -1,0 +1,107 @@
+/* A página da CYRON no top.gg, escrita aqui e enviada pela própria CYRON.
+
+   O dono (23/11): "você consegue cuidar? sou inútil para isso". O token do
+   top.gg mora cifrado na CYRON (/admin → 🗳️ top.gg); este arquivo é o texto.
+   Mudou aqui e publicou, a CYRON manda para o top.gg sozinha na volta
+   seguinte do relógio -- só quando o texto muda, nunca o mesmo duas vezes.
+
+   Regras do top.gg (docs.top.gg, PATCH /api/v1/projects/@me):
+   - headline: 3 a 140 caracteres por língua;
+   - page_content: 300 a 50.000 caracteres por língua, em Markdown;
+   - línguas aceitas: en, de, fr, pt, tr, hi, ja, ar, nl, ko, it, es, ru, uk,
+     vi, zh (sem pt-BR: é "pt").
+   Um teste confere os três.
+
+   A frase do beta vem do estado de verdade: quando o beta acabar, a página
+   troca sozinha para a frase dos planos, sem alguém lembrar de editar. */
+
+export const LINGUAS_DO_TOPGG = ["en", "de", "fr", "pt", "tr", "hi", "ja", "ar", "nl", "ko", "it", "es", "ru", "uk", "vi", "zh"];
+
+const SITE = "https://hicyron.github.io";
+const SUPORTE = "https://discord.gg/yDwePceB38";
+
+export function paginaDoTopgg({ beta = false } = {}) {
+  const precoEn = beta
+    ? "Flags, the Translate menu and the translate button are free forever. **During the beta, every Alliance feature — language rooms, copied channels, screenshots and voice — is unlocked for free.**"
+    : "Flags, the Translate menu and the translate button are free forever. Language rooms, copied channels, screenshots and voice come with the Pro and Alliance plans.";
+  const precoPt = beta
+    ? "Bandeiras, o menu Traduzir e o botão de tradução são grátis para sempre. **Durante o beta, tudo do plano Aliança — salas por idioma, canais copiados, prints e áudios — está liberado de graça.**"
+    : "Bandeiras, o menu Traduzir e o botão de tradução são grátis para sempre. Salas por idioma, canais copiados, prints e áudios vêm nos planos Pro e Aliança.";
+
+  return {
+    headline: {
+      en: "Everyone writes in their own language and reads everyone else in theirs. Live multilingual chat for Discord.",
+      pt: "Cada um escreve na sua língua e lê os outros na sua. Chat multilíngue ao vivo no Discord.",
+    },
+    page_content: {
+      en: [
+        "# 🌐 CYRON — One server. Every language.",
+        "",
+        "People write in their own language and read everyone else in theirs. Same conversation, same moment, and nobody types a command.",
+        "",
+        "## How it works",
+        "1. Members pick their language with one click.",
+        "2. They chat in their own room (`#chat-pt`, `#chat-en`…) and every message shows up in the other rooms, already translated, with their name and avatar.",
+        "3. Replies, mentions, edits, stickers, GIFs and emojis follow the message.",
+        "",
+        "## Translation everywhere",
+        "- 🏳️ **React with a flag** — any message, translated privately for whoever reacted.",
+        "- 📢 **Announcements** — post once, it lands in every language.",
+        "- 🖼️ **Screenshots** — reads the text in an image and translates it.",
+        "- 🎧 **Voice notes** — transcribed and translated.",
+        "- 📖 **Glossary** — nicknames and alliance tags are never translated.",
+        "- ⏰ **Events** (`/evento`) — set \"20:30\" once, everyone sees it in their own time zone, with a reminder.",
+        "",
+        "## Made for game alliances ⚔️",
+        "Built first for Kingshot alliances with players from all over the world:",
+        "- 🐻 **Bear Trap** card with the best heroes, in every language (`/urso`).",
+        "- 📖 **Hero book** — every hero with tips for leading and joining rallies (`/heroi`).",
+        "- ⚔️ **Duels**, hero cards, levels (`/perfil`, `/top`), role panels (`/cargos`) and welcome images.",
+        "",
+        "## Price",
+        precoEn,
+        "",
+        "## Setup",
+        "Add CYRON, and members choose their language at the door. Everything else is in `/cyron` (admins) and `/help` (everyone).",
+        "",
+        `🔗 Website: ${SITE}`,
+        `💬 Support: ${SUPORTE}`,
+        `🔒 Privacy: ${SITE}/privacidade.html`,
+      ].join("\n"),
+      pt: [
+        "# 🌐 CYRON — Um servidor. Todas as línguas.",
+        "",
+        "Cada um escreve na sua língua e lê os outros na sua. A mesma conversa, na mesma hora, e ninguém precisa digitar comando.",
+        "",
+        "## Como funciona",
+        "1. Cada membro escolhe a língua com um clique.",
+        "2. Conversa na sala dele (`#chat-pt`, `#chat-en`…) e cada mensagem aparece nas outras salas já traduzida, com o nome e a foto de quem escreveu.",
+        "3. Respostas, menções, edições, figurinhas, GIFs e emojis acompanham a mensagem.",
+        "",
+        "## Tradução em todo lugar",
+        "- 🏳️ **Reaja com uma bandeira** — qualquer mensagem, traduzida no privado de quem reagiu.",
+        "- 📢 **Avisos** — você posta uma vez e chega em todas as línguas.",
+        "- 🖼️ **Prints** — lê o texto da imagem e traduz.",
+        "- 🎧 **Áudios** — transcritos e traduzidos.",
+        "- 📖 **Glossário** — apelidos e tags da aliança nunca são traduzidos.",
+        "- ⏰ **Eventos** (`/evento`) — marque \"20:30\" uma vez e cada um vê no próprio fuso, com lembrete.",
+        "",
+        "## Feita para alianças de jogo ⚔️",
+        "Nasceu para alianças de Kingshot com jogadores do mundo todo:",
+        "- 🐻 **Ficha do Urso** com os melhores heróis, em todas as línguas (`/urso`).",
+        "- 📖 **Livro dos heróis** — cada herói com dicas para liderar e entrar em rally (`/heroi`).",
+        "- ⚔️ **Duelos**, cartas de herói, níveis (`/perfil`, `/top`), painel de cargos (`/cargos`) e imagens de boas-vindas.",
+        "",
+        "## Preço",
+        precoPt,
+        "",
+        "## Como começar",
+        "Adicione a CYRON e cada membro escolhe a língua na entrada. O resto fica no `/cyron` (ADMs) e no `/help` (todo mundo).",
+        "",
+        `🔗 Site: ${SITE}`,
+        `💬 Suporte: ${SUPORTE}`,
+        `🔒 Privacidade: ${SITE}/privacidade.html`,
+      ].join("\n"),
+    },
+  };
+}
