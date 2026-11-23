@@ -105,3 +105,32 @@ export function paginaDoTopgg({ beta = false } = {}) {
     },
   };
 }
+
+/* NOVIDADES NA PÁGINA DO TOP.GG (dono, 23/11: "pode postar lá na página").
+
+   Cada uma vai uma vez só: a CYRON guarda os ids que já foram (ajuste
+   `topgg_novidades`) e posta a próxima da lista na volta do relógio. O
+   top.gg aceita uma a cada 4 horas -- se recusar por isso, ela tenta na
+   volta seguinte. Regras (docs.top.gg, POST /api/v1/projects/@me/announcements):
+   título de 3 a 100 caracteres, texto de 10 a 2.000, categoria announcement,
+   event ou new_feature. Novidade é uma língua só (não tem mapa de línguas):
+   vai em inglês, com uma linha em português no fim.
+
+   Para postar outra: acrescentar no FIM da lista, com id novo. Nunca mudar
+   o id de uma que já foi -- ela seria postada de novo. */
+export const NOVIDADES_DO_TOPGG = [
+  {
+    id: "chegou-ao-topgg",
+    category: "announcement",
+    title: "CYRON is on Top.gg! 🎉",
+    content: [
+      "One server, every language. Members pick their language and chat in their own room, and every message shows up in the other rooms already translated, with the author's name and avatar.",
+      "",
+      "🏳️ React with a flag to translate any message · 🖼️ screenshots and 🎧 voice notes translated · ⏰ events in everyone's time zone · 🐻 Kingshot tools: Bear Trap card and hero book.",
+      "",
+      "Free to start, and everything is unlocked during the beta. Questions or ideas? https://discord.gg/yDwePceB38",
+      "",
+      "🇧🇷 A CYRON chegou ao top.gg! Cada um escreve na sua língua e lê os outros na sua.",
+    ].join("\n"),
+  },
+];

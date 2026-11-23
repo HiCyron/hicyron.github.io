@@ -34,7 +34,7 @@ import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
-import { paginaDoTopgg } from "./topgg-pagina.js";
+import { paginaDoTopgg, NOVIDADES_DO_TOPGG } from "./topgg-pagina.js";
 import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO , iconeFixo } from "./eventos-jogo.js";
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
@@ -23438,6 +23438,31 @@ async function enviarComandosAoTopgg(buscar = fetch) {
   return { ok: true, comandos: lista.length };
 }
 
+/* A proxima novidade da lista (topgg-pagina.js) que ainda nao foi postada.
+   Posta e so' entao marca: se a marca falhar, o pior caso e' a mesma
+   novidade duas vezes, e nao uma novidade que nunca saiu. 429 e' a regra
+   deles de uma a cada 4 horas -- nao e' erro, a volta seguinte tenta. */
+async function postarNovidadeNoTopgg(buscar = fetch, lista = NOVIDADES_DO_TOPGG) {
+  const token = await chaveDoTopgg();
+  if (!token) return { ok: false, erro: "sem token" };
+  const a = await ajustes();
+  if (a.falhou) return { ok: false, erro: "sem banco" };
+  const feitas = String(a.topgg_novidades || "").split(",").filter(Boolean);
+  const proxima = (lista || []).find((n) => n?.id && !feitas.includes(n.id));
+  if (!proxima) return { ok: true, nada: true };
+  const r = await buscar(`${TOPGG_API}/v1/projects/@me/announcements`, { method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ title: proxima.title, content: proxima.content, category: proxima.category || "announcement" }),
+    signal: AbortSignal.timeout(15000) });
+  if (r.status === 429) return { ok: false, erro: "espera", espera: true };
+  if (!r.ok) {
+    const corpo = await r.text().catch(() => "");
+    return { ok: false, erro: `HTTP ${r.status}${corpo ? ` ${corpo.slice(0, 150)}` : ""}` };
+  }
+  await porAjuste("topgg_novidades", [...feitas, proxima.id].join(","));
+  return { ok: true, id: proxima.id };
+}
+
 /* Tudo do top.gg numa volta: o numero, a pagina e (quando pedido) os
    comandos. Cada parte deixa uma marca no cyron_ajuste com a hora do
    ultimo envio que deu certo -- e' por ela que eu confiro, de fora, que a
@@ -23454,6 +23479,12 @@ async function cuidarDoTopgg({ comandos = false } = {}) {
   if (!pagina.ok && pagina.erro !== "sem banco" && !TOPGG_JA_AVISEI.has(pagina.erro)) {
     TOPGG_JA_AVISEI.add(pagina.erro);
     console.error("topgg: o top.gg recusou o texto da página:", pagina.erro);
+  }
+  const novidade = await postarNovidadeNoTopgg().catch((e) => ({ ok: false, erro: e?.message || String(e) }));
+  if (novidade.ok && novidade.id) console.log(`topgg: novidade postada (${novidade.id})`);
+  if (!novidade.ok && !novidade.espera && novidade.erro !== "sem banco" && !TOPGG_JA_AVISEI.has(novidade.erro)) {
+    TOPGG_JA_AVISEI.add(novidade.erro);
+    console.error("topgg: o top.gg recusou a novidade:", novidade.erro);
   }
   if (comandos) {
     const r = await enviarComandosAoTopgg().catch((e) => ({ ok: false, erro: e?.message || String(e) }));
