@@ -3548,6 +3548,22 @@ async function lerImagem(bytes, visao, buscar = fetch) {
   if (r.status === 401 || r.status === 403) {
     throw Object.assign(new Error(`leitura de imagem recusou a chave (HTTP ${r.status})`), { motivo: "chave" });
   }
+  /* 400 com InvalidImage* e' a IMAGEM, nao o bot: pequena demais (menos de
+     50 px), grande demais, ou num formato que a Azure nao abre. Tentar de
+     novo da' o mesmo 400 para sempre -- e o aviso dizia "tente de novo em
+     instantes": no [MET] a mesma pessoa tocou tres vezes em 24 segundos, e
+     cada toque virou uma linha no canal de erros.
+
+     So' o codigo InvalidImage* ganha esse nome. Qualquer outro 400 (versao
+     da API recusada, pedido mal montado) e' defeito meu e continua erro --
+     agora com o codigo da Azure junto, para ninguem ter que adivinhar. */
+  if (r.status === 400) {
+    const corpo = await r.json().catch(() => null);
+    const codigo = corpo?.error?.innererror?.code || corpo?.error?.code || "";
+    const e = new Error(`leitura de imagem respondeu HTTP 400${codigo ? ` (${codigo})` : ""}`);
+    if (/^InvalidImage/i.test(codigo)) e.motivo = "imagem";
+    throw e;
+  }
   if (!r.ok) throw new Error(`leitura de imagem respondeu HTTP ${r.status}`);
   const linhas = linhasDaLeitura(await r.json());
   return { texto: linhas.map((l) => l.texto).join("\n"), linhas };
@@ -3632,6 +3648,14 @@ function falhaDeLeitura(e) {
     console.error("imagem: a Azure recusou a chave de leitura de imagem:", e?.message || e);
     return { title: "🖼️ Leitura de imagem em manutenção",
       description: "A leitura de imagens está parada por um ajuste do lado do bot. O dono já foi avisado." };
+  }
+  /* Nao e' defeito: e' a imagem. Fica fora do canal de erros, e quem clicou
+     fica sabendo que insistir nao adianta -- e o que adianta. */
+  if (e?.motivo === "imagem") {
+    console.log("imagem: a Azure nao aceitou a imagem:", e?.message || e);
+    return { title: "🖼️ Não consigo ler esta imagem",
+      description: "O leitor não aceita esta imagem: pequena demais, grande demais ou num formato que ele " +
+        "não abre. Tentar de novo dá o mesmo resultado — um print em PNG ou JPG funciona." };
   }
   console.error("imagem: nao consegui ler a imagem:", e?.message || e);
   return { title: "❌ Não deu", description: "Não consegui ler essa imagem agora. Tente de novo em instantes." };
@@ -4745,7 +4769,9 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         (selo ? ` · ${selo}` : "") + creditoDaCyron(selo),
     });
 
-    const webhook = clienteDoWebhook(destino.webhook);
+    /* `let`: se o webhook desta sala estiver morto, o envio faz outro, e o
+       video que vem depois tem que ir pelo novo. */
+    let webhook = clienteDoWebhook(destino.webhook);
     let emendou = false;
 
     if (emendavel) {
@@ -4783,7 +4809,12 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         lembrarFala(familia, destino.canal_id, velho.id, null, servidorId);
         emendou = true;
       } catch (e) {
-        console.error("espelho: nao consegui emendar em", destino.idioma, e?.message || e);
+        /* Webhook morto nao e' erro daqui: a fala cai no envio normal logo
+           abaixo, que faz outro webhook e manda. Contar aqui tambem dobraria
+           o mesmo defeito no canal de erros. */
+        if (!/Unknown Webhook/i.test(e?.message || "")) {
+          console.error("espelho: nao consegui emendar em", destino.idioma, e?.message || e);
+        }
       }
     }
 
@@ -4816,7 +4847,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
 
       let posta;
       try {
-        posta = await webhook.send(carga);
+        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino));
       } catch (e) {
         /* O BOTAO NUNCA PODE CUSTAR A MENSAGEM.
 
@@ -4827,10 +4858,10 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
            e o print continua traduzivel pelo menu Translate.
 
            Reenviar nao duplica: o envio de cima falhou inteiro. */
-        if (!comBotao) throw e;
+        if (!comBotao || /Unknown Webhook/i.test(e?.message || "")) throw e;
         console.log(`espelho: a sala de ${destino.idioma} recusou o botao de imagem; mando sem.`);
         delete carga.components;
-        posta = await webhook.send(carga);
+        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino));
       }
       if (posta?.id) {
         /* Cartao novo na sala 🌍 ganha o topico 🌐 -- se tiver o que ler. */
@@ -6637,6 +6668,73 @@ async function refazerWebhookDaReplica(servidorId, destino) {
   } catch (e) {
     console.error("idioma: nao consegui refazer o webhook de", destino.idioma, e?.message || e);
     return null;
+  }
+}
+
+/* O MESMO CONSERTO, AGORA NA SALA DE CONVERSA -- que nunca o teve.
+
+   O cartao do canal de erros promete "faco outro na hora e reenvio a
+   mensagem que falhou", e isso era verdade so' nas replicas. Na sala de
+   conversa o envio caia num console.error e parava ali: no [MET] a sala th
+   nasceu as 02:50 e o webhook dela morreu minutos depois, e cada fala do
+   servidor deixava uma linha "nao consegui postar em th Unknown Webhook" --
+   28 vezes, debaixo de um cartao dizendo que eu ja' tinha consertado.
+
+   Diferente da replica, canal sumido NAO mexe no banco aqui: quem esvazia
+   a sala de conversa apagada e' a varredura, que confere a lista inteira de
+   canais de uma vez. Um fetch que falhou por rede nao pode virar "a sala do
+   idioma nao existe" e apagar a linha de um idioma que tem gente dentro.
+
+   E no maximo uma vez a cada meia hora por canal: um bot de seguranca que
+   apaga todo webhook novo (ha' varios) transformaria o conserto numa
+   fabrica -- um webhook criado e apagado a cada fala. Na segunda morte em
+   seguida, o erro volta a aparecer, que e' o que tem que acontecer. */
+const WEBHOOK_REFEITO_EM = new Map(); // canal_id -> quando refiz
+const ESPERA_PARA_REFAZER_WEBHOOK = 30 * 60 * 1000;
+
+async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now()) {
+  const ultimo = WEBHOOK_REFEITO_EM.get(destino.canal_id);
+  if (ultimo && agora - ultimo < ESPERA_PARA_REFAZER_WEBHOOK) return null;
+  WEBHOOK_REFEITO_EM.set(destino.canal_id, agora);
+  try {
+    const canal = await client.channels.fetch(destino.canal_id).catch(() => null);
+    if (!canal) return null;
+
+    const existentes = await canal.fetchWebhooks().catch(() => null);
+    const meu = existentes?.find((w) => w.owner?.id === client.user.id && w.token && w.url !== destino.webhook);
+    const w = meu || await canal.createWebhook({ name: "CYRON espelho" });
+
+    /* A sala 🌍 mora em outra tabela; as de idioma, na do espelho. O canal
+       basta como endereco: id de canal do Discord nao se repete. */
+    const tabela = destino.mundo ? "discord_sala_mundo" : "discord_chat_espelho";
+    await sbPatch(`${tabela}?canal_id=eq.${encodeURIComponent(destino.canal_id)}`, { webhook: w.url });
+    destino.webhook = w.url;
+    /* A lista fica meia hora na memoria: sem derrubar, toda fala dessa meia
+       hora iria de novo pro webhook morto. */
+    if (servidorId) cacheEspelho.delete(servidorId); else cacheEspelho.clear();
+    console.log(`espelho: refiz o webhook de ${destino.idioma} em #${canal.name}.`);
+    return w.url;
+  } catch (e) {
+    console.error("espelho: nao consegui refazer o webhook de", destino.idioma, e?.message || e);
+    return null;
+  }
+}
+
+/* Manda pela sala; se o webhook dela foi apagado, faz outro e manda de novo.
+   Devolve a mensagem e o cliente que funcionou -- o video, que sai logo
+   depois, tem que ir pelo mesmo.
+
+   Reenviar nao duplica: o primeiro envio falhou com webhook inexistente,
+   entao nada chegou do outro lado. */
+async function enviarNaSalaDoEspelho(webhook, carga, servidorId, destino) {
+  try {
+    return { posta: await webhook.send(carga), webhook };
+  } catch (e) {
+    if (!/Unknown Webhook/i.test(e?.message || "")) throw e;
+    const novo = await refazerWebhookDoEspelho(servidorId, destino);
+    if (!novo) throw e;
+    const outro = clienteDoWebhook(novo);
+    return { posta: await outro.send(carga), webhook: outro };
   }
 }
 

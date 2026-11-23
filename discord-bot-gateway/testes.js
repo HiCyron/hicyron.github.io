@@ -192,6 +192,10 @@ Object.assign(globalThis, carregar(["comoFunciona"]));
 /* Os nomes no estilo do ranking ("・⚙️┊cyron"): a CYRON acha as salas dela
    pelos dois jeitos, e as funções que buscam sala pelo nome usam isto. */
 Object.assign(globalThis, carregar(["nomeSimples", "mesmoNome"]));
+/* O envio da sala de conversa passa pelo conserto do webhook morto: todo teste
+   que carrega o espelharMensagem precisa dele no escopo. */
+Object.assign(globalThis, carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK",
+  "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]));
 /* O import do index que o FUNCOES usa (a função dos códigos nasce ligada nos servidores de Kingshot). */
 Object.assign(globalThis, { pareceKingshot: (await import("./codigos-jogo.js")).pareceKingshot });
 
@@ -8626,6 +8630,17 @@ function conferirCartao(onde, embed, componentes = []) {
       ok("chave recusada (401) tem motivo próprio", (await erro(azure(401, {})))?.motivo, "chave");
       ok("chave recusada (403) também", (await erro(azure(403, {})))?.motivo, "chave");
       ok("500 não é chave", (await erro(azure(500, {})))?.motivo, undefined);
+      /* 400 InvalidImage* é a imagem: insistir dá o mesmo 400 para sempre. */
+      const pequena = await erro(azure(400, { error: { code: "InvalidRequest",
+        innererror: { code: "InvalidImageSize", message: "Image size is too small." } } }));
+      ok("imagem que a Azure não abre tem motivo próprio", pequena?.motivo, "imagem");
+      verdade("e o código da Azure vai junto na mensagem", /InvalidImageSize/.test(pequena?.message));
+      ok("formato recusado também", (await erro(azure(400, { error: { code: "InvalidImageFormat" } })))?.motivo, "imagem");
+      /* Outro 400 é defeito meu: continua erro, agora com o código. */
+      const outro = await erro(azure(400, { error: { code: "InvalidRequest", innererror: { code: "UnsupportedApiVersion" } } }));
+      ok("400 de outro tipo continua erro, sem motivo", outro?.motivo, undefined);
+      verdade("e diz qual foi", /UnsupportedApiVersion/.test(outro?.message));
+      verdade("400 sem corpo também sobe como erro", !(await erro(azure(400, null)))?.motivo);
     }
 
     /* ---- achar a imagem na mensagem ---- */
@@ -8767,6 +8782,15 @@ function conferirCartao(onde, embed, componentes = []) {
       /* E quem clicou não é mandado tentar de novo à toa. */
       const aviso = carregar(["falhaDeLeitura"]).falhaDeLeitura({ motivo: "chave", message: "x" });
       verdade("quem clicou não ouve 'tente de novo'", !/tente de novo/i.test(aviso.description) && /manutenção/.test(aviso.title));
+      /* A imagem recusada não é defeito e não volta com o tempo: fora do
+         canal de erros, e quem clicou sabe o que fazer em vez de insistir. */
+      const erros = [], console0 = console.error;
+      console.error = (...x) => erros.push(x.join(" "));
+      const recusada = carregar(["falhaDeLeitura"]).falhaDeLeitura({ motivo: "imagem", message: "HTTP 400 (InvalidImageSize)" });
+      console.error = console0;
+      verdade("imagem recusada: não manda tentar em instantes", !/em instantes/i.test(recusada.description) &&
+        /PNG ou JPG/.test(recusada.description));
+      ok("e não vai pro canal de erros", erros.length, 0);
     }
 
     /* ---- a fiação: as funções acima não servem se ninguém chama ---- */
@@ -17793,6 +17817,113 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("amostra 3: a ficha do Urso e o aviso com o botão", /cartaoDoUrso\("pt", gid\)/.test(amostra) &&
     /avisoDeInicio\(exemplo, [^)]*, 15, true\)/.test(amostra));
   verdade("amostra na versão 3", /^var AMOSTRA_VERSAO = "3"/.test(pedaco("AMOSTRA_VERSAO")));
+}
+
+/* A SALA DE CONVERSA REFAZ O WEBHOOK APAGADO -- COMO A RÉPLICA JÁ FAZIA.
+ *
+ * O cartão do canal de erros promete "faço outro na hora e reenvio", e isso
+ * só valia para as réplicas. No [MET], a sala th nasceu às 02:50 e o webhook
+ * dela morreu minutos depois: 28 linhas "nao consegui postar em th Unknown
+ * Webhook", cada uma uma fala que não chegou, debaixo da promessa. */
+{
+  const guarda = {};
+  for (const k of ["client", "sbPatch", "cacheEspelho", "clienteDoWebhook"]) guarda[k] = globalThis[k];
+  const patches = [], criados = [], enviados = [];
+  let webhooksNoCanal = [];
+  globalThis.client = {
+    user: { id: "eu" },
+    channels: {
+      fetch: async (id) => !id.startsWith("vivo") ? null : {
+        name: `chat-${id}`,
+        fetchWebhooks: async () => webhooksNoCanal,
+        createWebhook: async () => { criados.push(id); return { url: `https://w/novo-${id}`, token: "t" }; },
+      },
+    },
+  };
+  globalThis.sbPatch = async (chave, corpo) => { patches.push([chave, corpo]); };
+  globalThis.cacheEspelho = new Map([["srv", 1], ["outro", 2]]);
+  globalThis.clienteDoWebhook = (url) => ({ send: async (c) => { enviados.push([url, c]); return { id: "m1" }; } });
+  const morto = { send: async () => { throw new Error("Unknown Webhook"); } };
+
+  const { enviarNaSalaDoEspelho } = carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_WEBHOOK",
+    "refazerWebhookDoEspelho", "enviarNaSalaDoEspelho"]);
+  const falha = (p) => p.then(() => null, (e) => e?.message || String(e));
+
+  {
+    const destino = { canal_id: "vivo1", idioma: "th", webhook: "https://w/morto" };
+    const r = await enviarNaSalaDoEspelho(morto, { content: "oi" }, "srv", destino);
+    verdade("webhook morto: a fala chega pelo webhook novo", r.posta?.id === "m1" &&
+      enviados.length === 1 && enviados[0][0] === "https://w/novo-vivo1" && enviados[0][1].content === "oi");
+    verdade("e devolve o cliente novo, pro vídeo ir pelo mesmo", r.webhook && r.webhook !== morto);
+    ok("grava o webhook novo na linha da sala", JSON.stringify(patches[0]),
+      JSON.stringify(["discord_chat_espelho?canal_id=eq.vivo1", { webhook: "https://w/novo-vivo1" }]));
+    ok("e no destino em memória", destino.webhook, "https://w/novo-vivo1");
+    /* Sem derrubar a memória, cada fala da próxima meia hora iria de novo
+       para o webhook morto. Só a deste servidor. */
+    verdade("derruba a lista em memória deste servidor, e só a dele",
+      !cacheEspelho.has("srv") && cacheEspelho.has("outro"));
+
+    /* Um bot de segurança que apaga todo webhook novo faria do conserto uma
+       fábrica: um webhook criado e apagado a cada fala. */
+    const de = { canal_id: "vivo1", idioma: "th", webhook: "https://w/novo-vivo1" };
+    ok("morreu de novo logo em seguida: não refaz, o erro aparece",
+      await falha(enviarNaSalaDoEspelho(morto, { content: "oi" }, "srv", de)), "Unknown Webhook");
+    ok("e não criou outro webhook", criados.length, 1);
+  }
+
+  {
+    webhooksNoCanal = [{ owner: { id: "outro-bot" }, token: "t", url: "https://w/alheio" },
+      { owner: { id: "eu" }, token: "t", url: "https://w/meu" }];
+    const destino = { canal_id: "vivo2", idioma: "es", webhook: "https://w/morto" };
+    await enviarNaSalaDoEspelho(morto, { content: "hola" }, "srv", destino);
+    verdade("reaproveita um webhook meu que sobrou no canal (o limite é 15)",
+      destino.webhook === "https://w/meu" && criados.length === 1);
+    webhooksNoCanal = [];
+  }
+
+  {
+    const destino = { canal_id: "vivo3", idioma: "mundo", mundo: true, webhook: "https://w/morto" };
+    await enviarNaSalaDoEspelho(morto, { content: "x" }, "srv", destino);
+    verdade("a sala 🌍 é gravada na tabela dela",
+      patches.at(-1)[0] === "discord_sala_mundo?canal_id=eq.vivo3");
+  }
+
+  {
+    const antes = patches.length;
+    const destino = { canal_id: "sumiu", idioma: "fr", webhook: "https://w/morto" };
+    ok("canal sumido: a fala falha com o erro de sempre",
+      await falha(enviarNaSalaDoEspelho(morto, { content: "x" }, "srv", destino)), "Unknown Webhook");
+    /* Quem esvazia a sala apagada é a varredura: um fetch que falhou por rede
+       não pode apagar a linha de um idioma que tem gente dentro. */
+    ok("e não mexe no banco", patches.length, antes);
+  }
+
+  {
+    const antes = patches.length;
+    const semPermissao = { send: async () => { throw new Error("Missing Permissions"); } };
+    ok("outro erro passa direto, sem refazer nada",
+      await falha(enviarNaSalaDoEspelho(semPermissao, {}, "srv", { canal_id: "vivo4", idioma: "de" })),
+      "Missing Permissions");
+    ok("nenhum webhook mexido por isso", patches.length, antes);
+  }
+
+  Object.assign(globalThis, guarda);
+
+  /* A FIAÇÃO: um conserto que ninguém chama deixa tudo como estava, com um
+     teste verde por cima dizendo que não. */
+  const espelho = semComentarios(pedaco("espelharMensagem"));
+  ok("o envio da sala passa pelo conserto (e o reenvio sem botão também)",
+    (espelho.match(/\(\{ posta, webhook \} = await enviarNaSalaDoEspelho\(webhook, carga, servidorId, destino\)\)/g) || []).length, 2);
+  verdade("o webhook da sala pode ser trocado no meio (o vídeo vai pelo novo)",
+    /let webhook = clienteDoWebhook\(destino\.webhook\)/.test(espelho));
+  verdade("webhook morto não vira 'recusou o botão'",
+    /if \(!comBotao \|\| \/Unknown Webhook\/i\.test/.test(espelho));
+  verdade("a emenda que bate no webhook morto não conta erro em dobro",
+    /if \(!\/Unknown Webhook\/i\.test\(e\?\.message \|\| ""\)\) \{\s*console\.error\("espelho: nao consegui emendar em"/.test(espelho));
+
+  const { explicarErro } = carregar(["EXPLICA_ERRO", "explicarErro"]);
+  verdade("e o cartão do espelho promete o que agora é verdade",
+    /reenvio a mensagem que falhou/i.test(String(explicarErro("espelho", "nao consegui postar em th Unknown Webhook")?.oque)));
 }
 
 function NA_CONTA_DO_FONTE() {
