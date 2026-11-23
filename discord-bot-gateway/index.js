@@ -34,6 +34,7 @@ import { ligarVisao } from "./visao.js";
 import { acharHeroi, sugestoesDeHeroi, fichaDoHeroi, svgDoRetrato, TEXTOS_DA_FICHA, normalizar as normalizarHeroi,
   TEXTOS_DO_URSO, heroisDoUrso, dicasDoUrso, fichaDoUrso, svgDoUrso, HEROIS, melhorUso, dicasDoHeroi, textoParaOJogo,
   LIVRO, TEXTOS_DO_LIVRO, diaDoLivro, paginaDoDia, paginaDoClique, botoesDoLivro } from "./herois.js";
+import { paginaDoTopgg } from "./topgg-pagina.js";
 import { eventoDoJogo, acharEventoDoJogo, fichaDoEvento, TEXTOS_DO_EVENTO, NOMES_DOS_EVENTOS, EVENTOS_DO_JOGO , iconeFixo } from "./eventos-jogo.js";
 import { pedidoDoCalendario, lerRespostaDoCalendario, juntarLeituras, resumoDoCalendario,
   analisarCalendario, pedidoDosNomes, eventosDoCalendario, lerMemoria, memoriaNova, numeroEmPixels,
@@ -4659,6 +4660,9 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
 
   for (const destino of lista) {
     if (destino.canal_id === origem.canal_id) continue;
+    /* Sala que eu perdi de vista: fica de fora ate' a proxima tentativa (ver
+       SALA_SEM_ACESSO). Calada aqui, porque o aviso ja' saiu uma vez. */
+    if (salaSemAcesso(destino.canal_id)) continue;
     const le = idiomaQueLe(destino);
 
     const corpo = tirarEmojisDoTexto(traduzido.get(le) ?? texto, emojisEmbaixo?.ids);
@@ -4857,7 +4861,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
 
       let posta;
       try {
-        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino));
+        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino, msg.guild?.name));
       } catch (e) {
         /* O BOTAO NUNCA PODE CUSTAR A MENSAGEM.
 
@@ -4871,7 +4875,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         if (!comBotao || /Unknown Webhook/i.test(e?.message || "")) throw e;
         console.log(`espelho: a sala de ${destino.idioma} recusou o botao de imagem; mando sem.`);
         delete carga.components;
-        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino));
+        ({ posta, webhook } = await enviarNaSalaDoEspelho(webhook, carga, servidorId, destino, msg.guild?.name));
       }
       if (posta?.id) {
         /* Cartao novo na sala 🌍 ganha o topico 🌐 -- se tiver o que ler. */
@@ -4916,7 +4920,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
           e?.message || e));
       }
     } catch (e) {
-      console.error("espelho: nao consegui postar em", destino.idioma, e?.message || e);
+      /* Sem acesso a' sala o aviso proprio ja' saiu; este seria o mesmo
+         problema contado duas vezes. */
+      if (!salaSemAcesso(destino.canal_id)) {
+        console.error("espelho: nao consegui postar em", destino.idioma, e?.message || e);
+      }
     }
   }
 
@@ -6702,13 +6710,42 @@ async function refazerWebhookDaReplica(servidorId, destino) {
 const WEBHOOK_REFEITO_EM = new Map(); // canal_id -> quando refiz
 const ESPERA_PARA_REFAZER_WEBHOOK = 30 * 60 * 1000;
 
-async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now()) {
+/* SALA QUE EXISTE MAS QUE EU NAO ENXERGO.
+
+   Foi o que o conserto acima encontrou no [MET], na mesma sala th: o webhook
+   sumiu as 02:55 e, quando fui fazer outro, o Discord respondeu "sem acesso"
+   ao canal -- alguem tirou da CYRON a permissao de ver o #chat-th. A
+   varredura conta canal escondido como vivo (de proposito), entao a linha
+   fica, e cada fala do servidor tentava a sala de novo: um "Unknown Webhook"
+   por mensagem no canal de erros, com o cartao dizendo que eu ja' tinha
+   consertado.
+
+   Sem acesso, nao ha' o que eu conserte sozinha: quem resolve e' um ADM de
+   la'. Entao: um aviso que diz exatamente isso, e a sala fica de fora pela
+   mesma meia hora da espera -- uma tentativa (e um aviso) por meia hora, e
+   nao um erro por fala. Quando o acesso voltar, a tentativa seguinte refaz
+   o webhook e a sala volta sozinha. */
+const SALA_SEM_ACESSO = new Map(); // canal_id -> quando descobri
+function salaSemAcesso(canalId, agora = Date.now()) {
+  const t = SALA_SEM_ACESSO.get(canalId);
+  return !!t && agora - t < ESPERA_PARA_REFAZER_WEBHOOK;
+}
+
+async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now(), onde = "") {
   const ultimo = WEBHOOK_REFEITO_EM.get(destino.canal_id);
   if (ultimo && agora - ultimo < ESPERA_PARA_REFAZER_WEBHOOK) return null;
   WEBHOOK_REFEITO_EM.set(destino.canal_id, agora);
   try {
-    const canal = await client.channels.fetch(destino.canal_id).catch(() => null);
-    if (!canal) return null;
+    let porque = null;
+    const canal = await client.channels.fetch(destino.canal_id).catch((e) => { porque = e; return null; });
+    if (!canal) {
+      if (porque?.code === 50001 || porque?.code === 50013 || /Missing Access|Missing Permissions/i.test(porque?.message || "")) {
+        SALA_SEM_ACESSO.set(destino.canal_id, agora);
+        console.error(`espelho: sem acesso à sala de ${destino.idioma}${onde ? ` em ${onde}` : ""} — ` +
+          "o webhook sumiu e eu não enxergo o canal para fazer outro");
+      }
+      return null;
+    }
 
     const existentes = await canal.fetchWebhooks().catch(() => null);
     const meu = existentes?.find((w) => w.owner?.id === client.user.id && w.token && w.url !== destino.webhook);
@@ -6736,12 +6773,12 @@ async function refazerWebhookDoEspelho(servidorId, destino, agora = Date.now()) 
 
    Reenviar nao duplica: o primeiro envio falhou com webhook inexistente,
    entao nada chegou do outro lado. */
-async function enviarNaSalaDoEspelho(webhook, carga, servidorId, destino) {
+async function enviarNaSalaDoEspelho(webhook, carga, servidorId, destino, onde = "") {
   try {
     return { posta: await webhook.send(carga), webhook };
   } catch (e) {
     if (!/Unknown Webhook/i.test(e?.message || "")) throw e;
-    const novo = await refazerWebhookDoEspelho(servidorId, destino);
+    const novo = await refazerWebhookDoEspelho(servidorId, destino, Date.now(), onde);
     if (!novo) throw e;
     const outro = clienteDoWebhook(novo);
     return { posta: await outro.send(carga), webhook: outro };
@@ -21023,6 +21060,19 @@ const EXPLICA_ERRO = [
       "dia, me mostre — é sinal de que algum botão está fazendo trabalho pesado antes de responder.",
   },
   {
+    /* ANTES da regra do "apagaram": aqui o webhook sumiu E eu nao enxergo o
+       canal, e isso eu nao conserto sozinha -- precisa de um ADM de la'. */
+    quando: /sem acesso à sala de/i,
+    titulo: "Perdi o acesso a uma sala de conversa",
+    precisaDeVoce: true,
+    oque: "O webhook da sala foi apagado e eu não consigo mais ver o canal para fazer outro: alguém tirou " +
+      "da CYRON a permissão de ver aquela sala. As falas desse idioma não chegam lá até isso voltar.\n\n" +
+      "Para não encher este canal, eu deixo a sala de fora e tento de novo a cada 30 minutos.",
+    fazer: "Peça a um ADM do servidor indicado para devolver à CYRON **Ver canal** e **Gerenciar webhooks** " +
+      "na sala daquele idioma (ou sincronizar a sala com a categoria). Na tentativa seguinte eu refaço o " +
+      "webhook e a sala volta sozinha.",
+  },
+  {
     quando: /Unknown Message|Unknown Channel|Unknown Webhook/i,
     titulo: "Apagaram algo que eu ainda usava",
     precisaDeVoce: false,
@@ -23346,6 +23396,72 @@ async function avisarTopgg(buscar = fetch) {
   return { ok: false, erro: `HTTP ${v1.status} (v1) / ${v0.status} (v0)` };
 }
 
+/* A PAGINA DO TOPGG, CUIDADA POR MIM (dono, 23/11: "voce consegue cuidar?
+   sou inutil para isso").
+
+   O texto mora em topgg-pagina.js; aqui so' se manda. A marca guardada
+   (`topgg_pagina`) e' o resumo do texto enviado: igual, nao manda de novo --
+   o top.gg leva ate' uma hora para mostrar, e reenviar o mesmo texto toda
+   hora so' gastaria pedido. Com o beta acabando, o texto muda sozinho (a
+   frase do preco vem do estado), a marca muda, e a pagina acompanha. */
+async function sincronizarPaginaDoTopgg(buscar = fetch) {
+  const token = await chaveDoTopgg();
+  if (!token) return { ok: false, erro: "sem token" };
+  const pagina = paginaDoTopgg({ beta: !!(BETA || venceEm(BETA_ATE)) });
+  const marca = createHash("sha256").update(JSON.stringify(pagina)).digest("hex").slice(0, 16);
+  const a = await ajustes();
+  if (a.falhou) return { ok: false, erro: "sem banco" };
+  if (String(a.topgg_pagina || "").split("|")[0] === marca) return { ok: true, igual: true, marca };
+  const r = await buscar(`${TOPGG_API}/v1/projects/@me`, { method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(pagina), signal: AbortSignal.timeout(15000) });
+  if (!r.ok) {
+    const corpo = await r.text().catch(() => "");
+    return { ok: false, erro: `HTTP ${r.status}${corpo ? ` ${corpo.slice(0, 150)}` : ""}` };
+  }
+  await porAjuste("topgg_pagina", `${marca}|${new Date().toISOString()}`);
+  return { ok: true, marca };
+}
+
+/* A lista de comandos na pagina, no mesmo formato que vai ao discordbotlist
+   (o /admin fica de fora). PUT substitui a lista inteira, entao comando
+   aposentado some de la' tambem. */
+async function enviarComandosAoTopgg(buscar = fetch) {
+  const token = await chaveDoTopgg();
+  if (!token || !client.application) return { ok: false, erro: "sem token" };
+  const lista = comandosParaLista([...(await client.application.commands.fetch()).values()]);
+  const r = await buscar(`${TOPGG_API}/v1/projects/@me/commands`, { method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(lista), signal: AbortSignal.timeout(15000) });
+  if (!r.ok) return { ok: false, erro: `HTTP ${r.status}` };
+  await porAjuste("topgg_comandos", `${lista.length}|${new Date().toISOString()}`);
+  return { ok: true, comandos: lista.length };
+}
+
+/* Tudo do top.gg numa volta: o numero, a pagina e (quando pedido) os
+   comandos. Cada parte deixa uma marca no cyron_ajuste com a hora do
+   ultimo envio que deu certo -- e' por ela que eu confiro, de fora, que a
+   pagina esta' em dia. Recusa da pagina vai ao canal de erros uma vez por
+   processo: um token da v0 (que nao edita pagina) apareceria toda hora. */
+const TOPGG_JA_AVISEI = new Set();
+async function cuidarDoTopgg({ comandos = false } = {}) {
+  const numero = await avisarTopgg();
+  if (numero.erro === "sem token") return;
+  if (numero.ok) await porAjuste("topgg_numero", `${numero.guilds}|${numero.via}|${new Date().toISOString()}`);
+  else console.log("topgg: o número foi recusado:", numero.erro);
+  const pagina = await sincronizarPaginaDoTopgg().catch((e) => ({ ok: false, erro: e?.message || String(e) }));
+  if (pagina.ok && !pagina.igual) console.log(`topgg: página atualizada (${pagina.marca})`);
+  if (!pagina.ok && pagina.erro !== "sem banco" && !TOPGG_JA_AVISEI.has(pagina.erro)) {
+    TOPGG_JA_AVISEI.add(pagina.erro);
+    console.error("topgg: o top.gg recusou o texto da página:", pagina.erro);
+  }
+  if (comandos) {
+    const r = await enviarComandosAoTopgg().catch((e) => ({ ok: false, erro: e?.message || String(e) }));
+    if (r.ok) console.log(`topgg: ${r.comandos} comandos enviados`);
+    else console.log("topgg: os comandos foram recusados:", r.erro);
+  }
+}
+
 /* A janela do token. Separada da das chaves, que ja' tem os cinco campos que
    o Discord permite. O campo volta vazio de proposito, como as outras: o
    rotulo diz se ha' um guardado. */
@@ -23382,6 +23498,8 @@ async function salvarTopgg(inter) {
   await porAjuste("topgg_chave", cifrar(novo));
   await recarregarAjustes();
   const r = await avisarTopgg().catch((e) => ({ ok: false, erro: e?.message || String(e) }));
+  /* A pagina e os comandos vao junto, sem esperar a volta do relogio. */
+  if (r?.ok) cuidarDoTopgg({ comandos: true }).catch(() => {});
   return inter.editReply(r?.ok
     ? `✅ **Token guardado.** Mandei **${r.guilds} servidores** para o top.gg (API ${r.via}). Daqui em diante vai sozinho, de hora em hora.`
     : `🔑 Token guardado, mas o top.gg recusou: ${String(r?.erro || "sem resposta").slice(0, 150)}. Confira se copiou o token inteiro.`);
@@ -29821,7 +29939,7 @@ async function deHoraEmHora() {
   /* Uma vez por dia leva os comandos junto; nas outras horas, so' o numero. */
   await avisarDiscordBotList({ comandos: new Date().getUTCHours() === 6 })
     .catch((e) => console.log("dbl: aviso falhou:", e?.message || e));
-  await avisarTopgg().then((r) => { if (!r.ok && r.erro !== "sem token") console.log("topgg: recusou:", r.erro); })
+  await cuidarDoTopgg({ comandos: new Date().getUTCHours() === 6 })
     .catch((e) => console.log("topgg: aviso falhou:", e?.message || e));
 }
 
@@ -30283,8 +30401,7 @@ client.once("clientReady", () => {
     avisarDiscordBotList({ comandos: true })
       .then((r) => { if (r.ok) console.log(`dbl: ${r.comandos} comandos e ${r.guilds} servidores enviados`); })
       .catch((e) => console.log("dbl: aviso falhou:", e?.message || e));
-    avisarTopgg()
-      .then((r) => { if (r.ok) console.log(`topgg: ${r.guilds} servidores enviados (${r.via})`); })
+    cuidarDoTopgg({ comandos: true })
       .catch((e) => console.log("topgg: aviso falhou:", e?.message || e));
   }, 60000);
 
