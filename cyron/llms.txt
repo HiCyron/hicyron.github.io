@@ -7,6 +7,9 @@
 - Full guide (English): https://hicyron.github.io/guide.html
 - Features list: https://hicyron.github.io/recursos.html
 - Setup steps: https://hicyron.github.io/passos.html
+- Top.gg listing (approved November 2026): https://top.gg/bot/1498142929041096856
+- discordbotlist listing: https://discordbotlist.com/bots/1498142929041096856
+- Support server: https://discord.gg/yDwePceB38
 
 ## What CYRON does
 
@@ -18,6 +21,15 @@
 - **Stickers, GIFs and emojis cross between rooms** (including stickers and emojis from other servers).
 - **Events with reminders** shown in each member's time zone and language, plus welcome messages, levels, giveaways, moderation (anti-scam, anti-spam, logs) and a feature panel where admins turn each feature on or off.
 - **Per-server glossary**: game terms (like "rally" or "bear") are kept as-is instead of being mistranslated.
+
+## Kingshot tools
+
+CYRON was built first for Kingshot alliances, and ships game tools on top of translation:
+
+- **Bear Trap card** (/urso) with the best heroes for the event, posted in every language room.
+- **Hero book** (/heroi): every hero with tips for leading and joining rallies, browsable with arrows.
+- **Events in everyone's time zone** (/evento), with reminders and Kingshot event icons.
+- **Duels, hero cards, levels, role panels and welcome images** for community engagement.
 
 ## Languages (22)
 
