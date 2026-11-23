@@ -22494,6 +22494,7 @@ async function embedDosServidores() {
 }
 
 async function embedDasFerramentas() {
+  const a = await ajustes().catch(() => ({}));
   const motores = new Set((motoresDoDono() || []).map((m) => m.tipo));
   const tem = (t) => (motores.has(t) ? "🟢" : "⚪");
   return {
@@ -22503,6 +22504,7 @@ async function embedDasFerramentas() {
       { name: "🔑 Chaves de tradução", value: `${tem("deepl")} DeepL · ${tem("azure")} Azure`, inline: true },
       { name: "🧪 Beta", value: BETA ? "ligado" : venceEm(BETA_ATE) ? `até ${quandoFoi(venceEm(BETA_ATE), "d")}` : "desligado", inline: true },
       { name: "🧠 IA do privado", value: await resumoDaIA() },
+      { name: "🗳️ top.gg", value: (process.env.TOPGG_CHAVE || a.topgg_chave) ? "✅ token guardado" : "⚫ sem token", inline: true },
       { name: "O que cada botão faz", value: [
         "🔑 **Chaves** — DeepL e Azure da casa",
         "👁️ **Leitura de imagem** e 🎧 **Áudio** — chaves da Azure para o 📝 e o 🎧",
@@ -22512,6 +22514,7 @@ async function embedDasFerramentas() {
         "🏗️ **Montar suporte** — arruma o servidor de suporte",
         "🔄 **Remontar painel** — refaz os canais deste painel",
         "🧠 **IA do privado** — chave da Groq, ligar e desligar, perguntas por dia",
+        "🗳️ **top.gg** — token da página: o número de servidores vai sozinho, de hora em hora",
       ].join("\n") },
     ],
   };
