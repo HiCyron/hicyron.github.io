@@ -12106,6 +12106,19 @@ function conferirCartao(onde, embed, componentes = []) {
     /* O app do dono é outro projeto e não aparece no bot, no site nem nos termos. */
     verdade("a página não fala do outro projeto", !/appcyron/i.test(JSON.stringify(p)));
   }
+  /* Cada arte que a página mostra existe no site -- imagem quebrada no meio da
+     página do top.gg é pior que imagem nenhuma. */
+  {
+    const p = paginaDoTopgg({ beta: true });
+    const faltando = [];
+    for (const texto of Object.values(p.page_content)) {
+      for (const [, caminho] of texto.matchAll(/https:\/\/hicyron\.github\.io\/(img\/topgg\/[^)?\s]+)/g)) {
+        if (!existsSync(`${aqui}/../cyron/${caminho}`)) faltando.push(caminho);
+      }
+    }
+    ok("toda arte da página do top.gg existe no site", faltando, []);
+    verdade("e a página tem as artes", /img\/topgg\/topo-en\.jpg/.test(p.page_content.en) && /img\/topgg\/topo-pt\.jpg/.test(p.page_content.pt));
+  }
   verdade("a frase do beta só aparece no beta",
     /beta/i.test(paginaDoTopgg({ beta: true }).page_content.en) && !/beta/i.test(paginaDoTopgg({ beta: false }).page_content.en));
 

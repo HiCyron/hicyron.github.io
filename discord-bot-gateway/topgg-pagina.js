@@ -19,6 +19,15 @@ export const LINGUAS_DO_TOPGG = ["en", "de", "fr", "pt", "tr", "hi", "ja", "ar",
 
 const SITE = "https://hicyron.github.io";
 const SUPORTE = "https://discord.gg/yDwePceB38";
+const CONVITE = "https://discord.com/oauth2/authorize?client_id=1498142929041096856&permissions=327223209040&scope=bot%20applications.commands";
+
+/* As artes (video-divulgacao/arte-topgg.html → cyron/img/topgg/), servidas pelo
+   site. O ?v= muda quando a arte muda: o top.gg guarda imagem em cache, e sem
+   isso a página continuaria mostrando a velha. */
+const VERSAO_DAS_ARTES = "1";
+function arte(nome, lingua, alt) {
+  return `![${alt}](${SITE}/img/topgg/${nome}-${lingua}.jpg?v=${VERSAO_DAS_ARTES})`;
+}
 
 export function paginaDoTopgg({ beta = false } = {}) {
   const precoEn = beta
@@ -35,16 +44,20 @@ export function paginaDoTopgg({ beta = false } = {}) {
     },
     page_content: {
       en: [
+        arte("topo", "en", "CYRON — One server. Every language."),
+        "",
         "# 🌐 CYRON — One server. Every language.",
         "",
         "People write in their own language and read everyone else in theirs. Same conversation, same moment, and nobody types a command.",
         "",
         "## How it works",
+        arte("como", "en", "The same message in Portuguese, English and Arabic rooms"),
         "1. Members pick their language with one click.",
         "2. They chat in their own room (`#chat-pt`, `#chat-en`…) and every message shows up in the other rooms, already translated, with their name and avatar.",
         "3. Replies, mentions, edits, stickers, GIFs and emojis follow the message.",
         "",
         "## Translation everywhere",
+        arte("recursos", "en", "Flags, announcements, screenshots, voice notes, glossary and events"),
         "- 🏳️ **React with a flag** — any message, translated privately for whoever reacted.",
         "- 📢 **Announcements** — post once, it lands in every language.",
         "- 🖼️ **Screenshots** — reads the text in an image and translates it.",
@@ -53,6 +66,7 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "- ⏰ **Events** (`/evento`) — set \"20:30\" once, everyone sees it in their own time zone, with a reminder.",
         "",
         "## Made for game alliances ⚔️",
+        arte("kingshot", "en", "Bear Trap card, hero book, duels and levels"),
         "Built first for Kingshot alliances with players from all over the world:",
         "- 🐻 **Bear Trap** card with the best heroes, in every language (`/urso`).",
         "- 📖 **Hero book** — every hero with tips for leading and joining rallies (`/heroi`).",
@@ -64,21 +78,27 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "## Setup",
         "Add CYRON, and members choose their language at the door. Everything else is in `/cyron` (admins) and `/help` (everyone).",
         "",
+        `[${arte("botao", "en", "Add CYRON to Discord — free")}](${CONVITE})`,
+        "",
         `🔗 Website: ${SITE}`,
         `💬 Support: ${SUPORTE}`,
         `🔒 Privacy: ${SITE}/privacidade.html`,
       ].join("\n"),
       pt: [
+        arte("topo", "pt", "CYRON — Um servidor. Todas as línguas."),
+        "",
         "# 🌐 CYRON — Um servidor. Todas as línguas.",
         "",
         "Cada um escreve na sua língua e lê os outros na sua. A mesma conversa, na mesma hora, e ninguém precisa digitar comando.",
         "",
         "## Como funciona",
+        arte("como", "pt", "A mesma mensagem nas salas em português, inglês e árabe"),
         "1. Cada membro escolhe a língua com um clique.",
         "2. Conversa na sala dele (`#chat-pt`, `#chat-en`…) e cada mensagem aparece nas outras salas já traduzida, com o nome e a foto de quem escreveu.",
         "3. Respostas, menções, edições, figurinhas, GIFs e emojis acompanham a mensagem.",
         "",
         "## Tradução em todo lugar",
+        arte("recursos", "pt", "Bandeiras, avisos, prints, áudios, glossário e eventos"),
         "- 🏳️ **Reaja com uma bandeira** — qualquer mensagem, traduzida no privado de quem reagiu.",
         "- 📢 **Avisos** — você posta uma vez e chega em todas as línguas.",
         "- 🖼️ **Prints** — lê o texto da imagem e traduz.",
@@ -87,6 +107,7 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "- ⏰ **Eventos** (`/evento`) — marque \"20:30\" uma vez e cada um vê no próprio fuso, com lembrete.",
         "",
         "## Feita para alianças de jogo ⚔️",
+        arte("kingshot", "pt", "Ficha do Urso, livro dos heróis, duelos e níveis"),
         "Nasceu para alianças de Kingshot com jogadores do mundo todo:",
         "- 🐻 **Ficha do Urso** com os melhores heróis, em todas as línguas (`/urso`).",
         "- 📖 **Livro dos heróis** — cada herói com dicas para liderar e entrar em rally (`/heroi`).",
@@ -97,6 +118,8 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "",
         "## Como começar",
         "Adicione a CYRON e cada membro escolhe a língua na entrada. O resto fica no `/cyron` (ADMs) e no `/help` (todo mundo).",
+        "",
+        `[${arte("botao", "pt", "Adicionar a CYRON — grátis")}](${CONVITE})`,
         "",
         `🔗 Site: ${SITE}`,
         `💬 Suporte: ${SUPORTE}`,

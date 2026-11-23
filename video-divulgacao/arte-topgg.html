@@ -1,0 +1,185 @@
+<!doctype html>
+<!-- As artes da página da CYRON no top.gg (dono, 23/11: "olha esse que foda" -- a
+     página de outro bot com imagens no meio da descrição).
+
+     Uma parte por vez: arte-topgg.html?parte=topo&lingua=en. Quem tira a foto é o
+     fazer-arte-topgg.mjs, que grava em cyron/img/topgg/<parte>-<lingua>.jpg; o
+     texto da página (discord-bot-gateway/topgg-pagina.js) aponta para lá.
+
+     Minimalista: fundo escuro, o roxo e o azul da CYRON, muito respiro. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root { --fundo:#0B0D14; --cartao:#141826; --borda:#232A3D; --texto:#F1F3F8; --fraco:#9AA3B5;
+    --roxo:#8957FF; --azul:#5BC0FF; }
+  * { box-sizing:border-box; margin:0; padding:0 }
+  body { width:1100px; background:var(--fundo); color:var(--texto);
+    /* Inter primeiro, e o emoji POR ÚLTIMO: o Noto Color Emoji tem desenho próprio
+       para espaço e algarismos, e antes de uma fonte de texto ele roubava os dois
+       (palavras afastadas e "2 0h"). DejaVu cobre o árabe; WenQuanYi, o japonês. */
+    font-family:"Inter","DejaVu Sans","WenQuanYi Zen Hei","Noto Color Emoji",sans-serif; }
+  .parte { position:relative; overflow:hidden; padding:56px 64px; display:none }
+  .parte.ativa { display:block }
+  .parte::before { content:""; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(600px 300px at 85% 10%, rgba(137,87,255,.22), transparent 70%),
+                radial-gradient(500px 260px at 0% 100%, rgba(91,192,255,.14), transparent 70%); }
+  .rotulo { font-size:15px; font-weight:700; letter-spacing:.22em; text-transform:uppercase; color:var(--azul) }
+  h1 { font-size:68px; line-height:1.04; letter-spacing:-.02em; margin-top:14px; font-weight:800 }
+  h2 { font-size:40px; letter-spacing:-.015em; font-weight:800; position:relative }
+  h2::after { content:""; display:block; width:44px; height:3px; border-radius:3px; margin-top:14px;
+    background:linear-gradient(90deg,var(--roxo),var(--azul)) }
+  .grad { background:linear-gradient(90deg,#B49BFF,var(--azul)); -webkit-background-clip:text; background-clip:text; color:transparent }
+  .sub { color:var(--fraco); font-size:21px; line-height:1.5; margin-top:20px; max-width:560px }
+  .chips { display:flex; gap:10px; margin-top:28px; flex-wrap:wrap }
+  .chip { border:1px solid var(--borda); background:rgba(20,24,38,.8); border-radius:999px; padding:9px 16px; font-size:16px; color:#D8DCE7 }
+  .chip b { color:var(--texto) }
+
+  /* topo */
+  #topo { height:540px }
+  #topo .corpo { position:absolute; right:30px; bottom:-10px; height:560px; filter:drop-shadow(0 0 40px rgba(137,87,255,.35)) }
+  #topo .bolhas span { position:absolute; font-size:19px; color:rgba(241,243,248,.16); font-weight:600 }
+
+  /* cartões genéricos */
+  .grade { display:grid; gap:18px; margin-top:34px; position:relative }
+  .cartao { background:var(--cartao); border:1px solid var(--borda); border-radius:18px; padding:24px 24px 26px }
+  .cartao .ic { font-size:34px; line-height:1 }
+  .cartao h3 { font-size:21px; margin-top:14px }
+  .cartao p { color:var(--fraco); font-size:16.5px; line-height:1.5; margin-top:8px }
+
+  /* como funciona: três salas */
+  .sala { background:#1A1D27; border:1px solid var(--borda); border-radius:16px; overflow:hidden }
+  .sala .cab { padding:12px 16px; border-bottom:1px solid var(--borda); color:var(--fraco); font-size:15px; font-weight:600 }
+  .sala .cab b { color:var(--texto) }
+  .fala { display:flex; gap:12px; padding:16px }
+  .av { width:40px; height:40px; border-radius:50%; background:linear-gradient(135deg,#F59E0B,#EF4444); flex:none;
+    display:grid; place-items:center; font-weight:800; font-size:17px }
+  .nome { font-weight:700; font-size:16px }
+  .nome small { font-weight:600; font-size:11px; background:#5865F2; color:#fff; border-radius:4px; padding:1px 5px; margin-left:6px; vertical-align:2px }
+  .msg { font-size:17px; margin-top:4px; line-height:1.4 }
+  .selo { color:var(--fraco); font-size:13px; margin-top:6px }
+  .rtl { direction:rtl; text-align:right }
+
+  /* kingshot */
+  .herois { display:flex; gap:10px; margin-top:14px }
+  .herois img { width:58px; height:58px; border-radius:12px; border:1px solid var(--borda) }
+
+  /* botão */
+  #botao { height:210px; display:none; place-items:center; padding:0 }
+  #botao.ativa { display:grid }
+  .bt { display:inline-flex; align-items:center; gap:14px; padding:24px 44px; border-radius:18px; font-size:30px; font-weight:800;
+    background:linear-gradient(90deg,var(--roxo),#5B6CFF 55%,var(--azul)); box-shadow:0 12px 40px rgba(137,87,255,.35) }
+  .bt small { font-size:18px; font-weight:600; opacity:.9 }
+  /* O ➕ do emoji sai cinza no Noto: um + de texto, branco, combina com o botão. */
+  .bt .mais { font-size:38px; font-weight:700; line-height:1; margin-top:-4px }
+</style>
+</head>
+<body>
+
+<section class="parte" id="topo">
+  <div class="bolhas">
+    <span style="left:640px;top:70px">Olá</span><span style="left:560px;top:420px">こんにちは</span>
+    <span style="left:700px;top:250px">مرحبا</span><span style="left:520px;top:150px">Bonjour</span>
+    <span style="left:600px;top:340px">Привет</span><span style="left:740px;top:470px">Xin chào</span>
+  </div>
+  <div style="position:relative">
+    <div class="rotulo" data-t="rotulo"></div>
+    <h1><span data-t="titulo1"></span><br><span class="grad" data-t="titulo2"></span></h1>
+    <p class="sub" data-t="sub"></p>
+    <div class="chips"><span class="chip" data-t="chip1"></span><span class="chip" data-t="chip2"></span><span class="chip" data-t="chip3"></span></div>
+  </div>
+  <img class="corpo" src="../cyron/img/cyron-corpo.webp" alt="">
+</section>
+
+<section class="parte" id="como">
+  <h2 data-t="como"></h2>
+  <div class="grade" style="grid-template-columns:repeat(3,1fr)">
+    <div class="sala"><div class="cab"># <b>chat-pt</b></div>
+      <div class="fala"><div class="av">A</div><div><div class="nome">Ana</div>
+        <div class="msg">Alguém entra no urso às 20h?</div><div class="selo" data-t="escreveu"></div></div></div></div>
+    <div class="sala"><div class="cab"># <b>chat-en</b></div>
+      <div class="fala"><div class="av">A</div><div><div class="nome">Ana<small>APP</small></div>
+        <div class="msg">Anyone joining the bear at 8pm?</div><div class="selo">🇧🇷 → 🇬🇧</div></div></div></div>
+    <div class="sala"><div class="cab"># <b>chat-ar</b></div>
+      <div class="fala"><div class="av">A</div><div><div class="nome">Ana<small>APP</small></div>
+        <div class="msg rtl">هل سينضم أحد إلى الدب الساعة 8 مساءً؟</div><div class="selo">🇧🇷 → 🇸🇦</div></div></div></div>
+  </div>
+  <p class="sub" style="max-width:none;margin-top:26px" data-t="comoSub"></p>
+</section>
+
+<section class="parte" id="recursos">
+  <h2 data-t="recursos"></h2>
+  <div class="grade" style="grid-template-columns:repeat(3,1fr)">
+    <div class="cartao"><div class="ic">🏳️</div><h3 data-t="r1t"></h3><p data-t="r1"></p></div>
+    <div class="cartao"><div class="ic">📢</div><h3 data-t="r2t"></h3><p data-t="r2"></p></div>
+    <div class="cartao"><div class="ic">🖼️</div><h3 data-t="r3t"></h3><p data-t="r3"></p></div>
+    <div class="cartao"><div class="ic">🎧</div><h3 data-t="r4t"></h3><p data-t="r4"></p></div>
+    <div class="cartao"><div class="ic">📖</div><h3 data-t="r5t"></h3><p data-t="r5"></p></div>
+    <div class="cartao"><div class="ic">⏰</div><h3 data-t="r6t"></h3><p data-t="r6"></p></div>
+  </div>
+</section>
+
+<section class="parte" id="kingshot">
+  <h2 data-t="ks"></h2>
+  <div class="grade" style="grid-template-columns:repeat(3,1fr)">
+    <div class="cartao"><div class="ic">🐻</div><h3 data-t="k1t"></h3><p data-t="k1"></p>
+      <div class="herois"><img src="../discord-bot-gateway/img/kingshot/herois/amadeus.gif" alt=""><img src="../discord-bot-gateway/img/kingshot/herois/helga.gif" alt=""><img src="../discord-bot-gateway/img/kingshot/herois/marlin.gif" alt=""></div></div>
+    <div class="cartao"><div class="ic">📖</div><h3 data-t="k2t"></h3><p data-t="k2"></p>
+      <div class="herois"><img src="../discord-bot-gateway/img/kingshot/herois/jabel.gif" alt=""><img src="../discord-bot-gateway/img/kingshot/herois/saul.gif" alt=""><img src="../discord-bot-gateway/img/kingshot/herois/petra.gif" alt=""></div></div>
+    <div class="cartao"><div class="ic">⚔️</div><h3 data-t="k3t"></h3><p data-t="k3"></p></div>
+  </div>
+</section>
+
+<section class="parte" id="botao">
+  <div class="bt"><span class="mais">+</span> <span data-t="bt"></span> <small data-t="btSub"></small></div>
+</section>
+
+<script>
+const TEXTOS = {
+  en: {
+    rotulo: "Discord translation bot", titulo1: "One server.", titulo2: "Every language.",
+    sub: "Everyone writes in their own language and reads everyone else in theirs. No commands.",
+    chip1: "<b>22</b> languages", chip2: "<b>Free</b> to start", chip3: "Built for <b>alliances</b>",
+    como: "Same conversation, every language", escreveu: "written in Portuguese",
+    comoSub: "Each member picks a language and chats in their own room. Every message lands in the other rooms, translated, with the author's name and avatar.",
+    recursos: "Translation everywhere",
+    r1t: "React with a flag", r1: "Any message, translated privately for whoever reacted.",
+    r2t: "Announcements", r2: "Post once, it lands in every language.",
+    r3t: "Screenshots", r3: "Reads the text in an image and translates it.",
+    r4t: "Voice notes", r4: "Transcribed and translated.",
+    r5t: "Glossary", r5: "Nicknames and alliance tags stay as they are.",
+    r6t: "Events", r6: "Set 20:30 once; everyone sees it in their own time zone.",
+    ks: "Made for Kingshot alliances",
+    k1t: "Bear Trap card", k1: "The best heroes for the Bear, in every language.",
+    k2t: "Hero book", k2: "Every hero, with tips to lead and join rallies.",
+    k3t: "Duels & levels", k3: "Hero cards, duels, levels, role panels and welcome images.",
+    bt: "Add CYRON to Discord", btSub: "free",
+  },
+  pt: {
+    rotulo: "Bot de tradução para Discord", titulo1: "Um servidor.", titulo2: "Todas as línguas.",
+    sub: "Cada um escreve na sua língua e lê os outros na sua. Sem comandos.",
+    chip1: "<b>22</b> línguas", chip2: "<b>Grátis</b> para começar", chip3: "Feita para <b>alianças</b>",
+    como: "A mesma conversa, em todas as línguas", escreveu: "escrito em português",
+    comoSub: "Cada membro escolhe a língua e conversa na sala dele. Cada mensagem chega nas outras salas traduzida, com o nome e a foto de quem escreveu.",
+    recursos: "Tradução em todo lugar",
+    r1t: "Reaja com uma bandeira", r1: "Qualquer mensagem, traduzida no privado de quem reagiu.",
+    r2t: "Avisos", r2: "Você posta uma vez e chega em todas as línguas.",
+    r3t: "Prints", r3: "Lê o texto da imagem e traduz.",
+    r4t: "Áudios", r4: "Transcritos e traduzidos.",
+    r5t: "Glossário", r5: "Apelidos e tags da aliança ficam como estão.",
+    r6t: "Eventos", r6: "Marque 20:30 uma vez; cada um vê no próprio fuso.",
+    ks: "Feita para alianças de Kingshot",
+    k1t: "Ficha do Urso", k1: "Os melhores heróis para o Urso, em todas as línguas.",
+    k2t: "Livro dos heróis", k2: "Cada herói, com dicas para liderar e entrar em rally.",
+    k3t: "Duelos e níveis", k3: "Cartas de herói, duelos, níveis, painel de cargos e boas-vindas.",
+    bt: "Adicionar a CYRON", btSub: "grátis",
+  },
+};
+const q = new URLSearchParams(location.search);
+const lingua = TEXTOS[q.get("lingua")] ? q.get("lingua") : "en";
+document.documentElement.lang = lingua;
+for (const el of document.querySelectorAll("[data-t]")) el.innerHTML = TEXTOS[lingua][el.dataset.t] ?? "";
+document.getElementById(q.get("parte") || "topo").classList.add("ativa");
+</script>
+</body>
+</html>
