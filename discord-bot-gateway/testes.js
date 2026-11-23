@@ -4200,8 +4200,10 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("tenho uma lista de prazos", Array.isArray(GUARDO_POR) && GUARDO_POR.length > 0);
 
   for (const linha of GUARDO_POR) {
-    const [tabela, dias, oQue] = linha;
-    ok(`a linha de ${tabela} tem três partes`, linha.length, 3);
+    const [tabela, dias, oQue, coluna] = linha;
+    /* A quarta parte, quando existe, é a coluna de onde o prazo conta. */
+    verdade(`a linha de ${tabela} tem três partes (ou quatro, com a coluna)`, linha.length === 3 ||
+      (linha.length === 4 && /^[a-z_]+$/.test(coluna)));
     verdade(`${tabela}: o prazo é um número de dias`, Number.isInteger(dias) && dias > 0);
     verdade(`${tabela}: tem uma descrição em português`, typeof oQue === "string" && oQue.length > 3);
     /* O prazo tem que aparecer na página, nas duas línguas. Uma tabela nova
@@ -4241,6 +4243,19 @@ function conferirCartao(onde, embed, componentes = []) {
      frase volta a ser mentira. */
   verdade("o texto das mensagens tem prazo",
     GUARDO_POR.some(([t]) => t === "discord_msg_traducao"));
+
+  /* O cache conta do ÚLTIMO USO. Contado da criação, o rótulo do livro dos
+     heróis e o "sim" de toda conversa -- lidos todo dia -- eram apagados no
+     91º dia e pagos de novo. E a página diz a mesma coisa. */
+  {
+    const linha = GUARDO_POR.find(([t]) => t === "discord_traducao_cache");
+    ok("o cache de traduções expira pelo último uso", linha?.[3], "usado_em");
+    verdade("e a página de privacidade diz isso", /desde a última vez que foi usada/.test(privacidade) &&
+      /since it was last used/.test(privacidade));
+    const limpeza = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    verdade("a limpeza usa a coluna da linha", /for \(const \[tabela, dias, oQue, coluna = "criado_em"\] of GUARDO_POR\)/.test(limpeza) &&
+      /sbDel\(`\$\{tabela\}\?\$\{coluna\}=lt\.\$\{corte\}`\)/.test(limpeza));
+  }
 }
 
 /* ---- o resultado ---- */

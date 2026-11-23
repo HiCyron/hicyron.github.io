@@ -337,14 +337,24 @@ async function sbDel(caminho) {
    - texto (7 dias): serve ao seletor "ler no seu idioma", que se usa nos
      minutos seguintes a mensagem. O clique depois disso ja respondia "pode ter
      expirado" -- frase que so' agora e' verdade.
-   - cache (90 dias): existe pra nao pagar duas vezes pela mesma frase. Frase
-     que se repete, se repete dentro de semanas; guardar pra sempre nao
-     economiza mais nada e so' aumenta o que eu teria a perder.
+   - cache (90 dias SEM USO): existe pra nao pagar duas vezes pela mesma
+     frase. Frase que se repete, se repete dentro de semanas; guardar pra
+     sempre o que ninguem usa nao economiza nada e so' aumenta o que eu teria
+     a perder.
+
+     Contava da CRIACAO, e isso cobrava de novo justamente o que mais se usa:
+     o rotulo do livro dos herois, da ficha do Urso, o "sim" de toda
+     conversa -- traduzidos uma vez, lidos todo dia, e apagados no 91o dia
+     para serem pagos outra vez (dono, 23/11: "o custo de traducao nao devia
+     nem existir" para o que ja esta traduzido). Agora conta do ULTIMO USO
+     (usado_em, que o traducao_do_cache atualiza a cada acerto no banco): o
+     que se usa fica; o que ninguem leu em 90 dias sai. O quarto campo da
+     linha diz a coluna.
    - falas (14 dias): responder e' coisa de conversa viva. Aqui nao ha texto,
      so' os numeros das mensagens. */
 const GUARDO_POR = [
   ["discord_msg_traducao", 7, "o texto das mensagens"],
-  ["discord_traducao_cache", 90, "o cache de traduções"],
+  ["discord_traducao_cache", 90, "o cache de traduções", "usado_em"],
   ["discord_fala_espelhada", 14, "as falas espelhadas"],
   /* Evento acontecido some sozinho seis horas depois, na varredura que
      redesenha a agenda. Este prazo e' a rede embaixo: servidor de onde eu fui
@@ -30234,9 +30244,9 @@ client.once("clientReady", () => {
      silencio e' pior que limpeza nenhuma, porque a pagina de privacidade
      promete o prazo. */
   const limparOVelho = async () => {
-    for (const [tabela, dias, oQue] of GUARDO_POR) {
+    for (const [tabela, dias, oQue, coluna = "criado_em"] of GUARDO_POR) {
       const corte = new Date(Date.now() - dias * 24 * 3600 * 1000).toISOString();
-      await sbDel(`${tabela}?criado_em=lt.${corte}`).catch((e) => console.error(
+      await sbDel(`${tabela}?${coluna}=lt.${corte}`).catch((e) => console.error(
         `retencao: NAO consegui apagar ${oQue} com mais de ${dias} dias (${tabela}): ${e?.message || e}`));
     }
   };
