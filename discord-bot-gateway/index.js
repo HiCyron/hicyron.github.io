@@ -22249,7 +22249,8 @@ function linhasDoAdmin(aba = "resumo", servidores = []) {
         botao("fala", "🎧", "Áudio", 1), botao("ajustes", "⚙️", "Ajustes", 1), botao("codigos", "🎟️", "Gerar códigos")],
       [botao("comandos", "🧪", "Meus comandos"), botao("novocomando", "➕", "Novo comando", 4),
         botao("suporte", "🏗️", "Montar suporte"), botao("remontar", "🔄", "Remontar painel"), convite],
-      [botao("ia", "🧠", "IA do privado", 1), botao("presente", "🎁", "Código do Kingshot", 3)],
+      [botao("ia", "🧠", "IA do privado", 1), botao("presente", "🎁", "Código do Kingshot", 3),
+        botao("topgg", "🗳️", "top.gg", 1)],
     ],
   }[aba] || [];
   /* A lista de servidores e' um menu, e nao texto: escolher abre a ficha com
@@ -22957,6 +22958,7 @@ async function cliqueAdmin(inter) {
   if (acao === "codigos" && inter.isButton()) return inter.showModal(janelaValida(janelaDeCodigos()));
   if (acao === "ajustes" && inter.isButton()) return inter.showModal(janelaValida(await janelaDeAjustes()));
   if (acao === "chaves" && inter.isButton()) return inter.showModal(janelaValida(await janelaDasChaves()));
+  if (acao === "topgg" && inter.isButton()) return inter.showModal(janelaValida(await janelaDoTopgg()));
   if (acao === "visao" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaVisao()));
   if (acao === "fala" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaFala()));
   if (acao === "ia" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaIA()));
@@ -23301,6 +23303,85 @@ async function avisarDiscordBotList({ comandos = false } = {}, buscar = fetch) {
     enviados = lista.length;
   }
   return { ok: true, guilds, comandos: enviados };
+}
+
+/* ---------------- 🗳️ top.gg ----------------
+
+   Aprovada em 23/11. A pagina do top.gg mostrava "0 servidores" porque o
+   numero so' aparece se o proprio bot contar -- igual ao discordbotlist.
+
+   O token do painel novo do top.gg ("Integracoes e API -> Token") e' da API
+   v1: vai com "Bearer" e o numero entra por PATCH em /v1/projects/@me/metrics
+   (docs.top.gg). O token antigo, da v0, vai sem prefixo em /bots/:id/stats --
+   e a propria documentacao avisa que um nao serve no lugar do outro. Como nao
+   da' para saber pelo token qual e' qual, tento a v1 e, se ela recusar a
+   autorizacao, a v0. Uma vez por hora: o limite deles e' 60 por minuto, e
+   passar disso bloqueia o token por uma hora. */
+const TOPGG_API = "https://top.gg/api";
+
+async function chaveDoTopgg() {
+  const doCofre = String(process.env.TOPGG_CHAVE || "").trim();
+  if (doCofre) return doCofre;
+  const a = await ajustes().catch(() => ({}));
+  return a?.topgg_chave ? decifrar(a.topgg_chave) : "";
+}
+
+async function avisarTopgg(buscar = fetch) {
+  const token = await chaveDoTopgg();
+  if (!token || !client.user) return { ok: false, erro: "sem token" };
+  const guilds = client.guilds.cache.size;
+  const corpo = JSON.stringify({ server_count: guilds });
+  const v1 = await buscar(`${TOPGG_API}/v1/projects/@me/metrics`, { method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: corpo, signal: AbortSignal.timeout(15000) });
+  if (v1.ok) return { ok: true, guilds, via: "v1" };
+  if (v1.status !== 401 && v1.status !== 403) return { ok: false, erro: `HTTP ${v1.status}` };
+  const v0 = await buscar(`${TOPGG_API}/bots/${client.user.id}/stats`, { method: "POST",
+    headers: { Authorization: token, "Content-Type": "application/json" },
+    body: corpo, signal: AbortSignal.timeout(15000) });
+  if (v0.ok) return { ok: true, guilds, via: "v0" };
+  return { ok: false, erro: `HTTP ${v1.status} (v1) / ${v0.status} (v0)` };
+}
+
+/* A janela do token. Separada da das chaves, que ja' tem os cinco campos que
+   o Discord permite. O campo volta vazio de proposito, como as outras: o
+   rotulo diz se ha' um guardado. */
+async function janelaDoTopgg() {
+  const a = await ajustes();
+  const rotulo = process.env.TOPGG_CHAVE ? "Token (no cofre da máquina)"
+    : a.topgg_chave ? "Token (tenho um; cole pra trocar)" : "Token do top.gg";
+  return {
+    custom_id: "admin:topgg",
+    title: "top.gg",
+    components: [
+      { type: 1, components: [{ type: 4, custom_id: "topgg_chave", style: 2, required: true, max_length: 2000,
+        label: rotulo.slice(0, 45),
+        placeholder: "Painel do bot no top.gg → Integrações e API → Token. Escreva apagar para tirar." }] },
+    ],
+  };
+}
+
+/* Guarda cifrado e testa na hora: token errado so' apareceria como "0
+   servidores" na pagina, sem dizer por que. */
+async function salvarTopgg(inter) {
+  if (!await ehDono(inter.user.id)) {
+    return inter.reply({ flags: 64, content: "Não conheço esse comando." });
+  }
+  await inter.deferReply({ flags: 64 });
+  let novo = "";
+  try { novo = String(inter.fields.getTextInputValue("topgg_chave") || "").trim(); } catch { /* vazio */ }
+  if (!novo) return inter.editReply("Nada mudou — o campo veio vazio.");
+  if (novo.toLowerCase() === "apagar") {
+    await porAjuste("topgg_chave", null);
+    await recarregarAjustes();
+    return inter.editReply("🗑️ Token do top.gg apagado. A página para de receber o número de servidores.");
+  }
+  await porAjuste("topgg_chave", cifrar(novo));
+  await recarregarAjustes();
+  const r = await avisarTopgg().catch((e) => ({ ok: false, erro: e?.message || String(e) }));
+  return inter.editReply(r?.ok
+    ? `✅ **Token guardado.** Mandei **${r.guilds} servidores** para o top.gg (API ${r.via}). Daqui em diante vai sozinho, de hora em hora.`
+    : `🔑 Token guardado, mas o top.gg recusou: ${String(r?.erro || "sem resposta").slice(0, 150)}. Confira se copiou o token inteiro.`);
 }
 
 /* ---------------- 🗳️ votos no discordbotlist ----------------
@@ -27421,6 +27502,7 @@ client.on("interactionCreate", async (inter) => {
       if (inter.customId === "admin:codigos") return await gerarCodigos(inter);
       if (inter.customId === "admin:ajustes") return await salvarAjustes(inter);
       if (inter.customId === "admin:chaves") return await salvarChaves(inter);
+      if (inter.customId === "admin:topgg") return await salvarTopgg(inter);
       if (inter.customId === "admin:visao") return await salvarVisao(inter);
       if (inter.customId === "admin:fala") return await salvarFala(inter);
       if (inter.customId === "admin:ia") return await salvarIA(inter);
@@ -29736,6 +29818,8 @@ async function deHoraEmHora() {
   /* Uma vez por dia leva os comandos junto; nas outras horas, so' o numero. */
   await avisarDiscordBotList({ comandos: new Date().getUTCHours() === 6 })
     .catch((e) => console.log("dbl: aviso falhou:", e?.message || e));
+  await avisarTopgg().then((r) => { if (!r.ok && r.erro !== "sem token") console.log("topgg: recusou:", r.erro); })
+    .catch((e) => console.log("topgg: aviso falhou:", e?.message || e));
 }
 
 /* Morrer não pode ser silencioso.
@@ -30196,6 +30280,9 @@ client.once("clientReady", () => {
     avisarDiscordBotList({ comandos: true })
       .then((r) => { if (r.ok) console.log(`dbl: ${r.comandos} comandos e ${r.guilds} servidores enviados`); })
       .catch((e) => console.log("dbl: aviso falhou:", e?.message || e));
+    avisarTopgg()
+      .then((r) => { if (r.ok) console.log(`topgg: ${r.guilds} servidores enviados (${r.via})`); })
+      .catch((e) => console.log("topgg: aviso falhou:", e?.message || e));
   }, 60000);
 
   separarComandos()
