@@ -107,6 +107,10 @@ export function titulosConquistados(feitos = {}) {
 
 export const ESTILOS_DO_CARTAO = ["completo", "compacto"];
 export const FRASE_MAX = 40;
+/* O nome do link no pé do cartão nas salas. O nome no TOPO continua o
+   verdadeiro, sempre: livre, qualquer um apareceria como "CYRON" ou com o
+   nome de outro membro. O link leva ao perfil de verdade. */
+export const ASSINATURA_MAX = 32;
 
 export const PADRAO = {
   perfil_cor: "ceu", perfil_moldura: "classica", perfil_fundo: "servidor", perfil_frase: "",
@@ -115,7 +119,7 @@ export const PADRAO = {
   cartao_grande: false, cartao_emoji: "", titulo: "",
   /* A SUA MENSAGEM NAS SALAS (o cartão que chega nas outras salas): a cor da
      barra ("" = a automática, presa ao seu id) e um enfeite depois do nome. */
-  sala_cor: "", sala_emoji: "",
+  sala_cor: "", sala_emoji: "", sala_assinatura: "",
 };
 
 export function corPorId(id) {
@@ -159,6 +163,12 @@ export function limparFrase(texto) {
     .slice(0, FRASE_MAX);
 }
 
+/* Pura. O nome do link do cartão: as regras da frase, sem os colchetes e
+   parênteses (que fechariam o link do Discord) e mais curto. */
+export function limparAssinatura(texto) {
+  return limparFrase(texto).replace(/[[\]()]/g, "").replace(/\s+/g, " ").trim().slice(0, ASSINATURA_MAX);
+}
+
 /* Pura. O estilo pedido, valendo só o que está liberado: o resto volta ao
    padrão. Quem salva usa isto antes de gravar; o bot, antes de desenhar
    (um item que deixou de existir não quebra o perfil de ninguém).
@@ -184,5 +194,6 @@ export function estiloValido(pedido, votos, conquistados = []) {
     titulo: de(Array.isArray(conquistados) ? conquistados : [], p.titulo, ""),
     sala_cor: de(lib.coresDaSala, p.sala_cor, ""),
     sala_emoji: de(lib.emojis, p.sala_emoji, ""),
+    sala_assinatura: lib.frase ? limparAssinatura(p.sala_assinatura) : "",
   };
 }

@@ -297,6 +297,9 @@ html[lang="en"] [data-en]{display:revert}
         <h2>💬 <span data-pt>Sua mensagem nas salas</span><span data-en>Your message in rooms</span></h2>
         <p><span data-pt>Como a sua mensagem aparece traduzida nas salas das outras línguas — para todo mundo ver.</span><span data-en>How your message shows up translated in the other language rooms — for everyone to see.</span></p>
         <div class="campo"><b><span data-pt>Cor da barra</span><span data-en>Bar color</span></b><div class="cores" id="op-sala-cor"></div></div>
+        <div class="campo"><b><span data-pt>Seu nome no link do cartão</span><span data-en>Your name on the card link</span></b>
+          <div class="frase-campo"><input id="op-sala-assinatura" maxlength="32" autocomplete="off" spellcheck="false"><small id="assinatura-conta">0/32</small></div>
+          <p class="dica" style="margin:6px 0 0"><span data-pt>O link no pé do cartão continua levando ao seu perfil. O nome no topo é sempre o seu nome de verdade.</span><span data-en>The link under the card still opens your profile. The name on top is always your real name.</span></p></div>
         <div class="campo"><b><span data-pt>Enfeite no nome</span><span data-en>Name flourish</span></b><div class="opcoes-linha" id="op-sala-emoji"></div></div>
         <div class="campo"><b><span data-pt>Título embaixo da mensagem</span><span data-en>Title under your message</span></b>
           <p class="dica" style="margin:0 0 8px"><span data-pt>Quem tocar no título vê o seu cartão e como conseguir um igual. Aparece na sua primeira mensagem de cada sala e depois a cada meia hora.</span><span data-en>Whoever taps the title sees your card and how to get one. It shows on your first message in each room, then every half hour.</span></p>
@@ -351,8 +354,8 @@ html[lang="en"] [data-en]{display:revert}
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
 <script type="module">
-import { CORES, MOLDURAS, HEROIS, LETRAS, EFEITOS, EMOJIS_DO_TITULO, TITULOS, PADRAO, FRASE_MAX, corPorId, liberados, titulosConquistados,
-  estiloValido as validar, limparFrase } from "./estudio-regras.js";
+import { CORES, MOLDURAS, HEROIS, LETRAS, EFEITOS, EMOJIS_DO_TITULO, TITULOS, PADRAO, FRASE_MAX, ASSINATURA_MAX, corPorId, liberados,
+  titulosConquistados, estiloValido as validar, limparFrase, limparAssinatura } from "./estudio-regras.js";
 
 const FUNCAO = "https://mslzcjqkfeivuavfxwli.supabase.co/functions/v1/cyron-estudio";
 const VOTO = "https://top.gg/bot/1498142929041096856/vote";
@@ -455,6 +458,11 @@ function desenharOpcoes() {
     b.onclick = () => aberto ? mudar("sala_cor", c.id) : trancado();
     salaCor.appendChild(b);
   }
+  const assina = $("op-sala-assinatura");
+  assina.disabled = !lib.frase;
+  assina.placeholder = lib.frase ? (pessoa.nome || T("Ex.: Rei do Urso", "e.g. Bear King")) : T("🔒 Vote para liberar", "🔒 Vote to unlock");
+  if (document.activeElement !== assina) assina.value = rascunho.sala_assinatura || "";
+  $("assinatura-conta").textContent = `${(rascunho.sala_assinatura || "").length}/${ASSINATURA_MAX}`;
   const salaEmoji = $("op-sala-emoji");
   salaEmoji.innerHTML = "";
   botaoOpcao(salaEmoji, T("Nenhum", "None"), !rascunho.sala_emoji, true, () => mudar("sala_emoji", ""));
@@ -574,7 +582,7 @@ function desenharPrevia() {
   const sc = rascunho.sala_cor ? corPorId(rascunho.sala_cor).c2 : "#E67E22";
   $("sala-cartao").style.setProperty("--cor-sala", sc);
   $("sala-nome").textContent = pessoa.nome || T("Você", "You");
-  $("sala-assina").textContent = (pessoa.nome || T("Você", "You")) + (rascunho.sala_emoji ? ` ${rascunho.sala_emoji}` : "");
+  $("sala-assina").textContent = (rascunho.sala_assinatura || pessoa.nome || T("Você", "You")) + (rascunho.sala_emoji ? ` ${rascunho.sala_emoji}` : "");
   if (pessoa.avatar) $("sala-av").src = pessoa.avatar;
   const tit = TITULOS.find((t) => t.id === rascunho.titulo);
   $("sala-titulo").hidden = !tit;
@@ -664,6 +672,13 @@ function mudar(campo, valor) {
   if ((campo.startsWith("sala_") || campo === "titulo") && aba !== "sala") trocarAba("sala");
   desenharOpcoes(); desenharPrevia(); desenharEstado();
 }
+
+$("op-sala-assinatura").addEventListener("input", (e) => {
+  rascunho = { ...rascunho, sala_assinatura: limparAssinatura(e.target.value) };
+  if (aba !== "sala") trocarAba("sala");
+  $("assinatura-conta").textContent = `${rascunho.sala_assinatura.length}/${ASSINATURA_MAX}`;
+  desenharPrevia(); desenharEstado();
+});
 
 $("op-perfil-frase").addEventListener("input", (e) => {
   rascunho = { ...rascunho, perfil_frase: limparFrase(e.target.value) };

@@ -4804,6 +4804,9 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     : [null, null];
   const corDoCartao = meuPerfil?.estilo?.sala_cor ? parseInt(corPorId(meuPerfil.estilo.sala_cor).c2.slice(1), 16) : cor;
   const enfeiteDoNome = meuPerfil?.estilo?.sala_emoji ? ` ${meuPerfil.estilo.sala_emoji}` : "";
+  /* O nome do link no pé do cartão, se a pessoa escolheu um (o do topo
+     continua o verdadeiro). */
+  const nomeDoLink = meuPerfil?.estilo?.sala_assinatura || assinatura;
 
   for (const destino of lista) {
     if (destino.canal_id === origem.canal_id) continue;
@@ -4926,7 +4929,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       ...(midiaLink && !video ? { image: { url: midiaLink } }
         : (emojisEmbaixo ? { image: { url: emojisEmbaixo.url } } : {})),
       description: `${(corpoDoCartao || (figurinha ? `🎨 ${figurinha.nome}` : "")).slice(0, LIMITE_DO_CARTAO)}` +
-        `\n-# [${assinatura}${enfeiteDoNome}](https://discord.com/users/${msg.author.id})` +
+        `\n-# [${nomeDoLink}${enfeiteDoNome}](https://discord.com/users/${msg.author.id})` +
         (selo ? ` · ${selo}` : "") + creditoDaCyron(selo),
     });
 

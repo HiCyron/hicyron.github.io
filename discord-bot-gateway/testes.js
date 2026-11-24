@@ -2871,8 +2871,15 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("e a esteira dos do Kingshot não pega os dos títulos", ks(`${aqui}/img/titulos/`, readFileSync, readdirSync).length === 0);
     verdade("o espelho põe a cor, o enfeite e o título só onde o Estúdio está liberado",
       /const comEstudioAqui = msg\.author \? await estudioLiberadoEm\(msg\.guild\)/.test(fonte) &&
-      /color: corDoCartao,/.test(fonte) && /\[\$\{assinatura\}\$\{enfeiteDoNome\}\]/.test(fonte) &&
+      /color: corDoCartao,/.test(fonte) && /\[\$\{nomeDoLink\}\$\{enfeiteDoNome\}\]/.test(fonte) &&
       /meuTitulo && vezDoTitulo\(destino\.canal_id, msg\.author\.id\)/.test(fonte));
+    ok("o nome do link do cartão: sem colchete, menção, link nem passar de 32",
+      ESTUDIO.limparAssinatura("Rei [do] Urso (oficial) <@1> https://x.y e mais um pouco de texto"), "Rei do Urso oficial 1 e mais um ");
+    ok("e só com voto", [ESTUDIO.estiloValido({ sala_assinatura: "Rei do Urso" }, 0).sala_assinatura,
+      ESTUDIO.estiloValido({ sala_assinatura: "Rei do Urso" }, 1).sala_assinatura], ["", "Rei do Urso"]);
+    verdade("o espelho usa o nome escolhido no link, e o do topo continua o verdadeiro",
+      /const nomeDoLink = meuPerfil\?\.estilo\?\.sala_assinatura \|\| assinatura;/.test(fonte) &&
+      /\[\$\{nomeDoLink\}\$\{enfeiteDoNome\}\]\(https:\/\/discord\.com\/users\//.test(fonte) && /username: nome,/.test(fonte));
     verdade("o botão do título é atendido", /customId\.startsWith\("titulo:"\)\) return await cliqueTitulo/.test(fonte));
     verdade("a bandeira conta a língua para o Poliglota, só onde o Estúdio está liberado", /if \(comEstudio\) anotarLingua\(quem\.id, idioma\)/.test(fonte));
     const mig25 = readFileSync(`${aqui}/../supabase/migracoes/025-titulos.sql`, "utf8");
