@@ -359,6 +359,9 @@ const GUARDO_POR = [
   ["discord_msg_traducao", 7, "o texto das mensagens"],
   ["discord_traducao_cache", 90, "o cache de traduções", "usado_em"],
   ["cyron_estudio_link", 2, "os links do Estúdio", "expira_em"],
+  /* "Já vi a novidade": só o id da pessoa e o nome do aviso. Seis meses
+     bastam -- depois disso a novidade já não é novidade. */
+  ["cyron_aviso_visto", 180, "os avisos que você já viu", "visto_em"],
   ["discord_fala_espelhada", 14, "as falas espelhadas"],
   /* Evento acontecido some sozinho seis horas depois, na varredura que
      redesenha a agenda. Este prazo e' a rede embaixo: servidor de onde eu fui
@@ -13001,6 +13004,189 @@ async function cliqueTitulo(inter) {
     cor: corPorId(perfil.estilo.perfil_cor), eu: inter.user.id === userId, guildId: inter.guildId || "", comEstudio }));
 }
 
+/* 📣 A NOVIDADE DO ESTÚDIO: NA SALA DA ADMINISTRAÇÃO, E O ADM ESPALHA.
+
+   O dono (24/11): "pode ser no canal cyron do adm e um botão de compartilhar
+   com os membros, assim ele escolhe espalhar ou não -- ou ele configura o
+   dele e os demais seguem". Postar sozinho num canal da comunidade de um
+   cliente é o jeito mais rápido de um bot ser expulso (ver o recibo): a CYRON
+   fala só com a administração, uma vez por servidor, e quem leva aos membros
+   é o ADM, num toque.
+
+   As marcas, no cyron_ajuste: novidade_estudio:<servidor> (o cartão já foi
+   para o ⚙️-cyron) e novidade_estudio_dividida:<servidor> (já foi para os
+   membros -- dois ADMs tocando no mesmo cartão não dobram o anúncio).
+
+   Os textos saem do inglês pelo tradutor, uma vez por língua (falaFixa);
+   o nome do título e o emoji animado entram por fora, nos {0}, para o
+   tradutor não mexer neles. */
+const NOVIDADE_DO_ESTUDIO = {
+  adm_titulo: "🆕 Estúdio CYRON",
+  adm_corpo: "Agora cada membro deixa a CYRON do seu jeito: cor do cartão, nome, emoji animado e títulos como {0} embaixo das mensagens.",
+  libera: "Libera com um voto no top.gg.",
+  adm_escolha: "Você decide: compartilhar com os membros, ou só personalizar o seu e deixar que vejam.",
+  meu: "Personalizar o meu",
+  compartilhar: "Compartilhar com os membros",
+  compartilhado: "Compartilhado",
+  membros_titulo: "🎨 Novidade: a CYRON do seu jeito",
+  membros_corpo: "Cor do cartão, seu nome, emoji animado e títulos como {0} embaixo das suas mensagens.",
+  personalizar: "Personalizar",
+  votar: "Votar",
+};
+const NOVIDADE_DO_ESTUDIO_EN = {
+  adm_titulo: "🆕 CYRON Studio",
+  adm_corpo: "Now every member can make CYRON their own: card color, name, animated emoji and titles like {0} under their messages.",
+  libera: "Unlocked with one vote on top.gg.",
+  adm_escolha: "Your call: share it with the members, or just customize yours and let them see.",
+  meu: "Customize mine",
+  compartilhar: "Share with members",
+  compartilhado: "Shared",
+  membros_titulo: "🎨 New: CYRON your way",
+  membros_corpo: "Card color, your name, animated emoji and titles like {0} under your messages.",
+  personalizar: "Customize",
+  votar: "Vote",
+};
+
+/* Os textos numa língua, com o título já no lugar do {0}. */
+async function textosDaNovidade(idioma, guildId = "") {
+  const apoiador = TITULOS_DO_ESTUDIO.find((t) => t.id === "apoiador");
+  const nome = `${emojiDoTituloNoTexto(apoiador)} **${await nomeDoTitulo(apoiador, idioma, guildId)}**`;
+  /* Do inglês para as outras, como as palavras da bandeira: é a língua que
+     o tradutor automático conhece melhor. */
+  const base = idioma === "pt" ? NOVIDADE_DO_ESTUDIO : NOVIDADE_DO_ESTUDIO_EN;
+  const T = idioma === "en" || idioma === "pt" ? null : falaFixa(idioma, MOTOR_AUTO, "en");
+  const tx = {};
+  for (const [chave, molde] of Object.entries(base)) {
+    const comNome = molde.includes("{0}");
+    tx[chave] = T ? await T(molde, ...(comNome ? [nome] : [])).catch(() => porMolde(NOVIDADE_DO_ESTUDIO_EN[chave], [nome]))
+      : porMolde(molde, comNome ? [nome] : []);
+  }
+  return tx;
+}
+
+/* Pura. O cartão do ⚙️-cyron, com os dois caminhos do ADM. */
+function cartaoDaNovidadeAdm(tx, guildId, dividida = false) {
+  return {
+    embeds: [{
+      color: parseInt(corPorId("cyron").c2.slice(1), 16),
+      title: String(tx.adm_titulo).slice(0, 256),
+      description: [tx.adm_corpo, "", tx.libera, "", `-# ${tx.adm_escolha}`].join("\n"),
+    }],
+    components: [{ type: 1, components: [
+      { type: 2, style: 2, custom_id: `perfil:estilo:${guildId}`, label: String(tx.meu).slice(0, 80), emoji: { name: "🎨" } },
+      { type: 2, style: dividida ? 2 : 3, custom_id: "cyron:estudio_compartilhar", disabled: !!dividida,
+        label: String(dividida ? tx.compartilhado : tx.compartilhar).slice(0, 80), emoji: { name: dividida ? "✅" : "📣" } },
+    ] }],
+    allowedMentions: { parse: [] },
+  };
+}
+
+/* Pura. O que os membros veem na sala deles, na língua da sala. */
+function cartaoDaNovidadeMembros(tx, guildId) {
+  return {
+    embeds: [{
+      color: parseInt(corPorId("cyron").c2.slice(1), 16),
+      title: String(tx.membros_titulo).slice(0, 256),
+      description: [tx.membros_corpo, "", `-# ${tx.libera}`].join("\n"),
+    }],
+    components: [{ type: 1, components: [
+      { type: 2, style: 1, custom_id: `perfil:estilo:${guildId}`, label: String(tx.personalizar).slice(0, 80), emoji: { name: "🎨" } },
+      { type: 2, style: 5, url: LINK_DO_VOTO, label: String(tx.votar).slice(0, 80), emoji: { name: "🗳️" } },
+    ] }],
+    allowedMentions: { parse: [] },
+  };
+}
+
+/* Uma vez por servidor, de hora em hora (a marca no banco é quem garante o
+   uma vez só; de hora em hora, nenhum reinício perde a vez). Só com o
+   Estúdio aberto a todos, e não para quem ainda nem escolheu o modo. */
+async function anunciarEstudioAosAdms() {
+  const a = await ajustes();
+  if (a.falhou || String(a.estudio_publico || "") !== "1") return;
+  const servidores = await sb("cyron_servidor?saiu_em=is.null&canal_config=not.is.null&select=id,guild_id,canal_config,modo")
+    .catch(() => null) || [];
+  for (const s of servidores) {
+    try {
+      if (a[`novidade_estudio:${s.id}`] || modoDe(s) === "escolher") continue;
+      const guild = client.guilds.cache.get(String(s.guild_id));
+      if (!guild) continue;
+      const canal = await guild.channels.fetch(String(s.canal_config)).catch(() => null);
+      if (typeof canal?.send === "function") {
+        const tx = await textosDaNovidade(await linguaDaSalaCyron(guild), guild.id);
+        await canal.send(cartaoDaNovidadeAdm(tx, guild.id)).catch(() => null);
+      }
+      /* Sem canal ou sem permissão também marca, como nos marcos: insistir
+         de hora em hora não muda nada, e a novidade não é urgente. */
+      await porAjuste(`novidade_estudio:${s.id}`, new Date().toISOString());
+    } catch (e) {
+      console.error(`novidade: falhei no servidor ${s.id}:`, e?.message || e);
+    }
+  }
+}
+
+/* 📣 Compartilhar: a novidade em cada sala de conversa, na língua da sala.
+   Sem salas (plano grátis, só ferramentas), vai para o canal-fonte que o
+   dono marcou, como o recibo. Só ADM chega aqui (cliquePainel confere). */
+async function compartilharNovidadeDoEstudio(inter, servidor) {
+  await inter.deferReply({ flags: 64 });
+  const marca = `novidade_estudio_dividida:${servidor.id}`;
+  const ja = (await ajustes())[marca];
+  if (ja) {
+    const t = Math.floor(Date.parse(ja) / 1000);
+    return inter.editReply({ content: `✅ Já foi compartilhado${t ? ` <t:${t}:R>` : ""}.` });
+  }
+  const salas = (await canaisEspelho(servidor.id).catch(() => []) || []).filter((s) => s.canal_id);
+  let destinos = salas.map((s) => ({ canal: s.canal_id, idioma: s.idioma }));
+  if (!destinos.length) {
+    const fonte = (await sb(`discord_fonte_replica?servidor_id=eq.${servidor.id}&select=canal_id&limit=1`).catch(() => null))?.[0];
+    if (fonte?.canal_id) destinos = [{ canal: fonte.canal_id, idioma: await linguaDaSalaCyron(inter.guild) }];
+  }
+  const foram = [];
+  const porLingua = new Map();
+  for (const d of destinos) {
+    const canal = await inter.guild.channels.fetch(String(d.canal)).catch(() => null);
+    if (typeof canal?.send !== "function") continue;
+    if (!porLingua.has(d.idioma)) porLingua.set(d.idioma, await textosDaNovidade(d.idioma, inter.guildId));
+    const foi = await canal.send(cartaoDaNovidadeMembros(porLingua.get(d.idioma), inter.guildId)).catch(() => null);
+    if (foi) foram.push(canal.id);
+  }
+  if (!foram.length) {
+    return inter.editReply({ content: destinos.length
+      ? "Não consegui publicar — falta permissão de escrever nas salas."
+      : "Não tenho onde publicar. Marque um canal no menu do painel e o botão passa a funcionar." });
+  }
+  await porAjuste(marca, new Date().toISOString());
+  /* O botão do cartão vira "✅ Compartilhado": quem passar depois vê que já foi. */
+  const tx = await textosDaNovidade(await linguaDaSalaCyron(inter.guild), inter.guildId);
+  await inter.message?.edit?.({ components: cartaoDaNovidadeAdm(tx, inter.guildId, true).components }).catch(() => {});
+  return inter.editReply({ content: `📣 Compartilhado em ${foram.map((id) => `<#${id}>`).join(" ")}.` });
+}
+
+/* 🆕 O AVISO DE UMA VEZ SÓ NO PRIVADO.
+
+   O dono escolheu "aviso na próxima vez": nada de mensagem solta no privado
+   de quem escolheu idioma. Na próxima tradução por bandeira que a pessoa
+   receber no privado, o cartão leva uma linha a mais apontando o 🎨 -- uma
+   vez, e nunca mais (cyron_aviso_visto). Banco fora: na dúvida, não mostra;
+   repetir a novidade seria pior do que atrasá-la. */
+const AVISOS_VISTOS = new Set(); // `${pessoa}:${aviso}`
+function lembrarAvisoVisto(chave) {
+  AVISOS_VISTOS.add(chave);
+  while (AVISOS_VISTOS.size > 20000) AVISOS_VISTOS.delete(AVISOS_VISTOS.values().next().value);
+}
+async function avisoJaVisto(userId, aviso) {
+  const chave = `${userId}:${aviso}`;
+  if (AVISOS_VISTOS.has(chave)) return true;
+  const r = await sb(`cyron_aviso_visto?user_id=eq.${userId}&aviso=eq.${aviso}&select=aviso`).catch(() => null);
+  if (r === null) return true;
+  if (r.length) lembrarAvisoVisto(chave);
+  return r.length > 0;
+}
+function marcarAvisoVisto(userId, aviso) {
+  lembrarAvisoVisto(`${userId}:${aviso}`);
+  sbPost("cyron_aviso_visto", { user_id: userId, aviso }, "resolution=ignore-duplicates").catch(() => {});
+}
+
 /* A guerra de bandeiras: a XP de cada lingua, somada. So' a CYRON sabe a
    lingua de cada um -- e' o placar que nenhum outro bot de nivel tem. */
 function linhasDaGuerra(bandeiras) {
@@ -20823,6 +21009,7 @@ async function cliquePainel(inter) {
      edicao do cartao: o recibo fica onde esta, com o botao, e quem clicou
      recebe a confirmacao so' pra si. Editar o cartao apagaria o proprio
      recibo que ele acabou de publicar. */
+  if (acao === "estudio_compartilhar") return await compartilharNovidadeDoEstudio(inter, servidor);
   if (acao === "publicar") {
     await inter.deferReply({ flags: 64 });
     const embed = inter.message?.embeds?.[0]?.toJSON?.() || inter.message?.embeds?.[0];
@@ -24193,51 +24380,80 @@ async function salvarTopgg(inter) {
     : `🔑 Token guardado, mas o top.gg recusou: ${String(r?.erro || "sem resposta").slice(0, 150)}. Confira se copiou o token inteiro.`);
 }
 
-/* ---------------- 🗳️ votos no discordbotlist ----------------
+/* ---------------- 🗳️ votos no top.gg ----------------
 
    O Google e as IAs indicam bot pelo que acham nas listas, e as listas
    ordenam por voto. Entao votar tem que valer a pena: quem vota ganha uma
-   carta de heroi e um obrigado no privado, com o botao de votar de novo.
+   carta de heroi e um obrigado no privado, com o botao de votar de novo -- e
+   o voto ja' conta no Estudio, sem precisar tocar em ✅ Ja' votei.
+
+   Um site so': o top.gg (dono, 25/11: "acho que devemos focar em 1 site
+   para os votos, ja' que somos poucos"). Era o discordbotlist; dividir os
+   poucos votos em duas listas deixava a CYRON fraca nas duas. O
+   discordbotlist continua recebendo a lista de comandos e os servidores.
 
    Sem webhook -- o bot nao abre porta nenhuma, de proposito. A cada 5 min eu
-   pergunto a lista os votos das ultimas 12 h (os 500 mais novos) e pago os
-   que chegaram depois da marca guardada no banco (`voto_dbl_ate`): reinicio
-   nenhum paga o mesmo voto duas vezes. A marca anda ANTES de pagar -- falhar
-   no meio perde um premio, nunca paga dois. */
+   pergunto ao top.gg os votos desde a marca guardada no banco
+   (`voto_topgg_ate`) e pago os que chegaram depois dela: reinicio nenhum
+   paga o mesmo voto duas vezes. A marca anda ANTES de pagar -- falhar no
+   meio perde um premio, nunca paga dois. */
 const VOTOS_A_CADA = 5 * 60 * 1000;
 const PREMIOS_POR_RODADA = 50;
+/* Primeira rodada (ou banco sem marca): as ultimas 12 horas, o tempo de um
+   voto no top.gg. Quem votou pouco antes desta troca tambem ganha a carta. */
+const VOTOS_DESDE_NO_COMECO = 12 * 60 * 60 * 1000;
+/* Bot parado muito tempo: no maximo uma semana para tras. */
+const VOTOS_ATE_UMA_SEMANA = 7 * 24 * 60 * 60 * 1000;
+const PAGINAS_DE_VOTO = 5;
 
 function linkDeVoto() {
-  return `https://discordbotlist.com/bots/${client?.user?.id || "1498142929041096856"}/upvote`;
+  return LINK_DO_VOTO;
 }
 
-/* Os votos que chegaram depois de `desde`, do mais velho ao mais novo. Pura. */
+/* Os votos que chegaram depois de `desde`, do mais velho ao mais novo. Pura.
+   O top.gg manda { platform_id (o id do Discord), weight, created_at }. */
 function votosNovos(lista, desde) {
   return (Array.isArray(lista) ? lista : [])
-    .map((v) => ({ user: String(v?.user_id || ""), quando: Date.parse(v?.timestamp || "") || 0 }))
+    .map((v) => ({ user: String(v?.platform_id || ""), quando: Date.parse(v?.created_at || "") || 0,
+      peso: Math.max(1, Math.min(2, Number(v?.weight) || 1)), em: String(v?.created_at || "") }))
     .filter((v) => /^\d{17,20}$/.test(v.user) && v.quando > desde)
     .sort((a, b) => a.quando - b.quando);
 }
 
 async function colherVotos(buscar = fetch, agora = Date.now()) {
-  const chave = await chaveDoDbl();
+  const chave = await chaveDoTopgg();
   if (!chave || !client.user) return 0;
-  const r = await buscar(`${DBL_API}/${client.user.id}/upvotes`, { headers: { Authorization: chave }, signal: AbortSignal.timeout(15000) });
-  if (!r.ok) throw new Error(`upvotes HTTP ${r.status}`);
-  const corpo = await r.json().catch(() => null);
   const marcas = await ajustes();
   if (marcas.falhou) return 0;
-  const desde = Number(marcas.voto_dbl_ate) || 0;
-  /* Primeira rodada: a marca nasce agora. Os votos de antes deste recurso
-     existir nao viram uma enxurrada de cartas de uma vez. */
-  if (!desde) { await porAjuste("voto_dbl_ate", String(agora)); return 0; }
-  const novos = votosNovos(corpo?.upvotes, desde);
-  if (!novos.length) return 0;
-  await porAjuste("voto_dbl_ate", String(novos[novos.length - 1].quando));
+  const desde = Math.max(Number(marcas.voto_topgg_ate) || agora - VOTOS_DESDE_NO_COMECO, agora - VOTOS_ATE_UMA_SEMANA);
+  /* Páginas por cursor, da data pedida para a frente; poucas por rodada --
+     o que sobrar vem na próxima, a partir da marca nova. */
+  const todos = [];
+  let url = `${TOPGG_API}/v1/projects/@me/votes?startDate=${encodeURIComponent(new Date(desde).toISOString())}`;
+  for (let pagina = 0; pagina < PAGINAS_DE_VOTO && url; pagina++) {
+    const r = await buscar(url, { headers: { Authorization: `Bearer ${chave}` }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`votos do top.gg HTTP ${r.status}`);
+    const corpo = await r.json().catch(() => null);
+    const dados = Array.isArray(corpo?.data) ? corpo.data : [];
+    todos.push(...dados);
+    url = dados.length && corpo?.cursor ? `${TOPGG_API}/v1/projects/@me/votes?cursor=${encodeURIComponent(corpo.cursor)}` : "";
+  }
+  const novos = votosNovos(todos, desde);
+  if (!novos.length) {
+    if (!marcas.voto_topgg_ate) await porAjuste("voto_topgg_ate", String(desde));
+    return 0;
+  }
+  await porAjuste("voto_topgg_ate", String(novos[novos.length - 1].quando));
   for (const v of novos.slice(-PREMIOS_POR_RODADA)) {
+    /* O voto conta no Estúdio com a hora que o top.gg deu: se a pessoa
+       tocar em ✅ Já votei depois, é o mesmo voto, e não soma de novo. */
+    await rpc("cyron_contar_voto", { p_user: v.user, p_quando: v.em, p_peso: v.peso, p_folga: "0 seconds" })
+      .catch((e) => console.log("voto: nao contei no Estudio:", e?.message || e));
+    PERFIL_NA_MEMORIA.delete(v.user);
+    TITULO_NA_MEMORIA.delete(v.user);
     await premiarVoto(v.user).catch((e) => console.log("voto: nao consegui premiar:", e?.message || e));
   }
-  console.log(`voto: ${novos.length} voto(s) novo(s) no discordbotlist`);
+  console.log(`voto: ${novos.length} voto(s) novo(s) no top.gg`);
   return novos.length;
 }
 
@@ -24253,7 +24469,9 @@ async function premiarVoto(userId, sorte = Math.random) {
       description: `Você ganhou uma carta: ${p.bandeira} **${p.nome}** · ${r.estrelas} ${r.pt}\n` +
         `_You got a card: ${p.bandeira} **${p.nome}** · ${r.estrelas} ${r.en}_\n\n` +
         "Dá para votar de novo em 12 horas, e cada voto vale outra carta. Veja todas no `/colecao`.\n" +
-        "_You can vote again in 12 hours, and every vote is another card. See them all in `/colecao`._",
+        "_You can vote again in 12 hours, and every vote is another card. See them all in `/colecao`._\n\n" +
+        "🎨 O voto também conta no Estúdio: `/perfil` → **Personalizar**.\n" +
+        "_🎨 Your vote also counts in the Studio: `/perfil` → **Customize**._",
       thumbnail: { url: `attachment://${p.id}.jpg` } }],
     files: [retratoDoHeroi(p)],
     components: [{ type: 1, components: [
@@ -28800,9 +29018,9 @@ client.on("messageReactionAdd", async (reacao, quem) => {
 
     /* As palavras do cartão vêm junto, em paralelo: na segunda vez em diante
        elas saem da memória, e na primeira não somam espera à tradução. */
-    const [traduzido, palavras, perfil, comEstudio] = await Promise.all([
+    const [traduzido, palavras, perfil, comEstudio, jaViuANovidade] = await Promise.all([
       traduzirLongo(texto, idioma, motorDe(servidor)), palavrasDaBandeira(idioma), perfilGuardado(quem.id),
-      estudioLiberadoEm(msg.guild)]);
+      estudioLiberadoEm(msg.guild), avisoJaVisto(quem.id, "estudio")]);
     if (!traduzido) {
       await entregarNoPrivado(quem, msg.channel, {
         embeds: [{ color: COR, title: "❌ Não deu / Failed",
@@ -28812,12 +29030,17 @@ client.on("messageReactionAdd", async (reacao, quem) => {
       return;
     }
 
+    /* 🆕 Uma vez só, apontando o 🎨 (ver avisoJaVisto). */
+    const comNovidade = comEstudio && !jaViuANovidade && !!palavras.novidade;
     const onde = await entregarNoPrivado(quem, msg.channel,
-      cartaoDaBandeira(msg, idioma, traduzido, rodapeDeDivulgacao(servidor, palavras.divulga),
+      cartaoDaBandeira(msg, idioma, traduzido,
+        rodapeDeDivulgacao(servidor, palavras.divulga) + (comNovidade ? `\n-# 🆕 ${palavras.novidade}` : ""),
         linguasDaBandeira(reacao.emoji?.name), quem.id, palavras, comEstudio ? perfil.estilo : null, texto));
     if (!onde) return; // nem privado nem sala: nao ha o que limpar
     contarUso("bandeira", msg.guild.id);
     if (comEstudio) anotarLingua(quem.id, idioma);
+    /* Só conta como visto no privado: na sala, o cartão some em minutos. */
+    if (comNovidade && onde === "privado") marcarAvisoVisto(quem.id, "estudio");
 
     /* Tirar a bandeira devolve a mensagem limpa e deixa a pessoa pedir de
        novo. So' depois de entregar: reacao que sumiu sem resposta seria a
@@ -28936,9 +29159,11 @@ async function cliqueBandeiraLingua(inter) {
    aquela frase fica em inglês, que é a segunda língua mais lida. */
 const PALAVRAS_DA_BANDEIRA = {
   pt: { voltar: "Voltar", varias: "Este país fala mais de uma língua: escolha a sua no menu abaixo.",
-    outra: "Outra língua", divulga: "traduza o seu servidor também", personalizar: "Personalizar" },
+    outra: "Outra língua", divulga: "traduza o seu servidor também", personalizar: "Personalizar",
+    novidade: "Novo: toque em 🎨 Personalizar e deixe este cartão do seu jeito." },
   en: { voltar: "Back", varias: "This country speaks more than one language: pick yours in the menu below.",
-    outra: "Another language", divulga: "translate your server too", personalizar: "Customize" },
+    outra: "Another language", divulga: "translate your server too", personalizar: "Customize",
+    novidade: "New: tap 🎨 Customize to make this card your own." },
 };
 
 async function palavrasDaBandeira(idioma) {
@@ -31332,6 +31557,13 @@ client.once("clientReady", () => {
     colherVotos().catch((e) => console.log("voto: rodada falhou:", e?.message || e));
     setInterval(() => colherVotos().catch((e) => console.log("voto: rodada falhou:", e?.message || e)), VOTOS_A_CADA);
   }, 4 * 60 * 1000);
+  /* A novidade do Estúdio no ⚙️-cyron, de hora em hora pelo mesmo motivo:
+     a marca no banco garante uma vez por servidor. */
+  setTimeout(() => {
+    anunciarEstudioAosAdms().catch((e) => console.error("novidade: falhei:", e?.message || e));
+    setInterval(() => anunciarEstudioAosAdms().catch((e) => console.error("novidade: falhei:", e?.message || e)),
+      60 * 60 * 1000);
+  }, 6 * 60 * 1000);
   setTimeout(() => {
     anunciarMarcos().catch((e) => console.error("marcos: falhei:", e?.message || e));
     setInterval(() => anunciarMarcos().catch((e) => console.error("marcos: falhei:", e?.message || e)),

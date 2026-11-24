@@ -2905,6 +2905,63 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("a função do Estúdio só deixa escolher título ganho", /titulosConquistados\(feitos\)/.test(funcao));
     verdade("a página mostra a mensagem nas salas e os títulos", /id="palco-sala"/.test(pagina) && /id="op-titulo"/.test(pagina) && /img\/titulos\/tt_/.test(pagina));
 
+    {
+      /* 📣 A novidade do Estúdio: o cartão vai só para o ⚙️-cyron, e quem
+         leva aos membros é o ADM (dono, 24/11: "ele escolhe espalhar ou não"). */
+      Object.assign(globalThis, { LINK_DO_VOTO: E.LINK_DO_VOTO });
+      const N = carregar(["NOVIDADE_DO_ESTUDIO", "NOVIDADE_DO_ESTUDIO_EN", "cartaoDaNovidadeAdm", "cartaoDaNovidadeMembros",
+        "AVISOS_VISTOS", "lembrarAvisoVisto", "avisoJaVisto", "marcarAvisoVisto"]);
+      ok("a novidade tem as mesmas frases em português e inglês", Object.keys(N.NOVIDADE_DO_ESTUDIO).sort(),
+        Object.keys(N.NOVIDADE_DO_ESTUDIO_EN).sort());
+      ok("e o lugar do título nas mesmas frases", Object.keys(N.NOVIDADE_DO_ESTUDIO).filter((k) => N.NOVIDADE_DO_ESTUDIO[k].includes("{0}")),
+        Object.keys(N.NOVIDADE_DO_ESTUDIO_EN).filter((k) => N.NOVIDADE_DO_ESTUDIO_EN[k].includes("{0}")));
+      const adm = N.cartaoDaNovidadeAdm(N.NOVIDADE_DO_ESTUDIO, "g1");
+      ok("o cartão do ADM: personalizar o meu e compartilhar com os membros",
+        adm.components[0].components.map((b) => [b.custom_id, b.label, !!b.disabled]),
+        [["perfil:estilo:g1", "Personalizar o meu", false], ["cyron:estudio_compartilhar", "Compartilhar com os membros", false]]);
+      const feito = N.cartaoDaNovidadeAdm(N.NOVIDADE_DO_ESTUDIO, "g1", true).components[0].components[1];
+      ok("depois de compartilhado, o botão vira ✅ e não aceita outro toque", [feito.label, feito.emoji.name, feito.disabled],
+        ["Compartilhado", "✅", true]);
+      verdade("o cartão do ADM não menciona ninguém", JSON.stringify(adm.allowedMentions) === '{"parse":[]}');
+      const mem = N.cartaoDaNovidadeMembros(N.NOVIDADE_DO_ESTUDIO_EN, "g1");
+      ok("o dos membros: personalizar e votar", mem.components[0].components.map((b) => b.custom_id || b.url),
+        ["perfil:estilo:g1", E.LINK_DO_VOTO]);
+      verdade("e diz que libera com voto", mem.embeds[0].description.includes("Unlocked with one vote on top.gg."));
+
+      /* O aviso de uma vez só no privado. */
+      const sbAntes = globalThis.sb, postAntes = globalThis.sbPost;
+      const gravados = [];
+      let banco = [];
+      globalThis.sb = async () => banco;
+      globalThis.sbPost = async (t, c, pr) => { gravados.push([t, c, pr]); };
+      N.AVISOS_VISTOS.clear();
+      ok("quem nunca viu, vê", await N.avisoJaVisto("111", "estudio"), false);
+      N.marcarAvisoVisto("111", "estudio");
+      ok("marcar grava a pessoa e o aviso, sem duplicar", gravados[0], ["cyron_aviso_visto", { user_id: "111", aviso: "estudio" }, "resolution=ignore-duplicates"]);
+      globalThis.sb = async () => { throw new Error("não devia ir ao banco"); };
+      ok("depois de visto, nem vai ao banco", await N.avisoJaVisto("111", "estudio"), true);
+      banco = [{ aviso: "estudio" }];
+      globalThis.sb = async () => banco;
+      ok("visto em outra partida do bot (no banco) também conta", await N.avisoJaVisto("222", "estudio"), true);
+      globalThis.sb = async () => null;
+      ok("banco fora: na dúvida, não mostra", await N.avisoJaVisto("333", "estudio"), true);
+      globalThis.sb = sbAntes; globalThis.sbPost = postAntes;
+
+      ok("a frase da novidade no cartão da bandeira, em português e inglês",
+        [!!E.PALAVRAS_DA_BANDEIRA.pt.novidade, !!E.PALAVRAS_DA_BANDEIRA.en.novidade], [true, true]);
+      verdade("a bandeira mostra a novidade uma vez, e só conta como vista no privado",
+        /const comNovidade = comEstudio && !jaViuANovidade/.test(fonte) &&
+        /if \(comNovidade && onde === "privado"\) marcarAvisoVisto\(quem\.id, "estudio"\)/.test(fonte));
+      verdade("o compartilhar é atendido no painel (só ADM chega lá)",
+        fonte.indexOf('acao === "estudio_compartilhar"') > fonte.indexOf("if (!podeAdministrar(inter))"));
+      verdade("o anúncio aos ADMs roda no relógio, só com o Estúdio aberto e uma vez por servidor",
+        /anunciarEstudioAosAdms\(\)\.catch/.test(fonte) && /String\(a\.estudio_publico \|\| ""\) !== "1"\) return;/.test(fonte) &&
+        /a\[`novidade_estudio:\$\{s\.id\}`\]/.test(fonte));
+      const mig26 = readFileSync(`${aqui}/../supabase/migracoes/026-avisos-vistos.sql`, "utf8");
+      verdade("o banco dos avisos vistos: só id e nome do aviso, fechado ao público",
+        ["create table if not exists cyron_aviso_visto", "primary key (user_id, aviso)", "enable row level security"].every((t) => mig26.includes(t)));
+    }
+
   }
 
   ok("joinha não vira idioma", idiomaDaBandeira("👍"), "");
@@ -15102,55 +15159,78 @@ function conferirCartao(onde, embed, componentes = []) {
   }
 }
 
-/* ====== 🗳️ VOTOS NO DISCORDBOTLIST ======
+/* ====== 🗳️ VOTOS NO TOP.GG ======
  *
  * O Google e as IAs indicam bot pelas listas, e as listas ordenam por voto.
- * Quem vota ganha uma carta e um obrigado no privado; reinício nenhum paga
- * o mesmo voto duas vezes. */
+ * Quem vota ganha uma carta e um obrigado no privado, e o voto já conta no
+ * Estúdio; reinício nenhum paga o mesmo voto duas vezes. Um site só: o
+ * top.gg (dono, 25/11: "focar em 1 site para os votos"). */
 {
-  const globais = ["client", "chaveDoDbl", "ajustes", "porAjuste", "premiarVoto", "guardarCarta", "contarUso", "DBL_API"];
+  const globais = ["client", "chaveDoTopgg", "ajustes", "porAjuste", "premiarVoto", "guardarCarta", "contarUso", "TOPGG_API",
+    "LINK_DO_VOTO", "rpc", "PERFIL_NA_MEMORIA", "TITULO_NA_MEMORIA"];
   const antes = Object.fromEntries(globais.map((n) => [n, globalThis[n]]));
   try {
-    const V = carregar(["VOTOS_A_CADA", "PREMIOS_POR_RODADA", "linkDeVoto", "votosNovos", "colherVotos", "botaoDeVoto"]);
-    const u = (id, ts) => ({ user_id: id, timestamp: ts, username: "x" });
-    const lista = [u("111111111111111111", "2026-11-07T10:00:00Z"), u("222222222222222222", "2026-11-07T12:00:00Z"),
+    const V = carregar(["VOTOS_A_CADA", "PREMIOS_POR_RODADA", "VOTOS_DESDE_NO_COMECO", "VOTOS_ATE_UMA_SEMANA", "PAGINAS_DE_VOTO",
+      "linkDeVoto", "votosNovos", "colherVotos", "botaoDeVoto"]);
+    const u = (id, ts, peso = 1) => ({ user_id: "9" + id.slice(1), platform_id: id, weight: peso, created_at: ts, expires_at: ts });
+    const lista = [u("111111111111111111", "2026-11-07T10:00:00.123456Z"), u("222222222222222222", "2026-11-07T12:00:00.5Z", 2),
       u("333333333333333333", "2026-11-07T11:00:00Z"), u("nao-e-id", "2026-11-07T13:00:00Z")];
     const desde = Date.parse("2026-11-07T10:30:00Z");
-    ok("só os votos depois da marca, do mais velho ao mais novo",
+    ok("só os votos depois da marca, do mais velho ao mais novo, pelo id do Discord",
       V.votosNovos(lista, desde).map((v) => v.user), ["333333333333333333", "222222222222222222"]);
+    ok("com o peso (2 no fim de semana) e a hora exata do top.gg", V.votosNovos(lista, desde).map((v) => [v.peso, v.em]),
+      [[1, "2026-11-07T11:00:00Z"], [2, "2026-11-07T12:00:00.5Z"]]);
     ok("id que não é de pessoa fica de fora", V.votosNovos([u("abc", "2026-11-07T12:00:00Z")], 0).length, 0);
     ok("resposta estranha não estoura", V.votosNovos(null, 0).length, 0);
 
     globalThis.client = { user: { id: "1498142929041096856" } };
-    globalThis.DBL_API = "https://discordbotlist.com/api/v1/bots";
-    ok("o link de voto é a página da CYRON no discordbotlist", V.linkDeVoto(), "https://discordbotlist.com/bots/1498142929041096856/upvote");
+    globalThis.TOPGG_API = "https://top.gg/api";
+    globalThis.LINK_DO_VOTO = "https://top.gg/bot/1498142929041096856/vote";
+    ok("o link de voto é a página da CYRON no top.gg", V.linkDeVoto(), "https://top.gg/bot/1498142929041096856/vote");
     verdade("o botão de votar é um link", V.botaoDeVoto().components[0].style === 5 && V.botaoDeVoto().components[0].url === V.linkDeVoto());
 
-    let marcas = {}, gravado = null, pagos = [], pedido = null;
-    globalThis.chaveDoDbl = async () => "token-da-lista";
+    let marcas = {}, pagos = [], pedidos = [], contados = [];
+    globalThis.chaveDoTopgg = async () => "token-do-topgg";
     globalThis.ajustes = async () => marcas;
-    globalThis.porAjuste = async (k, v) => { gravado = [k, v]; marcas = { ...marcas, [k]: v }; };
+    globalThis.porAjuste = async (k, v) => { marcas = { ...marcas, [k]: v }; };
     globalThis.premiarVoto = async (id) => { pagos.push(id); };
-    const buscar = async (url, o) => { pedido = { url, auth: o?.headers?.Authorization }; return { ok: true, json: async () => ({ upvotes: lista, total: 4 }) }; };
+    globalThis.rpc = async (nome, args) => { contados.push([nome, args.p_user, args.p_quando, args.p_peso, args.p_folga]); return 1; };
+    globalThis.PERFIL_NA_MEMORIA = new Map(); globalThis.TITULO_NA_MEMORIA = new Map();
+    /* Duas páginas e depois a vazia, como o top.gg pagina por cursor. */
+    const paginas = { inicio: { cursor: "c1", data: lista.slice(0, 2) }, c1: { cursor: "c2", data: lista.slice(2) }, c2: { cursor: "c3", data: [] } };
+    const buscar = async (url, o) => {
+      pedidos.push({ url, auth: o?.headers?.Authorization });
+      const c = new URL(url).searchParams.get("cursor");
+      return { ok: true, json: async () => paginas[c || "inicio"] };
+    };
 
     const agora = Date.parse("2026-11-07T14:00:00Z");
-    ok("primeira rodada: nenhum voto antigo vira carta", await V.colherVotos(buscar, agora), 0);
-    ok("e a marca nasce agora", gravado, ["voto_dbl_ate", String(agora)]);
-    ok("pergunta à lista com o token dela", [pedido.url, pedido.auth], ["https://discordbotlist.com/api/v1/bots/1498142929041096856/upvotes", "token-da-lista"]);
+    ok("primeira rodada: as últimas 12 horas (quem votou pouco antes também ganha)", await V.colherVotos(buscar, agora), 3);
+    ok("pergunta ao top.gg com o token, desde 12 horas atrás", [pedidos[0].url, pedidos[0].auth],
+      ["https://top.gg/api/v1/projects/@me/votes?startDate=2026-11-07T02%3A00%3A00.000Z", "Bearer token-do-topgg"]);
+    ok("e segue o cursor até a página vazia", pedidos.map((p) => new URL(p.url).searchParams.get("cursor")), [null, "c1", "c2"]);
+    ok("a marca anda até o voto mais novo", marcas.voto_topgg_ate, String(Date.parse("2026-11-07T12:00:00.5Z")));
 
-    marcas = { voto_dbl_ate: String(desde) }; pagos = [];
+    marcas = { voto_topgg_ate: String(desde) }; pagos = []; pedidos = []; contados = [];
     ok("votos novos: paga os dois", await V.colherVotos(buscar, agora), 2);
     ok("cada um ganha o seu prêmio", pagos, ["333333333333333333", "222222222222222222"]);
-    ok("e a marca anda até o voto mais novo", marcas.voto_dbl_ate, String(Date.parse("2026-11-07T12:00:00Z")));
+    ok("e o voto conta no Estúdio com a hora do top.gg (o ✅ Já votei depois não soma de novo)", contados,
+      [["cyron_contar_voto", "333333333333333333", "2026-11-07T11:00:00Z", 1, "0 seconds"],
+        ["cyron_contar_voto", "222222222222222222", "2026-11-07T12:00:00.5Z", 2, "0 seconds"]]);
     pagos = [];
     ok("a rodada seguinte não paga de novo", await V.colherVotos(buscar, agora), 0);
     ok("ninguém recebe duas vezes", pagos.length, 0);
 
+    marcas = { voto_topgg_ate: String(Date.parse("2026-01-01T00:00:00Z")) }; pedidos = [];
+    await V.colherVotos(buscar, agora);
+    verdade("bot parado muito tempo: no máximo uma semana para trás", pedidos[0].url.includes("startDate=2026-10-31T14%3A00%3A00.000Z"));
+
     marcas = Object.defineProperty({}, "falhou", { value: true }); pagos = [];
     ok("banco fora: não paga nada (nem sabe a marca)", await V.colherVotos(buscar, agora), 0);
-    globalThis.chaveDoDbl = async () => "";
-    ok("sem token da lista: não pergunta nada", await V.colherVotos(async () => { throw new Error("não devia chamar"); }, agora), 0);
-    globalThis.chaveDoDbl = async () => "token-da-lista";
+    globalThis.chaveDoTopgg = async () => "";
+    marcas = {};
+    ok("sem token do top.gg: não pergunta nada", await V.colherVotos(async () => { throw new Error("não devia chamar"); }, agora), 0);
+    globalThis.chaveDoTopgg = async () => "token-do-topgg";
     let estourou = false;
     try { await V.colherVotos(async () => ({ ok: false, status: 401 }), agora); } catch { estourou = true; }
     verdade("token recusado vira erro no log, e não prêmio", estourou);
@@ -15162,6 +15242,7 @@ function conferirCartao(onde, embed, componentes = []) {
   ok("o /diario convida a votar nas duas respostas", (diario.match(/components: \[botaoDeVoto\(\)\]/g) || []).length, 2);
   verdade("os votos são colhidos de 5 em 5 minutos", /setInterval\(\(\) => colherVotos\(\)[^\n]*VOTOS_A_CADA\)/.test(idx));
   verdade("o prêmio é uma carta, guardada antes do obrigado", /async function premiarVoto[^]*?await guardarCarta\(userId, p, r\)[^]*?pessoa\.send/.test(idx));
+  verdade("nenhum botão de voto aponta para o discordbotlist", !/discordbotlist\.com\/bots\/[^"`]*\/upvote/.test(idx));
 }
 
 /* ====== a Visão da CYRON ======
