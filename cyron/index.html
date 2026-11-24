@@ -152,6 +152,32 @@ img.av{object-fit:cover; background:#000}
 .bt.grande{height:44px; padding:0 22px; font-size:15px; font-weight:600}
 .bt svg{width:18px; height:18px}
 
+/* reações embaixo da mensagem, como no Discord */
+.reacoes{display:flex; gap:4px; margin-top:4px}
+.reacao{display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:8px; font-size:14px; font-weight:600; color:#C9CDFB; background:rgba(88,101,242,.15); border:1px solid var(--blurple)}
+/* as artes do top.gg, como imagem anexada */
+.arte{max-width:640px; margin-top:8px}
+.arte img{display:block; width:100%; height:auto; border-radius:8px; box-shadow:0 0 0 1px rgba(255,255,255,.06), 0 8px 28px rgba(88,101,242,.18)}
+/* os dois lados da comparação */
+.lado-a-lado{display:grid; grid-template-columns:1fr 1fr; gap:8px; max-width:640px}
+.lado-a-lado .embed{margin-top:6px}
+.lista{list-style:none; margin:10px 0 0; padding:0; font-size:14px}
+.lista li{position:relative; padding-left:22px; margin-top:6px}
+.lista li::before{position:absolute; left:0; top:0; font-weight:700}
+.lista.nao li{color:var(--fraco)}
+.lista.nao li::before{content:"✕"; color:#F23F43}
+.lista.sim li::before{content:"✓"; color:var(--verde)}
+/* embed sem título: os campos começam no topo */
+.embed > .campos:first-child{margin-top:0}
+@media (max-width:600px){
+  .lado-a-lado{grid-template-columns:1fr}
+  .campos.uma-cel{grid-template-columns:1fr}
+  /* número na esquerda, frase na direita: três linhas curtas no celular */
+  .campos.numeros{grid-template-columns:1fr}
+  .campos.numeros .campo{display:flex; gap:12px; align-items:baseline}
+  .campos.numeros .campo b{flex:0 0 84px}
+}
+
 /* anexo de imagem */
 .anexos{display:flex; gap:8px; margin-top:8px; flex-wrap:wrap}
 .anexos figure{margin:0; border-radius:8px; overflow:hidden; max-width:260px; background:var(--servidores)}
@@ -268,6 +294,9 @@ html[lang="en"] [data-en]{display:revert}
     <a class="canal" href="#funciona"><span data-pt>como-funciona</span><span data-en>how-it-works</span></a>
     <a class="canal" href="./passos.html"><span data-pt>primeiros-passos</span><span data-en>get-started</span></a>
     <div class="categoria"><span data-pt>O que ela faz</span><span data-en>What it does</span></div>
+    <a class="canal" href="#bandeira"><span data-pt>traduza-com-bandeira</span><span data-en>translate-with-a-flag</span></a>
+    <a class="canal" href="#por-que"><span data-pt>por-que-a-cyron</span><span data-en>why-cyron</span></a>
+    <a class="canal" href="#kingshot"><span data-pt>alianças-de-jogo</span><span data-en>game-alliances</span></a>
     <a class="canal" href="./recursos.html"><span data-pt>tudo-que-ela-faz</span><span data-en>everything-it-does</span></a>
     <a class="canal" href="./recursos.html#ferramentas"><span data-pt>ferramentas</span><span data-en>tools</span></a>
     <a class="canal" href="./guide.html"><span data-pt>guia-completo</span><span data-en>full-guide</span></a>
@@ -303,7 +332,10 @@ html[lang="en"] [data-en]{display:revert}
   </div>
   <nav class="faixa-canais" aria-label="Canais / Channels">
     <a href="#funciona"># <span data-pt>como-funciona</span><span data-en>how-it-works</span></a>
+    <a href="#bandeira"># <span data-pt>bandeira</span><span data-en>flags</span></a>
+    <a href="#por-que"># <span data-pt>por-que-a-cyron</span><span data-en>why-cyron</span></a>
     <a href="#recursos"># <span data-pt>o-que-ela-faz</span><span data-en>what-it-does</span></a>
+    <a href="#kingshot"># <span data-pt>alianças-de-jogo</span><span data-en>game-alliances</span></a>
     <a href="#planos"># <span data-pt>planos</span><span data-en>pricing</span></a>
     <a href="#perguntas"># <span data-pt>perguntas</span><span data-en>questions</span></a>
     <a href="./passos.html">↗ <span data-pt>primeiros-passos</span><span data-en>get-started</span></a>
@@ -318,7 +350,7 @@ html[lang="en"] [data-en]{display:revert}
     <img class="mascote" src="./img/cyron-corpo.webp" alt="A CYRON acenando, com o planetinha ao lado" width="420" height="847">
     <div class="grande-hash">#</div>
     <h1><span data-pt>Um servidor. Todas as línguas.</span><span data-en>One server. Every language.</span></h1>
-    <p><span data-pt>Este é o começo do canal #boas-vindas. A CYRON é um bot de tradução para Discord.</span><span data-en>This is the start of the #welcome channel. CYRON is a translation bot for Discord.</span></p>
+    <p><span data-pt>Este é o começo do canal #boas-vindas. A CYRON é um bot de tradução para Discord: salas em 22 línguas e tradução por bandeira em mais de 100.</span><span data-en>This is the start of the #welcome channel. CYRON is a translation bot for Discord: language rooms in 22 languages and flag translation in 100+.</span></p>
   </div>
 
   <div class="msg">
@@ -452,6 +484,89 @@ html[lang="en"] [data-en]{display:revert}
        instalar, a página de venda é para quem ainda não decidiu. -->
   <span id="passos"></span>
 
+  <!-- ======================= BANDEIRA ======================= -->
+  <div id="bandeira" class="inicio-canal">
+    <div class="grande-hash">#</div>
+    <h2><span data-pt>traduza-com-bandeira</span><span data-en>translate-with-a-flag</span></h2>
+    <p><span data-pt>Para entender uma mensagem só, sem montar sala nenhuma. Grátis e sem limite por mês.</span><span data-en>To understand a single message, no rooms needed. Free, with no monthly limit.</span></p>
+  </div>
+
+  <div class="msg">
+    <div class="av" style="background:#E91E63">K</div>
+    <div>
+      <span class="nome" style="color:#E91E63">Kenji</span><span class="hora">20:46</span>
+      <p lang="ja">明日のイベントは何時に始まりますか？</p>
+      <div class="reacoes" aria-label="Reações / Reactions"><span class="reacao">🇧🇷 1</span><span class="reacao">🇮🇳 1</span></div>
+    </div>
+  </div>
+
+  <div class="msg">
+    <img class="av bot" src="./img/cyron.png" alt="" width="40" height="40">
+    <div>
+      <span class="nome bot-nome">CYRON</span><span class="tag">BOT</span><span class="hora">20:46</span>
+      <p><span data-pt>Não entendeu? Reaja com a bandeira do seu país e eu mando a tradução <b>no seu privado</b>, só para você:</span><span data-en>Can't read it? React with your country's flag and I'll send the translation <b>to your DMs</b>, just for you:</span></p>
+      <p><span data-pt><b>1.</b> Reaja com a bandeira de qualquer país, em qualquer mensagem.<br><b>2.</b> A tradução chega no seu privado. Ninguém mais vê.<br><b>3.</b> País com mais de uma língua (🇮🇳 🇪🇸 🇨🇭 🇨🇦)? Um menu deixa você escolher a sua.</span><span data-en><b>1.</b> React with any country's flag, on any message.<br><b>2.</b> The translation arrives in your DMs. Nobody else sees it.<br><b>3.</b> A country with more than one language (🇮🇳 🇪🇸 🇨🇭 🇨🇦)? A menu lets you pick yours.</span></p>
+      <div class="arte" data-pt><img src="./img/topgg/bandeira-pt.jpg?v=2" width="1100" height="440" loading="lazy" decoding="async" alt="Três passos: reaja com a bandeira, leia no privado e, se o país tiver várias línguas, escolha a sua (hindi, tâmil, télugo, bengali)."></div>
+      <div class="arte" data-en><img src="./img/topgg/bandeira-en.jpg?v=2" width="1100" height="440" loading="lazy" decoding="async" alt="Three steps: react with a flag, read it in private and, if the country has several languages, pick yours (Hindi, Tamil, Telugu, Bengali)."></div>
+      <div class="embed verde">
+        <div class="campos numeros">
+          <div class="campo"><b>100+</b><span data-pt>línguas, do árabe ao zulu</span><span data-en>languages, from Arabic to Zulu</span></div>
+          <div class="campo"><b>🇮🇳 🇨🇭 🇨🇦</b><span data-pt>país com várias línguas: você escolhe</span><span data-en>several languages? you pick</span></div>
+          <div class="campo"><b>∞</b><span data-pt>sem limite por mês, no plano grátis</span><span data-en>no monthly limit, on the free plan</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= POR QUE A CYRON ======================= -->
+  <!-- Só o que dá para conferir: os limites são os que os outros tradutores
+       publicam nas próprias páginas (top.gg, 11/2026). Nada de "o único" ou
+       "o melhor": quem compara e acha uma mentira não instala. -->
+  <div id="por-que" class="inicio-canal">
+    <div class="grande-hash">#</div>
+    <h2><span data-pt>por-que-a-cyron</span><span data-en>why-cyron</span></h2>
+    <p><span data-pt>Lado a lado com o plano grátis comum dos bots de tradução.</span><span data-en>Side by side with the typical free plan of translation bots.</span></p>
+  </div>
+
+  <div class="msg">
+    <div class="av" style="background:#E67E22">A</div>
+    <div>
+      <span class="nome" style="color:#E67E22">Ana</span><span class="hora">20:46</span>
+      <p><span data-pt>mas já existe bot de tradução… por que essa?</span><span data-en>but there are other translation bots… why this one?</span></p>
+    </div>
+  </div>
+
+  <div class="msg">
+    <img class="av bot" src="./img/cyron.png" alt="" width="40" height="40">
+    <div>
+      <span class="nome bot-nome">CYRON</span><span class="tag">BOT</span><span class="hora">20:46</span>
+      <div class="lado-a-lado">
+        <div class="embed" style="border-color:var(--fraquinho)">
+          <div class="e-titulo"><span data-pt>Plano grátis comum</span><span data-en>Typical free plan</span></div>
+          <ul class="lista nao">
+            <li><span data-pt>Umas 100 traduções por mês por pessoa (ou 10 mil caracteres)</span><span data-en>About 100 translations a month per member (or 10,000 characters)</span></li>
+            <li><span data-pt>Votar para ganhar mais cota</span><span data-en>Vote to unlock more quota</span></li>
+            <li><span data-pt>Ligar os canais na mão, um por um</span><span data-en>Link channels by hand, one by one</span></li>
+            <li><span data-pt>Só tradução</span><span data-en>Translation only</span></li>
+          </ul>
+        </div>
+        <div class="embed verde">
+          <div class="e-titulo">CYRON</div>
+          <ul class="lista sim">
+            <li><span data-pt>Bandeira e botão de tradução sem limite por mês, grátis</span><span data-en>Flag and translate button with no monthly limit, free</span></li>
+            <li><span data-pt>Não precisa votar para traduzir</span><span data-en>No voting needed to translate</span></li>
+            <li><span data-pt>Cada um escolhe a língua na entrada e eu monto as salas</span><span data-en>Members pick a language at the door and I build the rooms</span></li>
+            <li><span data-pt>Ferramentas de Kingshot: Urso, livro dos heróis, eventos no fuso de cada um</span><span data-en>Kingshot tools: Bear Trap, hero book, events in everyone's time zone</span></li>
+          </ul>
+        </div>
+      </div>
+      <div class="botoes">
+        <a class="bt bt-1 convite" href="#"><span data-pt>Adicionar ao Discord</span><span data-en>Add to Discord</span></a>
+        <a class="bt" href="https://top.gg/bot/1498142929041096856" rel="noopener"><span data-pt>⭐ Ver no top.gg</span><span data-en>⭐ See it on top.gg</span></a>
+      </div>
+    </div>
+  </div>
+
   <!-- ======================= O QUE ELE FAZ ======================= -->
   <div id="recursos" class="inicio-canal">
     <div class="grande-hash">#</div>
@@ -475,6 +590,32 @@ html[lang="en"] [data-en]{display:revert}
         </div>
       </div>
       <div class="botoes"><a class="bt" href="./recursos.html"><span data-pt>Ver as 35 coisas que ela faz</span><span data-en>See all 35 things it does</span></a></div>
+    </div>
+  </div>
+
+  <!-- ======================= KINGSHOT ======================= -->
+  <div id="kingshot" class="inicio-canal">
+    <div class="grande-hash">#</div>
+    <h2><span data-pt>alianças-de-jogo</span><span data-en>game-alliances</span></h2>
+    <p><span data-pt>Ela nasceu numa aliança de Kingshot com gente do mundo todo.</span><span data-en>It was born in a Kingshot alliance with players from all over the world.</span></p>
+  </div>
+
+  <div class="msg">
+    <img class="av bot" src="./img/cyron.png" alt="" width="40" height="40">
+    <div>
+      <span class="nome bot-nome">CYRON</span><span class="tag">BOT</span><span class="hora">20:48</span>
+      <p><span data-pt>Além de traduzir, eu cuido do dia a dia da aliança — em todas as línguas, sem passar pelo tradutor:</span><span data-en>Besides translating, I take care of the alliance's daily routine — in every language, without going through the translator:</span></p>
+      <div class="arte" data-pt><img src="./img/topgg/kingshot-pt.jpg?v=2" width="1100" height="467" loading="lazy" decoding="async" alt="Ficha do Urso, livro dos heróis, duelos e níveis."></div>
+      <div class="arte" data-en><img src="./img/topgg/kingshot-en.jpg?v=2" width="1100" height="467" loading="lazy" decoding="async" alt="Bear Trap card, hero book, duels and levels."></div>
+      <div class="embed largo amarelo">
+        <div class="campos dois uma-cel">
+          <div class="campo"><b>🐻 <span data-pt>Ficha do Urso</span><span data-en>Bear Trap card</span></b><span data-pt>Os melhores heróis para o Urso, em todas as línguas (<code>/urso</code>).</span><span data-en>The best heroes for the Bear, in every language (<code>/urso</code>).</span></div>
+          <div class="campo"><b>📖 <span data-pt>Livro dos heróis</span><span data-en>Hero book</span></b><span data-pt>Cada herói com dicas para liderar e entrar em rally (<code>/heroi</code>).</span><span data-en>Every hero, with tips to lead and join rallies (<code>/heroi</code>).</span></div>
+          <div class="campo"><b>⚔️ <span data-pt>Duelos e cartas</span><span data-en>Duels and cards</span></b><span data-pt>Heróis aparecem no chat, o primeiro a tocar leva a carta.</span><span data-en>Heroes show up in chat; first to tap gets the card.</span></div>
+          <div class="campo"><b>🏆 <span data-pt>Níveis e cargos</span><span data-en>Levels and roles</span></b><span data-pt><code>/perfil</code>, <code>/top</code>, painel de cargos e boas-vindas com imagem.</span><span data-en><code>/perfil</code>, <code>/top</code>, role panels and welcome images.</span></div>
+        </div>
+      </div>
+      <div class="botoes"><a class="bt" href="./recursos.html#ferramentas"><span data-pt>Ver todas as ferramentas</span><span data-en>See all the tools</span></a></div>
     </div>
   </div>
 
