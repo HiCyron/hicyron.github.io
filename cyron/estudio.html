@@ -246,7 +246,7 @@ html[lang="en"] [data-en]{display:revert}
             <span class="nome" id="sala-nome">Você</span><span class="tag">APP</span><span class="hora">23:09</span>
             <div class="embed sala" id="sala-cartao">
               <div class="texto">¿Quién va al rally del Oso a las 20h? ¡Faltan 3!</div>
-              <div class="assinatura"><a href="#" onclick="return false" id="sala-assina">Você</a> · 🇧🇷 → 🇪🇸</div>
+              <div class="assinatura"><a href="#" onclick="return false" id="sala-assina">Você</a><span id="sala-enfeite"></span> · 🇧🇷 → 🇪🇸</div>
             </div>
             <div class="titulo-bt" id="sala-titulo" hidden><img id="sala-titulo-img" alt="" width="20" height="20"><span id="sala-titulo-nome"></span></div>
           </div>
@@ -469,6 +469,14 @@ function desenharOpcoes() {
     const b = botaoOpcao(salaEmoji, e, rascunho.sala_emoji === e, lib.emojis.includes(e), () => mudar("sala_emoji", e));
     b.style.fontSize = "18px";
   }
+  /* Os animados: o emoji de cada título, exclusivo de quem já o conquistou. */
+  for (const t of TITULOS) {
+    const valor = `tt:${t.id}`;
+    const ganho = pessoa.titulos.includes(t.id);
+    const b = botaoOpcao(salaEmoji, "", rascunho.sala_emoji === valor, ganho, () => mudar("sala_emoji", valor),
+      `<img src="./img/titulos/tt_${t.id}.gif" alt="${t[lingua()]}" title="${t[lingua()]}" width="24" height="24" style="width:24px;height:24px">`);
+    if (!ganho) b.onclick = () => avisar(`🔒 ${T("Esse enfeite é de quem tem o título", "This flourish belongs to whoever has the title")} ${t[lingua()]}: ${T(t.como_pt, t.como_en)}`);
+  }
   const titulos = $("op-titulo");
   titulos.innerHTML = "";
   const nenhum = document.createElement("button");
@@ -581,7 +589,11 @@ function desenharPrevia() {
   const sc = rascunho.sala_cor ? corPorId(rascunho.sala_cor).c2 : "#E67E22";
   $("sala-cartao").style.setProperty("--cor-sala", sc);
   $("sala-nome").textContent = pessoa.nome || T("Você", "You");
-  $("sala-assina").textContent = (rascunho.sala_assinatura || pessoa.nome || T("Você", "You")) + (rascunho.sala_emoji ? ` ${rascunho.sala_emoji}` : "");
+  $("sala-assina").textContent = rascunho.sala_assinatura || pessoa.nome || T("Você", "You");
+  const enf = $("sala-enfeite");
+  const tEnf = String(rascunho.sala_emoji || "").startsWith("tt:") ? TITULOS.find((t) => t.id === rascunho.sala_emoji.slice(3)) : null;
+  enf.innerHTML = tEnf ? ` <img src="./img/titulos/tt_${tEnf.id}.gif" alt="" width="16" height="16" style="width:16px;height:16px;vertical-align:-3px">`
+    : (rascunho.sala_emoji ? ` ${rascunho.sala_emoji}` : "");
   if (pessoa.avatar) $("sala-av").src = pessoa.avatar;
   const tit = TITULOS.find((t) => t.id === rascunho.titulo);
   $("sala-titulo").hidden = !tit;

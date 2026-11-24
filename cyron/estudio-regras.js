@@ -193,7 +193,10 @@ export function estiloValido(pedido, votos, conquistados = []) {
     cartao_emoji: de(lib.emojis, p.cartao_emoji, ""),
     titulo: de(Array.isArray(conquistados) ? conquistados : [], p.titulo, ""),
     sala_cor: de(lib.coresDaSala, p.sala_cor, ""),
-    sala_emoji: de(lib.emojis, p.sala_emoji, ""),
+    /* O enfeite do nome: um dos emojis comuns (o voto libera) ou o emoji
+       ANIMADO de um título que a pessoa já conquistou ("tt:<id>"), exclusivo
+       de quem tem o título. */
+    sala_emoji: de([...lib.emojis, ...(Array.isArray(conquistados) ? conquistados : []).map((id) => `tt:${id}`)], p.sala_emoji, ""),
     sala_assinatura: lib.frase ? limparAssinatura(p.sala_assinatura) : "",
   };
 }
