@@ -13,7 +13,7 @@ const aqui = path.dirname(fileURLToPath(import.meta.url));
 const saida = path.join(aqui, "..", "cyron", "img", "topgg");
 mkdirSync(saida, { recursive: true });
 
-const PARTES = ["topo", "como", "recursos", "kingshot", "botao"];
+const PARTES = ["topo", "como", "comparacao", "bandeira", "recursos", "kingshot", "botao"];
 const LINGUAS = ["en", "pt"];
 
 const navegador = await chromium.launch();

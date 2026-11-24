@@ -64,6 +64,29 @@
   .herois { display:flex; gap:10px; margin-top:14px }
   .herois img { width:58px; height:58px; border-radius:12px; border:1px solid var(--borda) }
 
+  /* comparação: o lado comum apagado, o da CYRON com a borda do degradê */
+  .lado { padding:28px 28px 30px }
+  .lado-rot { font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--fraco) }
+  .cyron { border:1px solid transparent; background:
+    linear-gradient(var(--cartao),var(--cartao)) padding-box,
+    linear-gradient(135deg,var(--roxo),var(--azul)) border-box; box-shadow:0 10px 40px rgba(137,87,255,.18) }
+  .cyron .lado-rot { font-size:22px; letter-spacing:.06em }
+  .lista { list-style:none; margin-top:18px; display:grid; gap:14px }
+  .lista li { font-size:18px; line-height:1.4; padding-left:34px; position:relative }
+  .lista li::before { position:absolute; left:0; top:0; width:22px; height:22px; border-radius:50%;
+    display:grid; place-items:center; font-size:13px; font-weight:800 }
+  .nao li { color:var(--fraco) }
+  .nao li::before { content:"✕"; background:rgba(154,163,181,.14); color:var(--fraco) }
+  .sim li::before { content:"✓"; background:linear-gradient(135deg,var(--roxo),var(--azul)); color:#fff }
+
+  /* a bandeira em três passos */
+  .passo { position:relative }
+  .passo .num { position:absolute; top:18px; right:20px; width:30px; height:30px; border-radius:50%; display:grid; place-items:center;
+    font-weight:800; font-size:15px; background:linear-gradient(135deg,var(--roxo),var(--azul)) }
+  .pilhas { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px }
+  .pilhas span { border:1px solid var(--borda); border-radius:999px; padding:5px 12px; font-size:15px; color:#D8DCE7 }
+  .pilhas .sel { border-color:transparent; background:linear-gradient(90deg,var(--roxo),var(--azul)); color:#fff; font-weight:700 }
+
   /* botão */
   #botao { height:210px; display:none; place-items:center; padding:0 }
   #botao.ativa { display:grid }
@@ -130,6 +153,30 @@
   </div>
 </section>
 
+<section class="parte" id="comparacao">
+  <h2 data-t="cmp"></h2>
+  <div class="grade" style="grid-template-columns:1fr 1fr">
+    <div class="cartao lado">
+      <div class="lado-rot" data-t="cmpOutro"></div>
+      <ul class="lista nao"><li data-t="o1"></li><li data-t="o2"></li><li data-t="o3"></li><li data-t="o4"></li></ul>
+    </div>
+    <div class="cartao lado cyron">
+      <div class="lado-rot"><span class="grad">CYRON</span></div>
+      <ul class="lista sim"><li data-t="c1"></li><li data-t="c2"></li><li data-t="c3"></li><li data-t="c4"></li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="parte" id="bandeira">
+  <h2 data-t="bd"></h2>
+  <div class="grade" style="grid-template-columns:repeat(3,1fr)">
+    <div class="cartao passo"><div class="num">1</div><div class="ic">🇮🇳</div><h3 data-t="bd1t"></h3><p data-t="bd1"></p></div>
+    <div class="cartao passo"><div class="num">2</div><div class="ic">📩</div><h3 data-t="bd2t"></h3><p data-t="bd2"></p></div>
+    <div class="cartao passo"><div class="num">3</div><div class="ic">🌐</div><h3 data-t="bd3t"></h3><p data-t="bd3"></p>
+      <div class="pilhas"><span>हिन्दी</span><span class="sel">தமிழ்</span><span>తెలుగు</span><span>বাংলা</span></div></div>
+  </div>
+</section>
+
 <section class="parte" id="botao">
   <div class="bt"><span class="mais">+</span> <span data-t="bt"></span> <small data-t="btSub"></small></div>
 </section>
@@ -139,11 +186,11 @@ const TEXTOS = {
   en: {
     rotulo: "Discord translation bot", titulo1: "One server.", titulo2: "Every language.",
     sub: "Everyone writes in their own language and reads everyone else in theirs. No commands.",
-    chip1: "<b>22</b> languages", chip2: "<b>Free</b> to start", chip3: "Built for <b>alliances</b>",
+    chip1: "<b>100+</b> languages", chip2: "<b>Free</b> to start", chip3: "Built for <b>alliances</b>",
     como: "Same conversation, every language", escreveu: "written in Portuguese",
     comoSub: "Each member picks a language and chats in their own room. Every message lands in the other rooms, translated, with the author's name and avatar.",
     recursos: "Translation everywhere",
-    r1t: "React with a flag", r1: "Any message, translated privately for whoever reacted.",
+    r1t: "React with a flag", r1: "Any message, in 100+ languages, privately. Several languages in a country? Pick yours.",
     r2t: "Announcements", r2: "Post once, it lands in every language.",
     r3t: "Screenshots", r3: "Reads the text in an image and translates it.",
     r4t: "Voice notes", r4: "Transcribed and translated.",
@@ -154,15 +201,23 @@ const TEXTOS = {
     k2t: "Hero book", k2: "Every hero, with tips to lead and join rallies.",
     k3t: "Duels & levels", k3: "Hero cards, duels, levels, role panels and welcome images.",
     bt: "Add CYRON to Discord", btSub: "free",
+    bd: "Translate with a flag", bd1t: "React with a flag", bd1: "Any country flag, on any message.",
+    bd2t: "Read it in private", bd2: "The translation arrives in your DMs. Nobody else sees it.",
+    bd3t: "Several languages?", bd3: "Countries like India, Spain or Switzerland let you pick yours.",
+    cmp: "Why CYRON", cmpOutro: "Typical free plan",
+    o1: "100 translations a month per member, or 10,000 characters", o2: "Vote to unlock more quota",
+    o3: "You link channels by hand, one by one", o4: "Translation only",
+    c1: "Flag and translate button with no limit, free", c2: "Members pick a language at the door; CYRON builds the rooms",
+    c3: "Kingshot tools: Bear Trap card, hero book, events in every time zone", c4: "Flag translation in 100+ languages, language rooms in 22",
   },
   pt: {
     rotulo: "Bot de tradução para Discord", titulo1: "Um servidor.", titulo2: "Todas as línguas.",
     sub: "Cada um escreve na sua língua e lê os outros na sua. Sem comandos.",
-    chip1: "<b>22</b> línguas", chip2: "<b>Grátis</b> para começar", chip3: "Feita para <b>alianças</b>",
+    chip1: "<b>100+</b> línguas", chip2: "<b>Grátis</b> para começar", chip3: "Feita para <b>alianças</b>",
     como: "A mesma conversa, em todas as línguas", escreveu: "escrito em português",
     comoSub: "Cada membro escolhe a língua e conversa na sala dele. Cada mensagem chega nas outras salas traduzida, com o nome e a foto de quem escreveu.",
     recursos: "Tradução em todo lugar",
-    r1t: "Reaja com uma bandeira", r1: "Qualquer mensagem, traduzida no privado de quem reagiu.",
+    r1t: "Reaja com uma bandeira", r1: "Qualquer mensagem, em mais de 100 línguas, no privado. País com várias? Você escolhe.",
     r2t: "Avisos", r2: "Você posta uma vez e chega em todas as línguas.",
     r3t: "Prints", r3: "Lê o texto da imagem e traduz.",
     r4t: "Áudios", r4: "Transcritos e traduzidos.",
@@ -173,6 +228,14 @@ const TEXTOS = {
     k2t: "Livro dos heróis", k2: "Cada herói, com dicas para liderar e entrar em rally.",
     k3t: "Duelos e níveis", k3: "Cartas de herói, duelos, níveis, painel de cargos e boas-vindas.",
     bt: "Adicionar a CYRON", btSub: "grátis",
+    bd: "Traduza com uma bandeira", bd1t: "Reaja com a bandeira", bd1: "De qualquer país, em qualquer mensagem.",
+    bd2t: "Leia no privado", bd2: "A tradução chega no seu privado. Ninguém mais vê.",
+    bd3t: "Várias línguas?", bd3: "País como Índia, Espanha ou Suíça deixa você escolher a sua.",
+    cmp: "Por que a CYRON", cmpOutro: "Plano grátis comum",
+    o1: "100 traduções por mês por pessoa, ou 10 mil caracteres", o2: "Votar para ganhar mais cota",
+    o3: "Você liga canal com canal, na mão", o4: "Só tradução",
+    c1: "Bandeira e botão de tradução sem limite, de graça", c2: "Cada um escolhe a língua na entrada e a CYRON monta as salas",
+    c3: "Ferramentas de Kingshot: Urso, livro dos heróis, eventos no fuso de cada um", c4: "Bandeira em mais de 100 línguas, salas em 22",
   },
 };
 const q = new URLSearchParams(location.search);

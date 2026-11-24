@@ -24,7 +24,7 @@ const CONVITE = "https://discord.com/oauth2/authorize?client_id=1498142929041096
 /* As artes (video-divulgacao/arte-topgg.html → cyron/img/topgg/), servidas pelo
    site. O ?v= muda quando a arte muda: o top.gg guarda imagem em cache, e sem
    isso a página continuaria mostrando a velha. */
-const VERSAO_DAS_ARTES = "1";
+const VERSAO_DAS_ARTES = "2";
 function arte(nome, lingua, alt) {
   return `![${alt}](${SITE}/img/topgg/${nome}-${lingua}.jpg?v=${VERSAO_DAS_ARTES})`;
 }
@@ -52,13 +52,22 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "",
         "## How it works",
         arte("como", "en", "The same message in Portuguese, English and Arabic rooms"),
-        "1. Members pick their language with one click.",
+        "1. Members pick their language with one click (language rooms in 22 languages).",
         "2. They chat in their own room (`#chat-pt`, `#chat-en`…) and every message shows up in the other rooms, already translated, with their name and avatar.",
         "3. Replies, mentions, edits, stickers, GIFs and emojis follow the message.",
         "",
+        "## Why CYRON",
+        arte("comparacao", "en", "Typical free plan versus CYRON"),
+        "- Typical free plans stop at around 100 translations a month per member (or 10,000 characters), and ask for votes to unlock more.",
+        "- CYRON's flag and translate button have no monthly limit. Members pick a language at the door and CYRON builds the rooms — no linking channels by hand. And it ships Kingshot tools no translator has.",
+        "",
+        "## Translate with a flag",
+        arte("bandeira", "en", "React with a flag, read it in private, pick your language"),
+        "React with any country flag and the translation arrives in your DMs. Countries with several languages let you pick yours.",
+        "",
         "## Translation everywhere",
         arte("recursos", "en", "Flags, announcements, screenshots, voice notes, glossary and events"),
-        "- 🏳️ **React with a flag** — any message, translated privately for whoever reacted.",
+        "- 🏳️ **React with a flag** — any message, in **100+ languages**, translated privately for whoever reacted. Country with several languages (🇮🇳 🇪🇸 🇨🇭)? Pick yours from a menu.",
         "- 📢 **Announcements** — post once, it lands in every language.",
         "- 🖼️ **Screenshots** — reads the text in an image and translates it.",
         "- 🎧 **Voice notes** — transcribed and translated.",
@@ -93,13 +102,22 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "",
         "## Como funciona",
         arte("como", "pt", "A mesma mensagem nas salas em português, inglês e árabe"),
-        "1. Cada membro escolhe a língua com um clique.",
+        "1. Cada membro escolhe a língua com um clique (salas em 22 línguas).",
         "2. Conversa na sala dele (`#chat-pt`, `#chat-en`…) e cada mensagem aparece nas outras salas já traduzida, com o nome e a foto de quem escreveu.",
         "3. Respostas, menções, edições, figurinhas, GIFs e emojis acompanham a mensagem.",
         "",
+        "## Por que a CYRON",
+        arte("comparacao", "pt", "Plano grátis comum contra a CYRON"),
+        "- Os planos grátis comuns param em umas 100 traduções por mês por pessoa (ou 10 mil caracteres) e pedem voto para liberar mais.",
+        "- Na CYRON a bandeira e o botão de tradução não têm limite mensal. Cada um escolhe a língua na entrada e a CYRON monta as salas — sem ligar canal na mão. E ela traz ferramentas de Kingshot que nenhum tradutor tem.",
+        "",
+        "## Traduza com uma bandeira",
+        arte("bandeira", "pt", "Reaja com a bandeira, leia no privado, escolha sua língua"),
+        "Reaja com a bandeira de qualquer país e a tradução chega no seu privado. País com várias línguas deixa você escolher a sua.",
+        "",
         "## Tradução em todo lugar",
         arte("recursos", "pt", "Bandeiras, avisos, prints, áudios, glossário e eventos"),
-        "- 🏳️ **Reaja com uma bandeira** — qualquer mensagem, traduzida no privado de quem reagiu.",
+        "- 🏳️ **Reaja com uma bandeira** — qualquer mensagem, em **mais de 100 línguas**, traduzida no privado de quem reagiu. País com várias línguas (🇮🇳 🇪🇸 🇨🇭)? Você escolhe a sua num menu.",
         "- 📢 **Avisos** — você posta uma vez e chega em todas as línguas.",
         "- 🖼️ **Prints** — lê o texto da imagem e traduz.",
         "- 🎧 **Áudios** — transcritos e traduzidos.",
