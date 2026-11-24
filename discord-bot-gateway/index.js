@@ -4803,7 +4803,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
     ? await Promise.all([perfilGuardado(msg.author.id).catch(() => null), tituloDaPessoa(msg.author.id).catch(() => null)])
     : [null, null];
   const corDoCartao = meuPerfil?.estilo?.sala_cor ? parseInt(corPorId(meuPerfil.estilo.sala_cor).c2.slice(1), 16) : cor;
-  const enfeiteDoNome = meuPerfil?.estilo?.sala_emoji ? ` ${meuPerfil.estilo.sala_emoji}` : "";
+
   /* O nome do link no pé do cartão, se a pessoa escolheu um (o do topo
      continua o verdadeiro). */
   const nomeDoLink = meuPerfil?.estilo?.sala_assinatura || assinatura;
@@ -4929,7 +4929,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       ...(midiaLink && !video ? { image: { url: midiaLink } }
         : (emojisEmbaixo ? { image: { url: emojisEmbaixo.url } } : {})),
       description: `${(corpoDoCartao || (figurinha ? `🎨 ${figurinha.nome}` : "")).slice(0, LIMITE_DO_CARTAO)}` +
-        `\n-# [${nomeDoLink}${enfeiteDoNome}](https://discord.com/users/${msg.author.id})` +
+        `\n-# [${nomeDoLink}](https://discord.com/users/${msg.author.id})${enfeiteDoNome(meuPerfil?.estilo?.sala_emoji, salaDestino)}` +
         (selo ? ` · ${selo}` : "") + creditoDaCyron(selo),
     });
 
@@ -5008,7 +5008,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
         /* O título vem no cartão novo, e numa sala só de meia em meia hora
            por pessoa (vezDoTitulo): visto, sem encher a conversa. */
         ...(meuTitulo && vezDoTitulo(destino.canal_id, msg.author.id)
-          ? [botaoDoTitulo(meuTitulo, msg.author.id, await nomeDoTitulo(meuTitulo, le, msg.guild?.id))] : []),
+          ? [botaoDoTitulo(meuTitulo, msg.author.id, await nomeDoTitulo(meuTitulo, le, msg.guild?.id), salaDeixaEmojiDeFora(salaDestino))] : []),
       ];
       const comBotao = botoes.length > 0;
       if (comBotao) carga.components = [{ type: 1, components: botoes }];
@@ -12891,10 +12891,31 @@ function vezDoTitulo(canalId, userId, agora = Date.now(), mostrados = TITULO_MOS
   return true;
 }
 
-/* O emoji do título: o animado da CYRON, ou o comum de reserva. */
-function emojiDoTitulo(t) {
-  const e = EMOJIS_DA_CYRON.get(`tt_${t.id}`);
+/* O emoji do título: o animado da CYRON, ou o comum de reserva.
+
+   Nas mensagens que a CYRON repassa (webhook), o Discord só desenha emoji
+   de FORA -- e os do aplicativo contam como de fora -- se a sala deixar o
+   @everyone usar emojis externos. Sem isso, o animado sairia como
+   ":tt_lenda:" escrito (foi o ":heheboy:" do print do dono). Então quem
+   decide é a sala: deixa, vai o animado; não deixa, vai o comum. */
+function salaDeixaEmojiDeFora(sala) {
+  try { return !!sala?.permissionsFor?.(sala.guild.roles.everyone)?.has(PermissionFlagsBits.UseExternalEmojis); }
+  catch { return false; }
+}
+function emojiDoTitulo(t, animado = true) {
+  const e = animado ? EMOJIS_DA_CYRON.get(`tt_${t.id}`) : null;
   return e ? { id: e.id, name: e.name, animated: !!e.animated } : { name: t.emoji };
+}
+
+/* O enfeite depois do nome no pé do cartão: o emoji comum, ou o animado de
+   um título ("tt:<id>") -- o animado só onde a sala deixa (ver acima). Fora
+   do link, porque emoji dentro do texto de um link o Discord não desenha. */
+function enfeiteDoNome(valor, sala) {
+  if (!valor) return "";
+  if (!String(valor).startsWith("tt:")) return ` ${valor}`;
+  const t = TITULOS_DO_ESTUDIO.find((x) => x.id === String(valor).slice(3));
+  if (!t) return "";
+  return ` ${salaDeixaEmojiDeFora(sala) ? emojiDoTituloNoTexto(t) : t.emoji}`;
 }
 function emojiDoTituloNoTexto(t) {
   const e = EMOJIS_DA_CYRON.get(`tt_${t.id}`);
@@ -12902,8 +12923,9 @@ function emojiDoTituloNoTexto(t) {
 }
 
 /* Pura. O botão embaixo da fala. */
-function botaoDoTitulo(t, userId, rotulo) {
-  return { type: 2, style: 2, custom_id: `titulo:${userId}:${t.id}`, label: String(rotulo || t.pt).slice(0, 80), emoji: emojiDoTitulo(t) };
+function botaoDoTitulo(t, userId, rotulo, animado = true) {
+  return { type: 2, style: 2, custom_id: `titulo:${userId}:${t.id}`, label: String(rotulo || t.pt).slice(0, 80),
+    emoji: emojiDoTitulo(t, animado) };
 }
 
 /* Os nomes e os "como conseguir", na língua de quem lê: pt e en prontos,

@@ -47,6 +47,7 @@ Object.assign(globalThis, { estiloDoEstudio: ESTUDIO.estiloValido, corPorId: EST
 /* O espelho pergunta se o Estúdio está liberado no servidor (os títulos).
    Nos testes do espelho, não está -- quem testa os títulos troca isto. */
 globalThis.estudioLiberadoEm = async () => false;
+globalThis.enfeiteDoNome = () => "";
 globalThis.CATEGORIAS = CATEGORIAS;
 globalThis.RECURSOS = RECURSOS;
 /* A agenda e' origem por conta propria; varias funcoes do painel a deixam de fora. */
@@ -2843,7 +2844,8 @@ function conferirCartao(onde, embed, componentes = []) {
       const emojisAntes = globalThis.EMOJIS_DA_CYRON;
       globalThis.EMOJIS_DA_CYRON = new Map([["tt_lenda", { id: "999", name: "tt_lenda_abc123", animated: true }]]);
       Object.assign(globalThis, { LINK_DO_VOTO: E.LINK_DO_VOTO });
-      const TT = carregar(["TITULO_A_CADA", "TITULO_MOSTRADO", "vezDoTitulo", "emojiDoTitulo", "emojiDoTituloNoTexto", "botaoDoTitulo",
+      const TT = carregar(["TITULO_A_CADA", "TITULO_MOSTRADO", "vezDoTitulo", "salaDeixaEmojiDeFora", "emojiDoTitulo", "emojiDoTituloNoTexto",
+        "enfeiteDoNome", "botaoDoTitulo",
         "TEXTOS_DOS_TITULOS", "TEXTOS_DOS_TITULOS_EN", "cartaoDoTitulo"]);
       const vistos = new Map();
       ok("o título aparece na primeira fala da sala e de novo só depois de meia hora",
@@ -2854,6 +2856,16 @@ function conferirCartao(onde, embed, componentes = []) {
       ok("o botão leva a pessoa e o título, com o emoji animado da CYRON", [bt.custom_id, bt.label, bt.emoji],
         ["titulo:123456:lenda", "Leyenda", { id: "999", name: "tt_lenda_abc123", animated: true }]);
       ok("sem o emoji subido, vai o comum", TT.botaoDoTitulo(ESTUDIO.TITULOS[0], "1", "x").emoji, { name: "💜" });
+      /* Sala que não deixa o @everyone usar emoji de fora: o animado sairia
+         escrito (":tt_lenda:"), então vai o comum. */
+      const sala = (pode) => ({ guild: { roles: { everyone: {} } }, permissionsFor: () => ({ has: () => pode }) });
+      ok("a sala decide: deixa emoji de fora ou não", [TT.salaDeixaEmojiDeFora(sala(true)), TT.salaDeixaEmojiDeFora(sala(false)),
+        TT.salaDeixaEmojiDeFora(null)], [true, false, false]);
+      ok("o botão sem o animado onde a sala não deixa", TT.botaoDoTitulo(lenda, "1", "x", false).emoji, { name: "👑" });
+      ok("o enfeite animado no nome: o da CYRON onde pode, o comum onde não pode, e o comum de sempre",
+        [TT.enfeiteDoNome("tt:lenda", sala(true)), TT.enfeiteDoNome("tt:lenda", sala(false)), TT.enfeiteDoNome("✨", sala(false)),
+          TT.enfeiteDoNome("", sala(true)), TT.enfeiteDoNome("tt:sumiu", sala(true))],
+        [" <a:tt_lenda_abc123:999>", " 👑", " ✨", "", ""]);
       const c = TT.cartaoDoTitulo(lenda, TT.TEXTOS_DOS_TITULOS, { membro: { displayName: "Tiago", displayAvatarURL: () => "https://x/t.png" },
         feitos: { votos: 12, vitorias: 3 }, conquistados: ["apoiador", "lenda"], eu: true, guildId: "g1", comEstudio: true });
       const em = c.embeds[0];
@@ -2872,15 +2884,18 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("e a esteira dos do Kingshot não pega os dos títulos", ks(`${aqui}/img/titulos/`, readFileSync, readdirSync).length === 0);
     verdade("o espelho põe a cor, o enfeite e o título só onde o Estúdio está liberado",
       /const comEstudioAqui = msg\.author \? await estudioLiberadoEm\(msg\.guild\)/.test(fonte) &&
-      /color: corDoCartao,/.test(fonte) && /\[\$\{nomeDoLink\}\$\{enfeiteDoNome\}\]/.test(fonte) &&
+      /color: corDoCartao,/.test(fonte) && /enfeiteDoNome\(meuPerfil\?\.estilo\?\.sala_emoji, salaDestino\)/.test(fonte) &&
       /meuTitulo && vezDoTitulo\(destino\.canal_id, msg\.author\.id\)/.test(fonte));
     ok("o nome do link do cartão: sem colchete, menção, link nem passar de 32",
       ESTUDIO.limparAssinatura("Rei [do] Urso (oficial) <@1> https://x.y e mais um pouco de texto"), "Rei do Urso oficial 1 e mais um ");
+    ok("o enfeite animado é de quem conquistou o título", [ESTUDIO.estiloValido({ sala_emoji: "tt:lenda" }, 12, ["apoiador", "lenda"]).sala_emoji,
+      ESTUDIO.estiloValido({ sala_emoji: "tt:duelista" }, 12, ["apoiador", "lenda"]).sala_emoji], ["tt:lenda", ""]);
     ok("e só com voto", [ESTUDIO.estiloValido({ sala_assinatura: "Rei do Urso" }, 0).sala_assinatura,
       ESTUDIO.estiloValido({ sala_assinatura: "Rei do Urso" }, 1).sala_assinatura], ["", "Rei do Urso"]);
     verdade("o espelho usa o nome escolhido no link, e o do topo continua o verdadeiro",
       /const nomeDoLink = meuPerfil\?\.estilo\?\.sala_assinatura \|\| assinatura;/.test(fonte) &&
-      /\[\$\{nomeDoLink\}\$\{enfeiteDoNome\}\]\(https:\/\/discord\.com\/users\//.test(fonte) && /username: nome,/.test(fonte));
+      /\[\$\{nomeDoLink\}\]\(https:\/\/discord\.com\/users\/\$\{msg\.author\.id\}\)\$\{enfeiteDoNome\(meuPerfil\?\.estilo\?\.sala_emoji, salaDestino\)\}/.test(fonte) &&
+      /username: nome,/.test(fonte));
     verdade("o botão do título é atendido", /customId\.startsWith\("titulo:"\)\) return await cliqueTitulo/.test(fonte));
     verdade("a bandeira conta a língua para o Poliglota, só onde o Estúdio está liberado", /if \(comEstudio\) anotarLingua\(quem\.id, idioma\)/.test(fonte));
     const mig25 = readFileSync(`${aqui}/../supabase/migracoes/025-titulos.sql`, "utf8");
