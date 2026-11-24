@@ -4802,9 +4802,11 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
      era poder editar esse card" -- o cartão que chega nas outras salas.
      Perguntado uma vez por fala, não uma por sala. */
   const comEstudioAqui = msg.author ? await estudioLiberadoEm(msg.guild).catch(() => false) : false;
-  const [meuPerfil, meuTitulo] = comEstudioAqui
-    ? await Promise.all([perfilGuardado(msg.author.id).catch(() => null), tituloDaPessoa(msg.author.id).catch(() => null)])
-    : [null, null];
+  /* Perfil e título numa ida só, conferidos com os títulos ganhos (é o que
+     deixa passar o enfeite animado de um título; ver estudioDaPessoa). */
+  const daPessoa = comEstudioAqui ? await estudioDaPessoa(msg.author.id).catch(() => null) : null;
+  const meuPerfil = daPessoa?.perfil || null;
+  const meuTitulo = daPessoa?.titulo || null;
   const corDoCartao = meuPerfil?.estilo?.sala_cor ? parseInt(corPorId(meuPerfil.estilo.sala_cor).c2.slice(1), 16) : cor;
 
   /* O nome do link no pé do cartão, se a pessoa escolheu um (o do topo
@@ -12874,11 +12876,22 @@ const TITULO_NA_MEMORIA = new Map(); // pessoa -> { t, v }
 /* O título que a pessoa escolheu e que ela de fato ganhou (null se nenhum).
    Um minuto de memória: numa conversa animada, a mesma pessoa fala muito. */
 async function tituloDaPessoa(userId) {
+  return (await estudioDaPessoa(userId)).titulo;
+}
+
+/* O estilo inteiro da pessoa conferido COM os títulos que ela ganhou, e o
+   título. O perfilGuardado confere só pelos votos -- e aí o enfeite animado
+   de um título ("tt:apoiador") caía no padrão: o dono (24/11), com o 💜
+   animado escolhido no site, "no site tá selecionado, mas no canal não vai".
+   Meio minuto de memória, como o perfilGuardado: quem salva no Estúdio vê
+   logo. */
+async function estudioDaPessoa(userId) {
   const lembrado = TITULO_NA_MEMORIA.get(userId);
-  if (lembrado && Date.now() - lembrado.t < 60000) return lembrado.v;
+  if (lembrado && Date.now() - lembrado.t < 30000) return lembrado.v;
   const [perfil, feitos] = await Promise.all([perfilGuardado(userId), rpc("cyron_conquistas", { p_user: userId }).catch(() => null)]);
-  const id = feitos ? estiloDoEstudio(perfil.bruto, perfil.votos, titulosConquistados(feitos)).titulo : "";
-  const v = TITULOS_DO_ESTUDIO.find((t) => t.id === id) || null;
+  const estilo = feitos ? estiloDoEstudio(perfil.bruto, perfil.votos, titulosConquistados(feitos)) : perfil.estilo;
+  const titulo = feitos ? TITULOS_DO_ESTUDIO.find((t) => t.id === estilo.titulo) || null : null;
+  const v = { perfil: { ...perfil, estilo }, titulo };
   TITULO_NA_MEMORIA.set(userId, { t: Date.now(), v });
   while (TITULO_NA_MEMORIA.size > 3000) TITULO_NA_MEMORIA.delete(TITULO_NA_MEMORIA.keys().next().value);
   return v;
