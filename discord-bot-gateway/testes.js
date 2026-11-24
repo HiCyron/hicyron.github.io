@@ -2866,7 +2866,9 @@ function conferirCartao(onde, embed, componentes = []) {
         feitos: { votos: 12, vitorias: 3 }, conquistados: ["apoiador", "lenda"], eu: true, guildId: "g1", comEstudio: true });
       const em = c.embeds[0];
       verdade("o cartão do título: quem é, como conseguir e os números",
-        em.author.name === "Tiago" && em.description.includes("**Como conseguir:** Liberar os 12 heróis") && /🗳️ \*\*12\*\* votos/.test(em.description));
+        em.author.name === "Tiago" && em.description.includes("**Como conseguir:** Liberar os 12 heróis") && /💜 \*\*12\*\* votos/.test(em.description));
+      verdade("o título e os números com os emojis dos títulos (o animado onde já subiu)",
+        em.title === "<a:tt_lenda_abc123:999> Lenda" && /⚔️ \*\*3\*\* vitórias/.test(em.description) && /🔥 \*\*0\*\* dias seguidos/.test(em.description));
       verdade("os títulos que a pessoa tem, com o emoji animado", em.description.includes("💜 <a:tt_lenda_abc123:999>"));
       verdade("e o emoji grande no canto", /emojis\/999\.gif/.test(em.thumbnail.url));
       ok("votar e, onde o Estúdio está liberado, personalizar", c.components[0].components.map((b) => b.url || b.custom_id), [E.LINK_DO_VOTO, "perfil:estilo:g1"]);
