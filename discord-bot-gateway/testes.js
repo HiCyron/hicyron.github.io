@@ -15245,6 +15245,17 @@ function conferirCartao(onde, embed, componentes = []) {
   verdade("nenhum botão de voto aponta para o discordbotlist", !/discordbotlist\.com\/bots\/[^"`]*\/upvote/.test(idx));
 }
 
+/* ====== 🎧 o status da CYRON: "Ouvindo ..." ====== */
+{
+  const S = carregar(["MUSICAS_DA_CYRON", "statusDaCyron"]);
+  ok("o status é \"Ouvindo\" e troca de música", [0, 1, 2, 3].map((v) => [S.statusDaCyron(v, 12).type, S.statusDaCyron(v, 12).name]),
+    [[2, "🎧 lo-fi"], [2, "🎵 Kingshot OST"], [2, "🌐 12 servers"], [2, "🎧 lo-fi"]]);
+  verdade("todo status cabe no Discord (128)", S.MUSICAS_DA_CYRON.every((m) => m.replace("{n}", "99999").length <= 128));
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("o status entra na subida e troca de 10 em 10 minutos",
+    /client\.once\("clientReady", \(\) => \{[^]{0,200}trocarStatus\(\);\s*setInterval\(trocarStatus, STATUS_A_CADA\)/.test(idx));
+}
+
 /* ====== a Visão da CYRON ======
 
    O dono via o bot por um aplicativo de terceiros que pedia o TOKEN -- e
