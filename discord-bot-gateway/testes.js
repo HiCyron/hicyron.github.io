@@ -2603,8 +2603,8 @@ function conferirCartao(onde, embed, componentes = []) {
      sempre) e oferece as outras num menu no mesmo cartão. É por aqui que
      entram as línguas sem bandeira própria (tâmil, catalão, iorubá...). */
   {
-    const { linguasDaBandeira, linhaDaLingua, nomeDoIdioma, cartaoDaBandeira } =
-      carregar(["linguasDaBandeira", "linhaDaLingua", "nomeDoIdioma", "cartaoDaBandeira"]);
+    const { linguasDaBandeira, linhaDaLingua, nomeDoIdioma, cartaoDaBandeira, PALAVRAS_DA_BANDEIRA } =
+      carregar(["linguasDaBandeira", "linhaDaLingua", "nomeDoIdioma", "tituloDaLingua", "PALAVRAS_DA_BANDEIRA", "cartaoDaBandeira"]);
     const bandeiraDe = (pais) => [...pais].map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)).join("");
     const errados = Object.entries(LINGUAS_DO_PAIS)
       .filter(([pais, ls]) => idiomaDaBandeira(bandeiraDe(pais)) !== ls[0] || ls.some((l) => !linhaDaLingua(l)) || ls.length > 25)
@@ -2630,10 +2630,45 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("Índia: o cartão traz o menu das outras línguas", menu?.type === 3 && menu.options.length === 13);
     ok("com o nome que diz servidor, canal, mensagem e quem reagiu", menu?.custom_id, "bandeira:g1:c1:m1:u1");
     verdade("a língua mostrada vem marcada", menu.options.find((o) => o.default)?.value === "hi");
-    verdade("e uma frase curta explicando, nas duas línguas",
-      /mais de uma língua/.test(cartao.embeds[0].description) && /more than one language/.test(cartao.embeds[0].description));
+    verdade("sem as palavras da língua, a frase do menu sai em inglês",
+      /more than one language/.test(cartao.embeds[0].description) && /\[⤴ Back\]/.test(cartao.embeds[0].description));
+    /* O dono (24/11): "a mensagem toda devia vir no idioma". Com as palavras
+       em hindi, nada do cartão fica em português ou inglês. */
+    const hindi = { voltar: "वापस", varias: "इस देश में एक से अधिक भाषाएँ बोली जाती हैं", outra: "दूसरी भाषा", divulga: "अपना सर्वर भी" };
+    const emHindi = cartaoDaBandeira(msg, "hi", "नमस्ते", "", linguasDaBandeira("🇮🇳"), "u1", hindi);
+    const d = emHindi.embeds[0].description;
+    verdade("o cartão inteiro na língua: o voltar e a frase do menu", d.includes("[⤴ वापस]") && d.includes(hindi.varias));
+    verdade("e nada em português ou inglês", !/Voltar|Back|mais de uma língua|more than one language/.test(d));
+    ok("o menu também", emHindi.components[0].components[0].placeholder, "🌐 दूसरी भाषा");
+    ok("e o título com o nome que quem lê usa", emHindi.embeds[0].title, "🇮🇳 हिन्दी");
+    ok("português e inglês vêm prontos, sem tradutor", [PALAVRAS_DA_BANDEIRA.pt.voltar, PALAVRAS_DA_BANDEIRA.en.voltar], ["Voltar", "Back"]);
     const simples = cartaoDaBandeira(msg, "ja", "こんにちは", "", ["ja"], "u1");
-    verdade("país de uma língua: cartão sem menu e sem a frase", !simples.components && !/mais de uma língua/.test(simples.embeds[0].description));
+    verdade("país de uma língua: cartão sem menu e sem a frase", !simples.components && !/more than one language/.test(simples.embeds[0].description));
+
+    /* As palavras das outras línguas saem do inglês pelo tradutor, uma vez
+       por língua (o cache faz o resto); se ele falhar, fica o inglês. */
+    {
+      const antes = { f: globalThis.falaFixa, m: globalThis.MOTOR_AUTO };
+      const pedidos = [];
+      globalThis.MOTOR_AUTO = { tipo: "auto" };
+      globalThis.falaFixa = (idioma, motor, origem) => async (molde) => {
+        pedidos.push([idioma, motor.tipo, origem]);
+        if (molde === "Back") return null; // o tradutor falhou nesta
+        return `[${idioma}] ${molde}`;
+      };
+      const { palavrasDaBandeira } = carregar(["PALAVRAS_DA_BANDEIRA", "palavrasDaBandeira"]);
+      const pt = await palavrasDaBandeira("pt");
+      ok("português não chama o tradutor", [pt.voltar, pedidos.length], ["Voltar", 0]);
+      const ta = await palavrasDaBandeira("ta");
+      verdade("tâmil: traduz do inglês, pelo motor gratuito",
+        pedidos.length === 4 && pedidos.every(([l, m, o]) => l === "ta" && m === "auto" && o === "en"));
+      ok("e a frase que falhou fica em inglês", [ta.voltar, ta.outra], ["Back", "[ta] Another language"]);
+      globalThis.falaFixa = antes.f; globalThis.MOTOR_AUTO = antes.m;
+    }
+    const reacao = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    verdade("a reação e a troca no menu mandam as palavras da língua para o cartão",
+      (reacao.match(/palavrasDaBandeira\((idioma|lingua)\)\]\)/g) || []).length === 2 &&
+      (reacao.match(/quem\.id, palavras\)\)|linguas, dono, palavras\)\)/g) || []).length === 2);
     const fonte2 = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
     verdade("o menu da bandeira é tratado", /inter\.customId\.startsWith\("bandeira:"\)\) return await cliqueBandeiraLingua\(inter\)/.test(fonte2));
     const clique = semComentarios(pedaco("cliqueBandeiraLingua"));

@@ -31,13 +31,23 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+# DUAS ETAPAS, E UMA SEGUNDA TENTATIVA (24/11/2026).
+#
+# Era um trabalho só: subir o pacote e publicar em seguida. Em novembro de
+# 2026, 5 de 6 publicações falharam do mesmo jeito: o pacote subia inteiro
+# ("successfully finalized") e, meio segundo depois, o deploy-pages dizia
+# "Found 0 artifact(s)" -- o GitHub ainda não tinha registrado o pacote. O
+# site ficou um dia inteiro parado sem ninguém ver ("no site não mudou
+# nada", o dono).
+#
+# Agora montar e publicar são trabalhos separados (o modelo oficial do
+# GitHub): o segundo só começa quando o primeiro termina, o que já dá ao
+# registro o tempo que faltava. E se ainda assim não achar, espera 30
+# segundos e tenta de novo antes de desistir.
 jobs:
-  publicar:
+  montar:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,5 +73,22 @@ jobs:
         with:
           path: site
 
+  publicar:
+    needs: montar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy2.outputs.page_url }}
+    steps:
       - id: deploy
+        uses: actions/deploy-pages@v4
+        continue-on-error: true
+
+      - name: o GitHub não achou o pacote; espero e tento de novo
+        if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4

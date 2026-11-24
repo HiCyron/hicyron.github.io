@@ -25940,9 +25940,9 @@ async function cliqueVerNaImagem(inter, buscar = fetch) {
    faz -- e' a melhor hora para saber que ele existe para o servidor DELA. Uma
    linha miuda, no fim, so' em servidor gratis: quem paga nao paga para
    carregar propaganda. */
-function rodapeDeDivulgacao(servidor) {
+function rodapeDeDivulgacao(servidor, frase = "traduza o seu servidor também / translate your server too") {
   if (!servidor || planoDe(servidor) !== "gratis") return "";
-  return `\n-# 🌐 [CYRON](${SITE_DO_CYRON}) · traduza o seu servidor também / translate your server too`;
+  return `\n-# 🌐 [CYRON](${SITE_DO_CYRON}) · ${frase}`;
 }
 
 async function cliqueTraduzirMsg(inter) {
@@ -28282,7 +28282,10 @@ client.on("messageReactionAdd", async (reacao, quem) => {
       return;
     }
 
-    const traduzido = await traduzirLongo(texto, idioma, motorDe(servidor));
+    /* As palavras do cartão vêm junto, em paralelo: na segunda vez em diante
+       elas saem da memória, e na primeira não somam espera à tradução. */
+    const [traduzido, palavras] = await Promise.all([
+      traduzirLongo(texto, idioma, motorDe(servidor)), palavrasDaBandeira(idioma)]);
     if (!traduzido) {
       await entregarNoPrivado(quem, msg.channel, {
         embeds: [{ color: COR, title: "❌ Não deu / Failed",
@@ -28293,7 +28296,8 @@ client.on("messageReactionAdd", async (reacao, quem) => {
     }
 
     const onde = await entregarNoPrivado(quem, msg.channel,
-      cartaoDaBandeira(msg, idioma, traduzido, rodapeDeDivulgacao(servidor), linguasDaBandeira(reacao.emoji?.name), quem.id));
+      cartaoDaBandeira(msg, idioma, traduzido, rodapeDeDivulgacao(servidor, palavras.divulga),
+        linguasDaBandeira(reacao.emoji?.name), quem.id, palavras));
     if (!onde) return; // nem privado nem sala: nao ha o que limpar
     contarUso("bandeira", msg.guild.id);
 
@@ -28315,11 +28319,13 @@ client.on("messageReactionAdd", async (reacao, quem) => {
    consegue situar nem responder.
 
    Pais com mais de uma lingua ganha um menu embaixo, com uma frase curta
-   dizendo o que ele faz -- didatico, nas duas linguas, porque quem reagiu
-   ainda nao escolheu a dele. O menu leva no nome o servidor, o canal, a
+   dizendo o que ele faz. O cartao INTEIRO vem na lingua da traducao -- o
+   nome da lingua, o "voltar", a frase e o menu (ver palavrasDaBandeira). O
+   menu leva no nome o servidor, o canal, a
    mensagem e QUEM reagiu: no privado so' essa pessoa o ve; na sala (privado
    fechado), so' ela consegue usar. */
-function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], quem = "") {
+function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], quem = "", palavras = PALAVRAS_DA_BANDEIRA.en) {
+  const p = { ...PALAVRAS_DA_BANDEIRA.en, ...(palavras || {}) };
   const autor = msg.member?.displayName || msg.author?.username || "";
   const outras = (linguas || []).filter((l) => l !== idioma && linhaDaLingua(l)).slice(0, 25);
   const varias = outras.length > 0;
@@ -28327,16 +28333,15 @@ function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], que
     embeds: [{
       color: COR,
       author: autor ? { name: autor, icon_url: msg.author?.displayAvatarURL?.() } : undefined,
-      title: nomeDoIdioma(idioma),
-      description: String(traduzido || "").slice(0, 3800) + (msg.url ? `\n\n[⤴ Voltar / Back](${msg.url})` : "") +
-        (varias ? "\n\n-# 🌐 Este país fala mais de uma língua: escolha outra no menu · " +
-          "This country speaks more than one language: pick another below" : "") + rodape,
+      title: tituloDaLingua(idioma),
+      description: String(traduzido || "").slice(0, 3800) + (msg.url ? `\n\n[⤴ ${p.voltar}](${msg.url})` : "") +
+        (varias ? `\n\n-# 🌐 ${p.varias}` : "") + rodape,
       footer: { text: `#${msg.channel?.name || ""} · ${msg.guild?.name || ""}` },
     }],
     ...(varias ? { components: [{ type: 1, components: [{
       type: 3,
       custom_id: `bandeira:${msg.guild?.id}:${msg.channel?.id}:${msg.id}:${quem}`.slice(0, 100),
-      placeholder: "🌐 Outra língua · Another language",
+      placeholder: `🌐 ${p.outra}`.slice(0, 150),
       options: [idioma, ...outras].map((l) => {
         const [, nome, sinal, proprio] = linhaDaLingua(l);
         return { label: (proprio && proprio !== nome ? `${proprio} · ${nome}` : nome).slice(0, 100), value: l,
@@ -28367,13 +28372,50 @@ async function cliqueBandeiraLingua(inter) {
     return inter.followUp({ flags: 64, content: "A mensagem original não existe mais. · _The original message is gone._" }).catch(() => {});
   }
   const servidor = await servidorDoGuild(guildId).catch(() => null);
-  const traduzido = await traduzirLongo(texto, lingua, motorDe(servidor));
+  const [traduzido, palavras] = await Promise.all([
+    traduzirLongo(texto, lingua, motorDe(servidor)), palavrasDaBandeira(lingua)]);
   if (!traduzido) {
     return inter.followUp({ flags: 64, content: "❌ Não consegui traduzir agora. · _Could not translate right now._" }).catch(() => {});
   }
   const linguas = (inter.message?.components?.[0]?.components?.[0]?.options || []).map((o) => o.value);
   contarUso("bandeira", guildId);
-  return inter.editReply(cartaoDaBandeira(msg, lingua, traduzido, rodapeDeDivulgacao(servidor), linguas, dono));
+  return inter.editReply(cartaoDaBandeira(msg, lingua, traduzido, rodapeDeDivulgacao(servidor, palavras.divulga),
+    linguas, dono, palavras));
+}
+
+/* AS PALAVRAS DO CARTÃO DA BANDEIRA, NA LÍNGUA DA TRADUÇÃO.
+
+   O dono (24/11), vendo um cartão em hindi com "Voltar / Back" e a dica do
+   menu em português e inglês: "a mensagem toda devia vir no idioma, assim a
+   pessoa vê". Quem reage com 🇮🇳 lê hindi -- não necessariamente português
+   nem inglês --, e a dica do menu existe justamente para essa pessoa.
+
+   Saem do inglês pelo tradutor, como os outros rótulos do bot: uma vez por
+   língua e, dali em diante, da memória e do cache (comoTextoDoBot, sem contar
+   como uso do servidor). Pelo motor gratuito, e não pela chave do cliente:
+   são as mesmas quatro frases para todo servidor, e a chave dele é para as
+   mensagens dele. Português e inglês já vêm prontos. Se o tradutor falhar,
+   aquela frase fica em inglês, que é a segunda língua mais lida. */
+const PALAVRAS_DA_BANDEIRA = {
+  pt: { voltar: "Voltar", varias: "Este país fala mais de uma língua: escolha a sua no menu abaixo.",
+    outra: "Outra língua", divulga: "traduza o seu servidor também" },
+  en: { voltar: "Back", varias: "This country speaks more than one language: pick yours in the menu below.",
+    outra: "Another language", divulga: "translate your server too" },
+};
+
+async function palavrasDaBandeira(idioma) {
+  if (PALAVRAS_DA_BANDEIRA[idioma]) return PALAVRAS_DA_BANDEIRA[idioma];
+  const fala = falaFixa(idioma, MOTOR_AUTO, "en");
+  const pares = await Promise.all(Object.entries(PALAVRAS_DA_BANDEIRA.en)
+    .map(async ([chave, ingles]) => [chave, (await fala(ingles).catch(() => "")) || ingles]));
+  return Object.fromEntries(pares);
+}
+
+/* Pura. O nome da língua como quem lê a chama: "🇮🇳 हिन्दी", e não o nome
+   em português. */
+function tituloDaLingua(cod) {
+  const l = linhaDaLingua(cod);
+  return l ? `${l[2]} ${l[3] || l[1]}` : cod;
 }
 
 /* ---------------- os comandos que aparecem em cada servidor -----------------
