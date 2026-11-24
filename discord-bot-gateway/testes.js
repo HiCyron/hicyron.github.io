@@ -2905,6 +2905,63 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("a função do Estúdio só deixa escolher título ganho", /titulosConquistados\(feitos\)/.test(funcao));
     verdade("a página mostra a mensagem nas salas e os títulos", /id="palco-sala"/.test(pagina) && /id="op-titulo"/.test(pagina) && /img\/titulos\/tt_/.test(pagina));
 
+    {
+      /* 📣 A novidade do Estúdio: o cartão vai só para o ⚙️-cyron, e quem
+         leva aos membros é o ADM (dono, 24/11: "ele escolhe espalhar ou não"). */
+      Object.assign(globalThis, { LINK_DO_VOTO: E.LINK_DO_VOTO });
+      const N = carregar(["NOVIDADE_DO_ESTUDIO", "NOVIDADE_DO_ESTUDIO_EN", "cartaoDaNovidadeAdm", "cartaoDaNovidadeMembros",
+        "AVISOS_VISTOS", "lembrarAvisoVisto", "avisoJaVisto", "marcarAvisoVisto"]);
+      ok("a novidade tem as mesmas frases em português e inglês", Object.keys(N.NOVIDADE_DO_ESTUDIO).sort(),
+        Object.keys(N.NOVIDADE_DO_ESTUDIO_EN).sort());
+      ok("e o lugar do título nas mesmas frases", Object.keys(N.NOVIDADE_DO_ESTUDIO).filter((k) => N.NOVIDADE_DO_ESTUDIO[k].includes("{0}")),
+        Object.keys(N.NOVIDADE_DO_ESTUDIO_EN).filter((k) => N.NOVIDADE_DO_ESTUDIO_EN[k].includes("{0}")));
+      const adm = N.cartaoDaNovidadeAdm(N.NOVIDADE_DO_ESTUDIO, "g1");
+      ok("o cartão do ADM: personalizar o meu e compartilhar com os membros",
+        adm.components[0].components.map((b) => [b.custom_id, b.label, !!b.disabled]),
+        [["perfil:estilo:g1", "Personalizar o meu", false], ["cyron:estudio_compartilhar", "Compartilhar com os membros", false]]);
+      const feito = N.cartaoDaNovidadeAdm(N.NOVIDADE_DO_ESTUDIO, "g1", true).components[0].components[1];
+      ok("depois de compartilhado, o botão vira ✅ e não aceita outro toque", [feito.label, feito.emoji.name, feito.disabled],
+        ["Compartilhado", "✅", true]);
+      verdade("o cartão do ADM não menciona ninguém", JSON.stringify(adm.allowedMentions) === '{"parse":[]}');
+      const mem = N.cartaoDaNovidadeMembros(N.NOVIDADE_DO_ESTUDIO_EN, "g1");
+      ok("o dos membros: personalizar e votar", mem.components[0].components.map((b) => b.custom_id || b.url),
+        ["perfil:estilo:g1", E.LINK_DO_VOTO]);
+      verdade("e diz que libera com voto", mem.embeds[0].description.includes("Unlocked with one vote on top.gg."));
+
+      /* O aviso de uma vez só no privado. */
+      const sbAntes = globalThis.sb, postAntes = globalThis.sbPost;
+      const gravados = [];
+      let banco = [];
+      globalThis.sb = async () => banco;
+      globalThis.sbPost = async (t, c, pr) => { gravados.push([t, c, pr]); };
+      N.AVISOS_VISTOS.clear();
+      ok("quem nunca viu, vê", await N.avisoJaVisto("111", "estudio"), false);
+      N.marcarAvisoVisto("111", "estudio");
+      ok("marcar grava a pessoa e o aviso, sem duplicar", gravados[0], ["cyron_aviso_visto", { user_id: "111", aviso: "estudio" }, "resolution=ignore-duplicates"]);
+      globalThis.sb = async () => { throw new Error("não devia ir ao banco"); };
+      ok("depois de visto, nem vai ao banco", await N.avisoJaVisto("111", "estudio"), true);
+      banco = [{ aviso: "estudio" }];
+      globalThis.sb = async () => banco;
+      ok("visto em outra partida do bot (no banco) também conta", await N.avisoJaVisto("222", "estudio"), true);
+      globalThis.sb = async () => null;
+      ok("banco fora: na dúvida, não mostra", await N.avisoJaVisto("333", "estudio"), true);
+      globalThis.sb = sbAntes; globalThis.sbPost = postAntes;
+
+      ok("a frase da novidade no cartão da bandeira, em português e inglês",
+        [!!E.PALAVRAS_DA_BANDEIRA.pt.novidade, !!E.PALAVRAS_DA_BANDEIRA.en.novidade], [true, true]);
+      verdade("a bandeira mostra a novidade uma vez, e só conta como vista no privado",
+        /const comNovidade = comEstudio && !jaViuANovidade/.test(fonte) &&
+        /if \(comNovidade && onde === "privado"\) marcarAvisoVisto\(quem\.id, "estudio"\)/.test(fonte));
+      verdade("o compartilhar é atendido no painel (só ADM chega lá)",
+        fonte.indexOf('acao === "estudio_compartilhar"') > fonte.indexOf("if (!podeAdministrar(inter))"));
+      verdade("o anúncio aos ADMs roda no relógio, só com o Estúdio aberto e uma vez por servidor",
+        /anunciarEstudioAosAdms\(\)\.catch/.test(fonte) && /String\(a\.estudio_publico \|\| ""\) !== "1"\) return;/.test(fonte) &&
+        /a\[`novidade_estudio:\$\{s\.id\}`\]/.test(fonte));
+      const mig26 = readFileSync(`${aqui}/../supabase/migracoes/026-avisos-vistos.sql`, "utf8");
+      verdade("o banco dos avisos vistos: só id e nome do aviso, fechado ao público",
+        ["create table if not exists cyron_aviso_visto", "primary key (user_id, aviso)", "enable row level security"].every((t) => mig26.includes(t)));
+    }
+
   }
 
   ok("joinha não vira idioma", idiomaDaBandeira("👍"), "");
