@@ -28786,8 +28786,11 @@ function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], que
       title: compacto ? undefined : `${tituloDaLingua(idioma)}${e.cartao_emoji ? ` ${e.cartao_emoji}` : ""}`,
       description: corpo + (msg.url ? `\n\n[⤴ ${p.voltar}](${msg.url})` : "") + doOriginal +
         (varias ? `\n\n-# 🌐 ${p.varias}` : "") + rodape,
-      thumbnail: e.cartao_heroi ? { url: `${SITE_DO_CYRON}img/duelo/${e.cartao_heroi}.jpg` } : undefined,
-      footer: { text: `#${msg.channel?.name || ""} · ${msg.guild?.name || ""}` },
+      /* O herói escolhido vai PEQUENO, no ícone do rodapé: no canto (thumbnail)
+         o Discord desenha 80 px fixos e a figura comia a largura do texto --
+         o dono (24/11): "ocupa muito espaço". */
+      footer: { text: `#${msg.channel?.name || ""} · ${msg.guild?.name || ""}`,
+        ...(e.cartao_heroi ? { icon_url: `${SITE_DO_CYRON}img/duelo/${e.cartao_heroi}.jpg` } : {}) },
     }],
     components: [...(varias ? [{ type: 1, components: [{
       type: 3,

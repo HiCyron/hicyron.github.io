@@ -2734,7 +2734,8 @@ function conferirCartao(onde, embed, componentes = []) {
     const c = E.cartaoDaBandeira(msg, "pt", "Olá a todos\nTudo bem?", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt, enfeitado, "Hello everyone");
     const em = c.embeds[0];
     ok("o cartão sai na cor escolhida", em.color, 0xE0457B);
-    verdade("com o enfeite no título e o herói no canto", / 🐻$/.test(em.title) && /img\/duelo\/alexandre\.jpg$/.test(em.thumbnail?.url || ""));
+    verdade("com o enfeite no título e o herói pequeno no rodapé (e não no canto, que ocupa muito)",
+      / 🐻$/.test(em.title) && /img\/duelo\/alexandre\.jpg$/.test(em.footer?.icon_url || "") && !em.thumbnail);
     verdade("letra grande: cada linha vira título", /^### Olá a todos\n### Tudo bem\?/.test(em.description));
     verdade("e o original embaixo, em letra pequena", em.description.includes("-# 💬 Hello everyone"));
     ok("o 🎨 leva o servidor da mensagem", c.components.at(-1).components[0].custom_id, "perfil:estilo:g1");
@@ -2743,7 +2744,7 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("compacto: sem autor e sem título, mas com o voltar", !compacto.author && !compacto.title && /⤴ Voltar/.test(compacto.description));
     const normal = E.cartaoDaBandeira(msg, "pt", "Oi", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt, null, "Hi");
     verdade("Estúdio fora do servidor (sem estilo): o laranja de sempre, sem 🎨 e sem figura",
-      normal.embeds[0].color === 0xF5A623 && !normal.components.length && !normal.embeds[0].thumbnail);
+      normal.embeds[0].color === 0xF5A623 && !normal.components.length && !normal.embeds[0].footer.icon_url);
     const padrao = E.cartaoDaBandeira(msg, "pt", "Oi", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt, ESTUDIO.PADRAO, "Hi");
     verdade("com o Estúdio e o estilo padrão: o mesmo laranja, agora com o 🎨", padrao.embeds[0].color === 0xF5A623 && padrao.components.length === 1);
 
