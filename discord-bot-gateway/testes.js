@@ -42,7 +42,11 @@ import { pagina as paginaDeRecursos, DESTINO as HTML_RECURSOS } from "./fazer-re
    catálogo. O index.js importa com outros nomes; aqui entram os mesmos. */
 import * as ESTUDIO from "./estudio-regras.js";
 Object.assign(globalThis, { estiloDoEstudio: ESTUDIO.estiloValido, corPorId: ESTUDIO.corPorId,
-  liberadosDoEstudio: ESTUDIO.liberados, HEROIS_DO_ESTUDIO: ESTUDIO.HEROIS, PADRAO_DO_ESTUDIO: ESTUDIO.PADRAO });
+  liberadosDoEstudio: ESTUDIO.liberados, HEROIS_DO_ESTUDIO: ESTUDIO.HEROIS, PADRAO_DO_ESTUDIO: ESTUDIO.PADRAO,
+  TITULOS_DO_ESTUDIO: ESTUDIO.TITULOS, titulosConquistados: ESTUDIO.titulosConquistados });
+/* O espelho pergunta se o Estúdio está liberado no servidor (os títulos).
+   Nos testes do espelho, não está -- quem testa os títulos troca isto. */
+globalThis.estudioLiberadoEm = async () => false;
 globalThis.CATEGORIAS = CATEGORIAS;
 globalThis.RECURSOS = RECURSOS;
 /* A agenda e' origem por conta propria; varias funcoes do painel a deixam de fora. */
@@ -2815,10 +2819,69 @@ function conferirCartao(onde, embed, componentes = []) {
         "function cyron_contar_voto", "revoke all on function cyron_contar_voto"].every((t) => mig.includes(t)));
     const funcao = readFileSync(`${aqui}/../supabase/functions/cyron-estudio/index.ts`, "utf8");
     verdade("quem salva confere com os votos do banco, e não com o que o navegador manda",
-      /import \{ estiloValido \} from "\.\/regras\.js"/.test(funcao) && /estiloValido\(corpo\.estilo, votos\)/.test(funcao));
+      /import \{ estiloValido, titulosConquistados \} from "\.\/regras\.js"/.test(funcao) && /estiloValido\(corpo\.estilo, votos, titulos\)/.test(funcao));
     const pagina = readFileSync(`${aqui}/../cyron/estudio.html`, "utf8");
     verdade("a página tira o link da barra de endereço e não entra no Google",
       /history\.replaceState/.test(pagina) && /name="robots" content="noindex"/.test(pagina));
+    /* 🏷️ Os títulos e a mensagem nas salas do jeito da pessoa. */
+    ok("os títulos se ganham jogando", [ESTUDIO.titulosConquistados({}), ESTUDIO.titulosConquistados({ votos: 1 }),
+      ESTUDIO.titulosConquistados({ votos: 12, vitorias: 10, linguas: 5, sequencia: 30 })],
+      [[], ["apoiador"], ["apoiador", "duelista", "poliglota", "sequencia", "lenda"]]);
+    ok("título que a pessoa não ganhou não fica escolhido", [ESTUDIO.estiloValido({ titulo: "lenda" }, 3, ["apoiador"]).titulo,
+      ESTUDIO.estiloValido({ titulo: "apoiador" }, 3, ["apoiador"]).titulo], ["", "apoiador"]);
+    ok("sem voto, a mensagem nas salas fica na cor automática e sem enfeite",
+      [ESTUDIO.estiloValido({ sala_cor: "rosa", sala_emoji: "✨" }, 0).sala_cor, ESTUDIO.estiloValido({ sala_cor: "rosa", sala_emoji: "✨" }, 0).sala_emoji], ["", ""]);
+    ok("com voto, a cor e o enfeite valem", [ESTUDIO.estiloValido({ sala_cor: "rosa", sala_emoji: "✨" }, 1).sala_cor,
+      ESTUDIO.estiloValido({ sala_cor: "rosa", sala_emoji: "✨" }, 1).sala_emoji], ["rosa", "✨"]);
+    const semEmoji = ESTUDIO.TITULOS.filter((t) => !existsSync(`${aqui}/img/titulos/tt_${t.id}.gif`) || !existsSync(`${aqui}/../cyron/img/titulos/tt_${t.id}.gif`));
+    ok("todo título tem o emoji animado no bot e no site", semEmoji.map((t) => t.id), []);
+    const grandes = ESTUDIO.TITULOS.filter((t) => statSync(`${aqui}/img/titulos/tt_${t.id}.gif`).size > 256 * 1024);
+    ok("e cabe no limite de emoji do Discord (256 KB)", grandes.map((t) => t.id), []);
+
+    {
+      const emojisAntes = globalThis.EMOJIS_DA_CYRON;
+      globalThis.EMOJIS_DA_CYRON = new Map([["tt_lenda", { id: "999", name: "tt_lenda_abc123", animated: true }]]);
+      Object.assign(globalThis, { LINK_DO_VOTO: E.LINK_DO_VOTO });
+      const TT = carregar(["TITULO_A_CADA", "TITULO_MOSTRADO", "vezDoTitulo", "emojiDoTitulo", "emojiDoTituloNoTexto", "botaoDoTitulo",
+        "TEXTOS_DOS_TITULOS", "TEXTOS_DOS_TITULOS_EN", "cartaoDoTitulo"]);
+      const vistos = new Map();
+      ok("o título aparece na primeira fala da sala e de novo só depois de meia hora",
+        [TT.vezDoTitulo("c1", "u1", 0, vistos), TT.vezDoTitulo("c1", "u1", 60000, vistos), TT.vezDoTitulo("c2", "u1", 60000, vistos),
+          TT.vezDoTitulo("c1", "u1", 31 * 60000, vistos)], [true, false, true, true]);
+      const lenda = ESTUDIO.TITULOS.find((t) => t.id === "lenda");
+      const bt = TT.botaoDoTitulo(lenda, "123456", "Leyenda");
+      ok("o botão leva a pessoa e o título, com o emoji animado da CYRON", [bt.custom_id, bt.label, bt.emoji],
+        ["titulo:123456:lenda", "Leyenda", { id: "999", name: "tt_lenda_abc123", animated: true }]);
+      ok("sem o emoji subido, vai o comum", TT.botaoDoTitulo(ESTUDIO.TITULOS[0], "1", "x").emoji, { name: "💜" });
+      const c = TT.cartaoDoTitulo(lenda, TT.TEXTOS_DOS_TITULOS, { membro: { displayName: "Tiago", displayAvatarURL: () => "https://x/t.png" },
+        feitos: { votos: 12, vitorias: 3 }, conquistados: ["apoiador", "lenda"], eu: true, guildId: "g1", comEstudio: true });
+      const em = c.embeds[0];
+      verdade("o cartão do título: quem é, como conseguir e os números",
+        em.author.name === "Tiago" && em.description.includes("**Como conseguir:** Liberar os 12 heróis") && /🗳️ \*\*12\*\* votos/.test(em.description));
+      verdade("os títulos que a pessoa tem, com o emoji animado", em.description.includes("💜 <a:tt_lenda_abc123:999>"));
+      verdade("e o emoji grande no canto", /emojis\/999\.gif/.test(em.thumbnail.url));
+      ok("votar e, onde o Estúdio está liberado, personalizar", c.components[0].components.map((b) => b.url || b.custom_id), [E.LINK_DO_VOTO, "perfil:estilo:g1"]);
+      globalThis.EMOJIS_DA_CYRON = emojisAntes;
+    }
+    globalThis.createHash = globalThis.createHash || (await import("node:crypto")).createHash;
+    const ks = carregar(["emojisDoKingshot"]).emojisDoKingshot;
+    const tt = ks(`${aqui}/img/titulos/`, readFileSync, readdirSync, "tt");
+    verdade("os emojis dos títulos sobem pela mesma esteira, com prefixo próprio",
+      tt.length === ESTUDIO.TITULOS.length && tt.every((e) => /^tt_[a-z]+_[0-9a-f]{6}$/.test(e.nome) && /^data:image\/gif;base64,/.test(e.imagem())));
+    verdade("e a esteira dos do Kingshot não pega os dos títulos", ks(`${aqui}/img/titulos/`, readFileSync, readdirSync).length === 0);
+    verdade("o espelho põe a cor, o enfeite e o título só onde o Estúdio está liberado",
+      /const comEstudioAqui = msg\.author \? await estudioLiberadoEm\(msg\.guild\)/.test(fonte) &&
+      /color: corDoCartao,/.test(fonte) && /\[\$\{assinatura\}\$\{enfeiteDoNome\}\]/.test(fonte) &&
+      /meuTitulo && vezDoTitulo\(destino\.canal_id, msg\.author\.id\)/.test(fonte));
+    verdade("o botão do título é atendido", /customId\.startsWith\("titulo:"\)\) return await cliqueTitulo/.test(fonte));
+    verdade("a bandeira conta a língua para o Poliglota, só onde o Estúdio está liberado", /if \(comEstudio\) anotarLingua\(quem\.id, idioma\)/.test(fonte));
+    const mig25 = readFileSync(`${aqui}/../supabase/migracoes/025-titulos.sql`, "utf8");
+    verdade("o banco dos títulos: as línguas e a conta do que a pessoa fez, fechados ao público",
+      ["add column if not exists linguas", "function cyron_anotar_lingua", "function cyron_conquistas",
+        "revoke all on function cyron_conquistas"].every((t) => mig25.includes(t)));
+    verdade("a função do Estúdio só deixa escolher título ganho", /titulosConquistados\(feitos\)/.test(funcao));
+    verdade("a página mostra a mensagem nas salas e os títulos", /id="palco-sala"/.test(pagina) && /id="op-titulo"/.test(pagina) && /img\/titulos\/tt_/.test(pagina));
+
   }
 
   ok("joinha não vira idioma", idiomaDaBandeira("👍"), "");

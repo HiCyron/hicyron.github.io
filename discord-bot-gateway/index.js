@@ -23,7 +23,7 @@ import { LOCAIS_DO_DISCORD, DESCRICOES_DOS_COMANDOS, ESCOLHAS_DOS_COMANDOS, NOME
   DESCRICOES_DA_AJUDA } from "./comandos-linguas.js";
 import { PERSONAGENS, ESPACOS, EFEITOS, NIVEIS_DO_PERSONAGEM } from "./duelo-elenco.js";
 import { estiloValido as estiloDoEstudio, corPorId, liberados as liberadosDoEstudio, HEROIS as HEROIS_DO_ESTUDIO,
-  PADRAO as PADRAO_DO_ESTUDIO } from "./estudio-regras.js";
+  PADRAO as PADRAO_DO_ESTUDIO, TITULOS as TITULOS_DO_ESTUDIO, titulosConquistados } from "./estudio-regras.js";
 import { FIGURINHAS, sugestoesDeFigurinha, acharFigurinha } from "./figurinhas.js";
 import { FIGURINHAS_DO_DISCORD } from "./figurinhas-do-discord.js";
 /* O que e' so' da alianca [TOP]: fica fora daqui para nao se misturar com o
@@ -4793,6 +4793,17 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
   /* As falas que chegaram na sala 🌍 nesta passada: o topico delas e'
      pendurado depois do laco, para nao atrasar a entrega nas outras salas. */
   const paraOTopico = [];
+  /* 🎨 A MENSAGEM NAS SALAS DO JEITO DA PESSOA (só onde o Estúdio está
+     liberado): a cor da barra que ela escolheu no lugar da automática, um
+     enfeite depois do nome e o 🏷️ título embaixo. O dono (24/11): "a ideia
+     era poder editar esse card" -- o cartão que chega nas outras salas.
+     Perguntado uma vez por fala, não uma por sala. */
+  const comEstudioAqui = msg.author ? await estudioLiberadoEm(msg.guild).catch(() => false) : false;
+  const [meuPerfil, meuTitulo] = comEstudioAqui
+    ? await Promise.all([perfilGuardado(msg.author.id).catch(() => null), tituloDaPessoa(msg.author.id).catch(() => null)])
+    : [null, null];
+  const corDoCartao = meuPerfil?.estilo?.sala_cor ? parseInt(corPorId(meuPerfil.estilo.sala_cor).c2.slice(1), 16) : cor;
+  const enfeiteDoNome = meuPerfil?.estilo?.sala_emoji ? ` ${meuPerfil.estilo.sala_emoji}` : "";
 
   for (const destino of lista) {
     if (destino.canal_id === origem.canal_id) continue;
@@ -4896,7 +4907,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
        assinatura existe justamente pra ser tocada. */
     const selo = seloDeOrigem(idiomaQueEscreve(origem), le, traduziuAqui === true);
     const montar = (corpoDoCartao, cabecalhoDoCartao) => ({
-      color: cor,
+      color: corDoCartao,
       ...(cabecalhoDoCartao ? { author: cabecalhoDoCartao } : {}),
       /* A figurinha vai PEQUENA, no canto do cartao (thumbnail, ~80 px), ao
          lado da fala -- como a CYRON no lembrete do evento. Como IMAGEM ela
@@ -4915,7 +4926,7 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       ...(midiaLink && !video ? { image: { url: midiaLink } }
         : (emojisEmbaixo ? { image: { url: emojisEmbaixo.url } } : {})),
       description: `${(corpoDoCartao || (figurinha ? `🎨 ${figurinha.nome}` : "")).slice(0, LIMITE_DO_CARTAO)}` +
-        `\n-# [${assinatura}](https://discord.com/users/${msg.author.id})` +
+        `\n-# [${assinatura}${enfeiteDoNome}](https://discord.com/users/${msg.author.id})` +
         (selo ? ` · ${selo}` : "") + creditoDaCyron(selo),
     });
 
@@ -4991,6 +5002,10 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       const botoes = [
         ...(visaoDoDono && arquivos.some(ehImagemAnexo) ? botaoDeLerImagem(le)[0].components : []),
         ...(falaDoDono && arquivos.some(ehAudioAnexo) ? botaoDeOuvir(le, idiomaQueEscreve(origem))[0].components : []),
+        /* O título vem no cartão novo, e numa sala só de meia em meia hora
+           por pessoa (vezDoTitulo): visto, sem encher a conversa. */
+        ...(meuTitulo && vezDoTitulo(destino.canal_id, msg.author.id)
+          ? [botaoDoTitulo(meuTitulo, msg.author.id, await nomeDoTitulo(meuTitulo, le, msg.guild?.id))] : []),
       ];
       const comBotao = botoes.length > 0;
       if (comBotao) carga.components = [{ type: 1, components: botoes }];
@@ -12649,7 +12664,7 @@ async function perfilGuardado(userId) {
   if (lembrado && Date.now() - lembrado.t < 30000) return lembrado.v;
   const r = await sb(`cyron_perfil?user_id=eq.${userId}&select=votos,voto_em,estilo`).catch(() => null);
   const votos = Math.max(0, Number(r?.[0]?.votos) || 0);
-  const v = { votos, votoEm: r?.[0]?.voto_em || null, estilo: estiloDoEstudio(r?.[0]?.estilo, votos) };
+  const v = { votos, votoEm: r?.[0]?.voto_em || null, estilo: estiloDoEstudio(r?.[0]?.estilo, votos), bruto: r?.[0]?.estilo || {} };
   /* Só guarda o que veio do banco: uma falha de rede não pode virar meio
      minuto de perfil sem estilo. */
   if (r) {
@@ -12828,6 +12843,142 @@ async function cliqueJaVotei(inter) {
     }
   }
   return inter.editReply(painelDoEstudio(t, perfil, link, aviso));
+}
+
+/* 🏷️ OS TÍTULOS NAS SALAS.
+
+   O dono (24/11): "e se a mensagem for com botões simulando os títulos?
+   (emoji exclusivo) + Apoiador, aí as pessoas apertam e aparece algo legal,
+   tipo como conseguir ou algo sobre o membro". E: "no momento não deixa
+   público, preciso testar antes" -- então só onde o Estúdio está liberado
+   (painel e [TOP]).
+
+   O botão vem embaixo do cartão da fala nas OUTRAS salas (a mensagem da
+   própria pessoa é dela, e não leva botão). Uma vez por sala a cada meia
+   hora por pessoa: o título é visto sem encher a conversa. Quem toca vê,
+   só para si, o cartão da pessoa e como conseguir o título.
+
+   Quais títulos existem e como se ganha cada um: TITULOS, em
+   estudio-regras.js. O emoji animado de cada um sobe como emoji do próprio
+   aplicativo (img/titulos/tt_<id>.gif); sem ele, vai o emoji comum. */
+const TITULO_A_CADA = 30 * 60 * 1000;
+const TITULO_MOSTRADO = new Map(); // `${canal}:${pessoa}` -> quando apareceu
+const TITULO_NA_MEMORIA = new Map(); // pessoa -> { t, v }
+
+/* O título que a pessoa escolheu e que ela de fato ganhou (null se nenhum).
+   Um minuto de memória: numa conversa animada, a mesma pessoa fala muito. */
+async function tituloDaPessoa(userId) {
+  const lembrado = TITULO_NA_MEMORIA.get(userId);
+  if (lembrado && Date.now() - lembrado.t < 60000) return lembrado.v;
+  const [perfil, feitos] = await Promise.all([perfilGuardado(userId), rpc("cyron_conquistas", { p_user: userId }).catch(() => null)]);
+  const id = feitos ? estiloDoEstudio(perfil.bruto, perfil.votos, titulosConquistados(feitos)).titulo : "";
+  const v = TITULOS_DO_ESTUDIO.find((t) => t.id === id) || null;
+  TITULO_NA_MEMORIA.set(userId, { t: Date.now(), v });
+  while (TITULO_NA_MEMORIA.size > 3000) TITULO_NA_MEMORIA.delete(TITULO_NA_MEMORIA.keys().next().value);
+  return v;
+}
+
+/* Pura. É a vez do título nesta sala? Marca a vez quando é. */
+function vezDoTitulo(canalId, userId, agora = Date.now(), mostrados = TITULO_MOSTRADO) {
+  const chave = `${canalId}:${userId}`;
+  const ultima = mostrados.get(chave);
+  if (ultima !== undefined && agora - ultima < TITULO_A_CADA) return false;
+  mostrados.set(chave, agora);
+  while (mostrados.size > 5000) mostrados.delete(mostrados.keys().next().value);
+  return true;
+}
+
+/* O emoji do título: o animado da CYRON, ou o comum de reserva. */
+function emojiDoTitulo(t) {
+  const e = EMOJIS_DA_CYRON.get(`tt_${t.id}`);
+  return e ? { id: e.id, name: e.name, animated: !!e.animated } : { name: t.emoji };
+}
+function emojiDoTituloNoTexto(t) {
+  const e = EMOJIS_DA_CYRON.get(`tt_${t.id}`);
+  return e ? `<${e.animated ? "a" : ""}:${e.name}:${e.id}>` : t.emoji;
+}
+
+/* Pura. O botão embaixo da fala. */
+function botaoDoTitulo(t, userId, rotulo) {
+  return { type: 2, style: 2, custom_id: `titulo:${userId}:${t.id}`, label: String(rotulo || t.pt).slice(0, 80), emoji: emojiDoTitulo(t) };
+}
+
+/* Os nomes e os "como conseguir", na língua de quem lê: pt e en prontos,
+   o resto pelo tradutor, uma vez por língua. */
+const TEXTOS_DOS_TITULOS = {
+  como: "Como conseguir", seu: "Este título é seu.", titulos: "Títulos",
+  votos: "votos", vitorias: "vitórias", linguas: "línguas", dias: "dias seguidos",
+  votar: "Votar no top.gg", personalizar: "Personalizar",
+  ...Object.fromEntries(TITULOS_DO_ESTUDIO.flatMap((t) => [[`n_${t.id}`, t.pt], [`c_${t.id}`, t.como_pt]])),
+};
+const TEXTOS_DOS_TITULOS_EN = {
+  como: "How to get it", seu: "This title is yours.", titulos: "Titles",
+  votos: "votes", vitorias: "wins", linguas: "languages", dias: "days in a row",
+  votar: "Vote on top.gg", personalizar: "Customize",
+  ...Object.fromEntries(TITULOS_DO_ESTUDIO.flatMap((t) => [[`n_${t.id}`, t.en], [`c_${t.id}`, t.como_en]])),
+};
+const TITULOS_DO_ESTUDIO_NA_LINGUA = new Map();
+async function textosDosTitulos(idioma, guildId) {
+  if (idioma === "en") return TEXTOS_DOS_TITULOS_EN;
+  return textosNaLingua(TEXTOS_DOS_TITULOS, idioma, guildId, TITULOS_DO_ESTUDIO_NA_LINGUA).catch(() => TEXTOS_DOS_TITULOS_EN);
+}
+async function nomeDoTitulo(t, idioma, guildId) {
+  return (await textosDosTitulos(idioma, guildId))[`n_${t.id}`] || t.en;
+}
+
+/* A língua da bandeira entra na conta do Poliglota. Uma ida ao banco por
+   língua nova da pessoa; repetida, nem isso. */
+const LINGUAS_ANOTADAS = new Map(); // pessoa -> Set de línguas
+function anotarLingua(userId, lingua) {
+  const ja = LINGUAS_ANOTADAS.get(userId) || new Set();
+  if (!lingua || ja.has(lingua)) return;
+  ja.add(lingua);
+  LINGUAS_ANOTADAS.set(userId, ja);
+  while (LINGUAS_ANOTADAS.size > 5000) LINGUAS_ANOTADAS.delete(LINGUAS_ANOTADAS.keys().next().value);
+  rpc("cyron_anotar_lingua", { p_user: userId, p_lingua: lingua }).catch(() => {});
+  TITULO_NA_MEMORIA.delete(userId);
+}
+
+/* Pura. O cartão que aparece para quem tocou no título. */
+function cartaoDoTitulo(t, tx, { membro = null, feitos = {}, conquistados = [], cor = corPorId("ceu"), eu = false,
+  guildId = "", comEstudio = false } = {}) {
+  const numeros = [`🗳️ **${Number(feitos.votos) || 0}** ${tx.votos}`, `⚔️ **${Number(feitos.vitorias) || 0}** ${tx.vitorias}`,
+    `🌍 **${Number(feitos.linguas) || 0}** ${tx.linguas}`, `🔥 **${Number(feitos.sequencia) || 0}** ${tx.dias}`];
+  const outros = TITULOS_DO_ESTUDIO.filter((x) => conquistados.includes(x.id));
+  const e = EMOJIS_DA_CYRON.get(`tt_${t.id}`);
+  return {
+    embeds: [{
+      color: parseInt(cor.c2.slice(1), 16),
+      author: membro ? { name: String(membro.displayName || membro.user?.username || ""), icon_url: membro.displayAvatarURL?.() } : undefined,
+      title: `${t.emoji} ${tx[`n_${t.id}`] || t.pt}`,
+      description: [`**${tx.como}:** ${tx[`c_${t.id}`] || t.como_pt}`, "", numeros.join(" · "),
+        ...(outros.length ? ["", `${tx.titulos}: ${outros.map(emojiDoTituloNoTexto).join(" ")}`] : []),
+        ...(eu ? ["", `✨ ${tx.seu}`] : [])].join("\n"),
+      thumbnail: e ? { url: `https://cdn.discordapp.com/emojis/${e.id}.${e.animated ? "gif" : "png"}?size=128` } : undefined,
+    }],
+    components: [{ type: 1, components: [
+      { type: 2, style: 5, url: LINK_DO_VOTO, label: String(tx.votar).slice(0, 80), emoji: { name: "🗳️" } },
+      ...(comEstudio ? [{ type: 2, style: 2, custom_id: `perfil:estilo:${guildId}`, label: String(tx.personalizar).slice(0, 80),
+        emoji: { name: "🎨" } }] : []),
+    ] }],
+  };
+}
+
+async function cliqueTitulo(inter) {
+  const [, userId, id] = inter.customId.split(":");
+  const t = TITULOS_DO_ESTUDIO.find((x) => x.id === id);
+  if (!t || !/^\d{5,25}$/.test(userId || "")) return inter.reply({ flags: 64, content: "🤷" });
+  await inter.deferReply({ flags: 64 });
+  const idioma = await linguaDe(inter);
+  const [tx, membro, perfil, feitos, comEstudio] = await Promise.all([
+    textosDosTitulos(idioma, inter.guildId),
+    inter.guild?.members.fetch(userId).catch(() => null),
+    perfilGuardado(userId),
+    rpc("cyron_conquistas", { p_user: userId }).catch(() => null),
+    estudioLiberadoEm(inter.guild),
+  ]);
+  return inter.editReply(cartaoDoTitulo(t, tx, { membro, feitos: feitos || {}, conquistados: titulosConquistados(feitos || {}),
+    cor: corPorId(perfil.estilo.perfil_cor), eu: inter.user.id === userId, guildId: inter.guildId || "", comEstudio }));
 }
 
 /* A guerra de bandeiras: a XP de cada lingua, somada. So' a CYRON sabe a
@@ -13581,6 +13732,9 @@ const PASTA_DO_KINGSHOT = fileURLToPath(new URL("./img/kingshot/", import.meta.u
 /* Os ícones dos eventos do calendário (eventos-jogo.js, iconeFixo): sobem do
    mesmo jeito, com a marca do desenho no nome. */
 const PASTA_DOS_EVENTOS = fileURLToPath(new URL("./img/eventos/", import.meta.url));
+/* Os emojis animados dos títulos do Estúdio (tt_apoiador.gif...): sobem pela
+   mesma esteira, com prefixo próprio. */
+const PASTA_DOS_TITULOS = fileURLToPath(new URL("./img/titulos/", import.meta.url));
 
 function emojiKs(nome, reserva = "") {
   const e = EMOJIS_DA_CYRON.get(nome);
@@ -13598,11 +13752,12 @@ function emojiKs(nome, reserva = "") {
    GIF vai como data: com o tipo certo: o discord.js chama todo arquivo de
    "image/jpg", e GIF com rótulo de JPG é o tipo de coisa que um dia para de
    funcionar. */
-function emojisDoKingshot(pasta = PASTA_DO_KINGSHOT, ler = readFileSync, listar = readdirSync) {
+function emojisDoKingshot(pasta = PASTA_DO_KINGSHOT, ler = readFileSync, listar = readdirSync, prefixo = "ks") {
   let nomes = [];
   try { nomes = listar(pasta); } catch { return []; }
+  const molde = new RegExp(`^${prefixo}_[a-z0-9_]+\\.(png|gif)$`);
   return nomes
-    .filter((n) => /^ks_[a-z0-9_]+\.(png|gif)$/.test(n))
+    .filter((n) => molde.test(n))
     .sort()
     .map((n) => {
       const bytes = ler(`${pasta}${n}`);
@@ -13681,7 +13836,8 @@ async function garantirEmojisDaCyron() {
       EMOJIS_DA_CYRON.set(nome, { id: e.id, name: e.name, animated: !!e.animated });
       novos++;
     }
-    novos += await trocarEmojisDoKingshot(publicados, [...emojisDoKingshot(), ...emojisDoKingshot(PASTA_DOS_EVENTOS)]);
+    novos += await trocarEmojisDoKingshot(publicados, [...emojisDoKingshot(), ...emojisDoKingshot(PASTA_DOS_EVENTOS),
+      ...emojisDoKingshot(PASTA_DOS_TITULOS, readFileSync, readdirSync, "tt")]);
     SUBIDA_DOS_EMOJIS.pronta = true;
     if (novos) console.log(`emojis: ${novos} emojis da CYRON publicados`);
   } catch (e) {
@@ -28068,6 +28224,7 @@ client.on("interactionCreate", async (inter) => {
     /* 🎨 o Estúdio (o link pessoal) e o ✅ "Já votei" do top.gg. */
     if (inter.isButton() && inter.customId.startsWith("perfil:estilo")) return await cliquePersonalizar(inter);
     if (inter.isButton() && inter.customId === "perfil:votei") return await cliqueJaVotei(inter);
+    if (inter.isButton() && inter.customId.startsWith("titulo:")) return await cliqueTitulo(inter);
     if (inter.isModalSubmit()) {
       if (inter.customId === "jogo:reino") return await reinoDasSalasDoJogo(inter);
       if (inter.customId === "cyron:motor") return await salvarMotor(inter);
@@ -28579,6 +28736,7 @@ client.on("messageReactionAdd", async (reacao, quem) => {
         linguasDaBandeira(reacao.emoji?.name), quem.id, palavras, comEstudio ? perfil.estilo : null, texto));
     if (!onde) return; // nem privado nem sala: nao ha o que limpar
     contarUso("bandeira", msg.guild.id);
+    if (comEstudio) anotarLingua(quem.id, idioma);
 
     /* Tirar a bandeira devolve a mensagem limpa e deixa a pessoa pedir de
        novo. So' depois de entregar: reacao que sumiu sem resposta seria a
