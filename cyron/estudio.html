@@ -80,7 +80,7 @@ html[lang="en"] [data-en]{display:revert}
 .msg .tag{display:inline-block; background:var(--blurple); color:#fff; font-size:10.5px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:5px; vertical-align:2px}
 .msg .hora{font-size:12px; color:var(--fraquinho); margin-left:6px}
 .embed{position:relative; margin-top:6px; max-width:440px; background:var(--embed); border-left:4px solid var(--cor-cartao,#5865F2); border-radius:4px; padding:10px 14px 14px; transition:border-color .2s}
-.embed.com-figura{padding-right:96px}
+.embed .rodape{display:flex; align-items:center; gap:6px}
 .embed .autor{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--forte)}
 .embed .autor i{width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-size:12px; font-weight:700; color:#fff; background:#E67E22}
 .embed .titulo{font-size:16px; font-weight:700; color:var(--forte); margin-top:6px}
@@ -88,11 +88,28 @@ html[lang="en"] [data-en]{display:revert}
 .embed .voltar{display:block; margin-top:10px; font-size:14px}
 .embed .original{margin-top:10px; font-size:12.5px; color:var(--fraco); border-left:2px solid var(--linha); padding-left:8px}
 .embed .rodape{margin-top:10px; font-size:12px; color:var(--fraco)}
-.embed .figura{position:absolute; top:12px; right:12px; width:72px; height:72px; border-radius:6px; object-fit:cover; object-position:top}
+.embed .figura{width:20px; height:20px; border-radius:50%; object-fit:cover; object-position:top; flex:0 0 auto}
 .embed.compacto .autor,.embed.compacto .titulo{display:none}
 .embed.grande .texto{font-size:20px; font-weight:700; line-height:1.3; color:var(--forte)}
 .embed.compacto .texto{margin-top:0}
 
+/* o cartão das salas, como chega no #chat-es */
+.embed.sala{border-left-color:var(--cor-sala,#E67E22)}
+.embed.sala .assinatura{margin-top:4px; font-size:12px; color:var(--fraco)}
+.embed.sala .assinatura a{color:#00A8FC}
+.titulo-bt{display:inline-flex; align-items:center; gap:6px; margin-top:6px; height:32px; padding:0 12px; border-radius:6px; background:#4E5058; color:#fff; font-size:14px; font-weight:600}
+.titulo-bt img{width:20px; height:20px}
+.titulos{display:grid; gap:8px}
+.titulo-op{display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:10px 12px; border-radius:10px; border:1px solid var(--linha); background:var(--fundo-3); color:var(--texto); cursor:pointer}
+.titulo-op img{width:36px; height:36px; flex:0 0 auto}
+.titulo-op b{display:block; color:var(--forte); font-size:14.5px}
+.titulo-op small{display:block; color:var(--fraco); font-size:12.5px}
+.titulo-op .progresso{margin-left:auto; font-size:12px; font-weight:700; color:var(--fraco); white-space:nowrap}
+.titulo-op[aria-pressed="true"]{border-color:var(--acento,#5865F2); background:color-mix(in srgb,var(--acento,#5865F2) 18%,var(--fundo-3))}
+.titulo-op.trancado{opacity:.6}
+.titulo-op.trancado img{filter:grayscale(1)}
+.titulo-op.trancado::after{content:none}
+.titulo-op.ganho .progresso{color:var(--verde)}
 /* o /perfil, nas medidas do desenho do bot (1024x340), escalado */
 .perfil-caixa{width:100%; aspect-ratio:1024/340; position:relative; border-radius:12px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.35)}
 .perfil{position:absolute; left:0; top:0; width:1024px; height:340px; transform-origin:0 0}
@@ -217,10 +234,25 @@ html[lang="en"] [data-en]{display:revert}
   <div class="mesa">
     <div class="previa">
       <div class="abas" role="tablist">
-        <button type="button" role="tab" aria-selected="true" data-aba="cartao">💬 <span data-pt>Cartão da tradução</span><span data-en>Translation card</span></button>
+        <button type="button" role="tab" aria-selected="true" data-aba="sala">💬 <span data-pt>Nas salas</span><span data-en>In rooms</span></button>
+        <button type="button" role="tab" aria-selected="false" data-aba="cartao">📩 <span data-pt>Bandeira</span><span data-en>Flag</span></button>
         <button type="button" role="tab" aria-selected="false" data-aba="perfil">🪪 /perfil</button>
       </div>
-      <div class="palco" id="palco-cartao">
+      <div class="palco" id="palco-sala">
+        <p class="rotulo-palco"><span data-pt>A sua mensagem chegando traduzida nas outras salas</span><span data-en>Your message arriving translated in the other rooms</span></p>
+        <div class="msg">
+          <img class="av" id="sala-av" src="./img/cyron.png" alt="" width="40" height="40">
+          <div>
+            <span class="nome" id="sala-nome">Você</span><span class="tag">APP</span><span class="hora">23:09</span>
+            <div class="embed sala" id="sala-cartao">
+              <div class="texto">¿Quién va al rally del Oso a las 20h? ¡Faltan 3!</div>
+              <div class="assinatura"><a href="#" onclick="return false" id="sala-assina">Você</a> · 🇧🇷 → 🇪🇸</div>
+            </div>
+            <div class="titulo-bt" id="sala-titulo" hidden><img id="sala-titulo-img" alt="" width="20" height="20"><span id="sala-titulo-nome"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="palco" id="palco-cartao" hidden>
         <p class="rotulo-palco"><span data-pt>No seu privado, quando você reage com uma bandeira</span><span data-en>In your DMs, when you react with a flag</span></p>
         <div class="msg">
           <img class="av" src="./img/cyron.png" alt="" width="40" height="40">
@@ -232,8 +264,7 @@ html[lang="en"] [data-en]{display:revert}
               <div class="texto" id="cartao-texto"></div>
               <a class="voltar" href="#" onclick="return false">⤴ <span data-pt>Voltar</span><span data-en>Back</span></a>
               <div class="original" id="cartao-original"></div>
-              <div class="rodape">#💬general-chat · [TOP]Best Alliance Kingshot</div>
-              <img class="figura" id="cartao-figura" alt="" hidden>
+              <div class="rodape"><img class="figura" id="cartao-figura" alt="" hidden>#💬general-chat · [TOP]Best Alliance Kingshot</div>
             </div>
           </div>
         </div>
@@ -261,8 +292,21 @@ html[lang="en"] [data-en]{display:revert}
     </div>
 
     <div class="opcoes">
+      <section class="grupo" id="grupo-sala">
+        <h2>💬 <span data-pt>Sua mensagem nas salas</span><span data-en>Your message in rooms</span></h2>
+        <p><span data-pt>Como a sua mensagem aparece traduzida nas salas das outras línguas — para todo mundo ver.</span><span data-en>How your message shows up translated in the other language rooms — for everyone to see.</span></p>
+        <div class="campo"><b><span data-pt>Cor da barra</span><span data-en>Bar color</span></b><div class="cores" id="op-sala-cor"></div></div>
+        <div class="campo"><b><span data-pt>Seu nome no link do cartão</span><span data-en>Your name on the card link</span></b>
+          <div class="frase-campo"><input id="op-sala-assinatura" maxlength="32" autocomplete="off" spellcheck="false"><small id="assinatura-conta">0/32</small></div>
+          <p class="dica" style="margin:6px 0 0"><span data-pt>O link no pé do cartão continua levando ao seu perfil. O nome no topo é sempre o seu nome de verdade.</span><span data-en>The link under the card still opens your profile. The name on top is always your real name.</span></p></div>
+        <div class="campo"><b><span data-pt>Enfeite no nome</span><span data-en>Name flourish</span></b><div class="opcoes-linha" id="op-sala-emoji"></div></div>
+        <div class="campo"><b><span data-pt>Título embaixo da mensagem</span><span data-en>Title under your message</span></b>
+          <p class="dica" style="margin:0 0 8px"><span data-pt>Quem tocar no título vê o seu cartão e como conseguir um igual. Aparece na sua primeira mensagem de cada sala e depois a cada meia hora.</span><span data-en>Whoever taps the title sees your card and how to get one. It shows on your first message in each room, then every half hour.</span></p>
+          <div class="titulos" id="op-titulo"></div></div>
+      </section>
+
       <section class="grupo" id="grupo-cartao">
-        <h2>💬 <span data-pt>Cartão da tradução</span><span data-en>Translation card</span></h2>
+        <h2>📩 <span data-pt>Cartão da bandeira (no privado)</span><span data-en>Flag card (in DMs)</span></h2>
         <p><span data-pt>Como a tradução chega no seu privado quando você reage com uma bandeira.</span><span data-en>How the translation reaches your DMs when you react with a flag.</span></p>
         <div class="campo"><b><span data-pt>Cor</span><span data-en>Color</span></b><div class="cores" id="op-cartao-cor"></div></div>
         <div class="campo"><b><span data-pt>Herói no cartão</span><span data-en>Hero on the card</span></b><div class="opcoes-linha" id="op-cartao-heroi"></div></div>
@@ -309,7 +353,8 @@ html[lang="en"] [data-en]{display:revert}
 <div class="aviso" id="aviso" role="status" aria-live="polite"></div>
 
 <script type="module">
-import { CORES, MOLDURAS, HEROIS, LETRAS, EFEITOS, EMOJIS_DO_TITULO, PADRAO, FRASE_MAX, corPorId, liberados, estiloValido, limparFrase } from "./estudio-regras.js";
+import { CORES, MOLDURAS, HEROIS, LETRAS, EFEITOS, EMOJIS_DO_TITULO, TITULOS, PADRAO, FRASE_MAX, ASSINATURA_MAX, corPorId, liberados,
+  titulosConquistados, estiloValido as validar, limparFrase, limparAssinatura } from "./estudio-regras.js";
 
 const FUNCAO = "https://mslzcjqkfeivuavfxwli.supabase.co/functions/v1/cyron-estudio";
 const VOTO = "https://top.gg/bot/1498142929041096856/vote";
@@ -326,10 +371,13 @@ const $ = (id) => document.getElementById(id);
 const lingua = () => document.documentElement.lang === "en" ? "en" : "pt";
 const T = (pt, en) => lingua() === "en" ? en : pt;
 
-let pessoa = { nome: "", avatar: "", votos: demo ? Math.max(0, Number(parametros.get("demo")) || 0) : 0, votoEm: null };
+let pessoa = { nome: "", avatar: "", votos: demo ? Math.max(0, Number(parametros.get("demo")) || 0) : 0, votoEm: null, feitos: {}, titulos: [] };
+if (demo) { pessoa.feitos = { votos: pessoa.votos }; pessoa.titulos = titulosConquistados(pessoa.feitos); }
+/* O estilo valendo só o que a pessoa liberou (votos) e ganhou (títulos). */
+const estiloValido = (e) => validar(e, pessoa.votos, pessoa.titulos);
 let salvo = { ...PADRAO };
 let rascunho = { ...PADRAO };
-let aba = "cartao";
+let aba = "sala";
 
 /* ---- idioma da página ---- */
 function idioma(l) {
@@ -384,6 +432,66 @@ function botaoOpcao(caixa, rotulo, ativo, aberto, aoTocar, antes = "") {
 
 function desenharOpcoes() {
   const lib = liberados(pessoa.votos);
+
+  /* A mensagem nas salas: cor (automática ou uma das cores), enfeite e título. */
+  const salaCor = $("op-sala-cor");
+  salaCor.innerHTML = "";
+  const auto = document.createElement("button");
+  auto.type = "button";
+  auto.className = "cor";
+  auto.style.background = "conic-gradient(#5865F2,#E67E22,#2ECC71,#E91E63,#F1C40F,#5865F2)";
+  auto.title = T("Automática (a sua cor de sempre)", "Automatic (your usual color)");
+  auto.setAttribute("aria-label", auto.title);
+  auto.setAttribute("aria-pressed", String(!rascunho.sala_cor));
+  auto.onclick = () => mudar("sala_cor", "");
+  salaCor.appendChild(auto);
+  for (const c of CORES) {
+    const aberto = lib.coresDaSala.includes(c.id);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cor" + (aberto ? "" : " trancado");
+    b.style.background = `linear-gradient(135deg, ${c.c1}, ${c.c2})`;
+    b.title = c[lingua()];
+    b.setAttribute("aria-label", c[lingua()]);
+    b.setAttribute("aria-pressed", String(rascunho.sala_cor === c.id));
+    b.onclick = () => aberto ? mudar("sala_cor", c.id) : trancado();
+    salaCor.appendChild(b);
+  }
+  const assina = $("op-sala-assinatura");
+  assina.disabled = !lib.frase;
+  assina.placeholder = lib.frase ? (pessoa.nome || T("Ex.: Rei do Urso", "e.g. Bear King")) : T("🔒 Vote para liberar", "🔒 Vote to unlock");
+  if (document.activeElement !== assina) assina.value = rascunho.sala_assinatura || "";
+  $("assinatura-conta").textContent = `${(rascunho.sala_assinatura || "").length}/${ASSINATURA_MAX}`;
+  const salaEmoji = $("op-sala-emoji");
+  salaEmoji.innerHTML = "";
+  botaoOpcao(salaEmoji, T("Nenhum", "None"), !rascunho.sala_emoji, true, () => mudar("sala_emoji", ""));
+  for (const e of EMOJIS_DO_TITULO) {
+    const b = botaoOpcao(salaEmoji, e, rascunho.sala_emoji === e, lib.emojis.includes(e), () => mudar("sala_emoji", e));
+    b.style.fontSize = "18px";
+  }
+  const titulos = $("op-titulo");
+  titulos.innerHTML = "";
+  const nenhum = document.createElement("button");
+  nenhum.type = "button";
+  nenhum.className = "titulo-op";
+  nenhum.innerHTML = `<span style="width:36px;text-align:center;font-size:22px">🚫</span><span><b>${T("Sem título", "No title")}</b></span>`;
+  nenhum.setAttribute("aria-pressed", String(!rascunho.titulo));
+  nenhum.onclick = () => mudar("titulo", "");
+  titulos.appendChild(nenhum);
+  for (const t of TITULOS) {
+    const ganho = pessoa.titulos.includes(t.id);
+    const [campo, minimo] = Object.entries(t.precisa)[0];
+    const feito = Math.min(minimo, Number(pessoa.feitos?.[campo]) || 0);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "titulo-op" + (ganho ? " ganho" : " trancado");
+    b.innerHTML = `<img src="./img/titulos/tt_${t.id}.gif" alt="" width="36" height="36"><span><b>${t[lingua()]}</b><small>${T(t.como_pt, t.como_en)}</small></span>` +
+      `<span class="progresso">${ganho ? "✓" : `🔒 ${feito}/${minimo}`}</span>`;
+    b.setAttribute("aria-pressed", String(rascunho.titulo === t.id));
+    b.onclick = () => ganho ? mudar("titulo", t.id)
+      : avisar(`🔒 ${T("Ainda falta:", "Still to do:")} ${T(t.como_pt, t.como_en)}` + (campo === "votos" ? ` <a href="${VOTO}" target="_blank" rel="noopener">${T("Votar", "Vote")} →</a>` : ""));
+    titulos.appendChild(b);
+  }
   botaoCor("op-cartao-cor", "cartao_cor", lib);
   botaoCor("op-perfil-cor", "perfil_cor", lib);
 
@@ -468,6 +576,17 @@ function fundoDaMoldura(id, cor) {
 
 /* ---- a prévia ---- */
 function desenharPrevia() {
+  /* A mensagem nas salas. A cor "automática" de verdade sai do seu id; na
+     prévia ela aparece como o laranja. */
+  const sc = rascunho.sala_cor ? corPorId(rascunho.sala_cor).c2 : "#E67E22";
+  $("sala-cartao").style.setProperty("--cor-sala", sc);
+  $("sala-nome").textContent = pessoa.nome || T("Você", "You");
+  $("sala-assina").textContent = (rascunho.sala_assinatura || pessoa.nome || T("Você", "You")) + (rascunho.sala_emoji ? ` ${rascunho.sala_emoji}` : "");
+  if (pessoa.avatar) $("sala-av").src = pessoa.avatar;
+  const tit = TITULOS.find((t) => t.id === rascunho.titulo);
+  $("sala-titulo").hidden = !tit;
+  if (tit) { $("sala-titulo-img").src = `./img/titulos/tt_${tit.id}.gif`; $("sala-titulo-nome").textContent = tit[lingua()]; }
+
   const cc = corPorId(rascunho.cartao_cor);
   const cartao = $("cartao");
   cartao.style.setProperty("--cor-cartao", cc.c2);
@@ -475,7 +594,6 @@ function desenharPrevia() {
   cartao.classList.toggle("grande", !!rascunho.cartao_grande);
   const fig = $("cartao-figura");
   fig.hidden = !rascunho.cartao_heroi;
-  cartao.classList.toggle("com-figura", !!rascunho.cartao_heroi);
   if (rascunho.cartao_heroi) fig.src = `./img/duelo/${rascunho.cartao_heroi}.jpg`;
   $("cartao-titulo").textContent = T("🇧🇷 Português", "🇬🇧 English") + (rascunho.cartao_emoji ? ` ${rascunho.cartao_emoji}` : "");
   $("cartao-texto").textContent = T("Quem vai no rally do Urso às 20h? Faltam 3!", "Who's joining the Bear rally at 8pm? We need 3 more!");
@@ -501,7 +619,7 @@ function desenharPrevia() {
   $("pf-frase").textContent = rascunho.perfil_frase ? `“${rascunho.perfil_frase}”` : "";
   $("pf-nome").textContent = pessoa.nome || T("Você", "You");
   if (pessoa.avatar) $("pf-foto").src = pessoa.avatar;
-  document.documentElement.style.setProperty("--acento", (aba === "cartao" ? cc : pc).c2);
+  document.documentElement.style.setProperty("--acento", aba === "sala" ? sc : (aba === "cartao" ? cc : pc).c2);
   escalarPerfil();
 }
 
@@ -531,7 +649,7 @@ function desenharTopo() {
 }
 
 function desenharEstado() {
-  const mudou = JSON.stringify(estiloValido(rascunho, pessoa.votos)) !== JSON.stringify(estiloValido(salvo, pessoa.votos));
+  const mudou = JSON.stringify(estiloValido(rascunho)) !== JSON.stringify(estiloValido(salvo));
   const bt = $("bt-salvar");
   if (demo) {
     $("estado").innerHTML = T("<b>Demonstração.</b> Para salvar, toque em 🎨 Personalizar no /perfil da CYRON, no Discord.",
@@ -549,8 +667,16 @@ function mudar(campo, valor) {
   rascunho = { ...rascunho, [campo]: valor };
   if (campo.startsWith("perfil_") && aba !== "perfil") trocarAba("perfil");
   if (campo.startsWith("cartao_") && aba !== "cartao") trocarAba("cartao");
+  if ((campo.startsWith("sala_") || campo === "titulo") && aba !== "sala") trocarAba("sala");
   desenharOpcoes(); desenharPrevia(); desenharEstado();
 }
+
+$("op-sala-assinatura").addEventListener("input", (e) => {
+  rascunho = { ...rascunho, sala_assinatura: limparAssinatura(e.target.value) };
+  if (aba !== "sala") trocarAba("sala");
+  $("assinatura-conta").textContent = `${rascunho.sala_assinatura.length}/${ASSINATURA_MAX}`;
+  desenharPrevia(); desenharEstado();
+});
 
 $("op-perfil-frase").addEventListener("input", (e) => {
   rascunho = { ...rascunho, perfil_frase: limparFrase(e.target.value) };
@@ -562,6 +688,7 @@ $("op-perfil-frase").addEventListener("input", (e) => {
 function trocarAba(qual) {
   aba = qual;
   document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === qual)));
+  $("palco-sala").hidden = qual !== "sala";
   $("palco-cartao").hidden = qual !== "cartao";
   $("palco-perfil").hidden = qual !== "perfil";
   desenharPrevia();
@@ -581,7 +708,7 @@ $("bt-salvar").addEventListener("click", async () => {
   const bt = $("bt-salvar");
   bt.disabled = true;
   try {
-    const j = await pedir({ acao: "salvar", estilo: estiloValido(rascunho, pessoa.votos) });
+    const j = await pedir({ acao: "salvar", estilo: estiloValido(rascunho) });
     salvo = { ...PADRAO, ...j.estilo };
     rascunho = { ...salvo };
     avisar(T("✅ Salvo! Use /perfil ou reaja com uma bandeira no Discord para ver.", "✅ Saved! Use /perfil or react with a flag in Discord to see it."));
@@ -594,7 +721,7 @@ $("bt-salvar").addEventListener("click", async () => {
 });
 
 addEventListener("beforeunload", (e) => {
-  if (!demo && JSON.stringify(estiloValido(rascunho, pessoa.votos)) !== JSON.stringify(estiloValido(salvo, pessoa.votos))) e.preventDefault();
+  if (!demo && JSON.stringify(estiloValido(rascunho)) !== JSON.stringify(estiloValido(salvo))) e.preventDefault();
 });
 
 /* ---- começar ---- */
@@ -609,8 +736,9 @@ addEventListener("beforeunload", (e) => {
     history.replaceState(null, "", location.pathname);
     try {
       const j = await pedir({ acao: "ler" });
-      pessoa = { nome: j.nome || "", avatar: j.avatar || "", votos: Number(j.votos) || 0, votoEm: j.voto_em || null };
-      salvo = { ...PADRAO, ...estiloValido(j.estilo, pessoa.votos) };
+      pessoa = { nome: j.nome || "", avatar: j.avatar || "", votos: Number(j.votos) || 0, votoEm: j.voto_em || null,
+        feitos: j.feitos || { votos: Number(j.votos) || 0 }, titulos: Array.isArray(j.titulos) ? j.titulos : [] };
+      salvo = { ...PADRAO, ...estiloValido(j.estilo) };
       rascunho = { ...salvo };
     } catch (e) {
       avisar(e.status === 401

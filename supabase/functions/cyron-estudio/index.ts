@@ -13,7 +13,7 @@
    estiloValido com os votos DO BANCO, então mexer no navegador para salvar
    um herói que não liberou só salva o padrão. */
 
-import { estiloValido } from "./regras.js";
+import { estiloValido, titulosConquistados } from "./regras.js";
 
 const SB_URL = Deno.env.get("SUPABASE_URL")!;
 const SB_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -75,14 +75,19 @@ Deno.serve(async (req) => {
 
     const [perfil] = await sb(`cyron_perfil?user_id=eq.${link.user_id}&select=votos,voto_em,estilo`) || [];
     const votos = Number(perfil?.votos) || 0;
+    /* O que a pessoa já fez (votos, línguas, vitórias, sequência), numa ida
+       só: é com isso que se sabe quais títulos ela pode escolher. */
+    const feitos = await sb("rpc/cyron_conquistas", { method: "POST", body: JSON.stringify({ p_user: link.user_id }) })
+      .catch(() => null) || { votos };
+    const titulos = titulosConquistados(feitos);
 
     if (corpo.acao === "ler") {
       return responder({ nome: link.nome, avatar: link.avatar, votos, voto_em: perfil?.voto_em || null,
-        estilo: estiloValido(perfil?.estilo, votos) }, 200, h);
+        feitos, titulos, estilo: estiloValido(perfil?.estilo, votos, titulos) }, 200, h);
     }
 
     if (corpo.acao === "salvar") {
-      const estilo = estiloValido(corpo.estilo, votos);
+      const estilo = estiloValido(corpo.estilo, votos, titulos);
       /* Upsert só com estilo e hora: num perfil novo, votos nasce 0 (o
          padrão da tabela); num existente, os votos ficam como estão. */
       await sb("cyron_perfil", { method: "POST", headers: { Prefer: "resolution=merge-duplicates,return=minimal" },

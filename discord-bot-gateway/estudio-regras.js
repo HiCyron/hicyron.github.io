@@ -80,14 +80,46 @@ export const EFEITOS = [
   { id: "tingido", pt: "Tingido", en: "Tinted" },
 ];
 
+/* OS TÍTULOS: um botão embaixo da mensagem da pessoa nas outras salas
+   ("💜 Apoiador"); quem toca vê o cartão dela e como conseguir o título.
+   Cada um se ganha jogando -- `precisa` diz com o quê -- e a pessoa escolhe
+   no Estúdio qual mostrar (ou nenhum). O emoji animado de cada um mora em
+   img/titulos/tt_<id>.gif no bot e no site; o `emoji` daqui é a reserva. */
+export const TITULOS = [
+  { id: "apoiador", emoji: "💜", pt: "Apoiador", en: "Supporter", precisa: { votos: 1 },
+    como_pt: "Votar na CYRON no top.gg.", como_en: "Vote for CYRON on top.gg." },
+  { id: "duelista", emoji: "⚔️", pt: "Duelista", en: "Duelist", precisa: { vitorias: 10 },
+    como_pt: "Vencer 10 duelos no /duelo.", como_en: "Win 10 duels in /duel." },
+  { id: "poliglota", emoji: "🌍", pt: "Poliglota", en: "Polyglot", precisa: { linguas: 5 },
+    como_pt: "Traduzir com bandeira para 5 línguas diferentes.", como_en: "Translate with flags into 5 different languages." },
+  { id: "sequencia", emoji: "🔥", pt: "Sequência", en: "Streak", precisa: { sequencia: 30 },
+    como_pt: "Pegar o /diario 30 dias seguidos.", como_en: "Claim /daily 30 days in a row." },
+  { id: "lenda", emoji: "👑", pt: "Lenda", en: "Legend", precisa: { votos: 12 },
+    como_pt: "Liberar os 12 heróis do Estúdio (12 votos no top.gg).", como_en: "Unlock all 12 Studio heroes (12 votes on top.gg)." },
+];
+
+/* Pura. Os títulos que alguém já ganhou. `feitos`: { votos, vitorias,
+   linguas, sequencia } -- o que faltar conta como zero. */
+export function titulosConquistados(feitos = {}) {
+  return TITULOS.filter((t) => Object.entries(t.precisa).every(([campo, minimo]) => (Number(feitos?.[campo]) || 0) >= minimo))
+    .map((t) => t.id);
+}
+
 export const ESTILOS_DO_CARTAO = ["completo", "compacto"];
 export const FRASE_MAX = 40;
+/* O nome do link no pé do cartão nas salas. O nome no TOPO continua o
+   verdadeiro, sempre: livre, qualquer um apareceria como "CYRON" ou com o
+   nome de outro membro. O link leva ao perfil de verdade. */
+export const ASSINATURA_MAX = 32;
 
 export const PADRAO = {
   perfil_cor: "ceu", perfil_moldura: "classica", perfil_fundo: "servidor", perfil_frase: "",
   perfil_letra: "moderna", perfil_efeito: "desfocado",
   cartao_cor: "cyron", cartao_heroi: "", cartao_original: false, cartao_estilo: "completo",
-  cartao_grande: false, cartao_emoji: "",
+  cartao_grande: false, cartao_emoji: "", titulo: "",
+  /* A SUA MENSAGEM NAS SALAS (o cartão que chega nas outras salas): a cor da
+     barra ("" = a automática, presa ao seu id) e um enfeite depois do nome. */
+  sala_cor: "", sala_emoji: "", sala_assinatura: "",
 };
 
 export function corPorId(id) {
@@ -100,6 +132,7 @@ export function liberados(votos) {
   const herois = HEROIS.slice(0, v).map((h) => h.id);
   return {
     cores: v ? CORES.map((c) => c.id) : ["ceu", "cyron"],
+    coresDaSala: v ? CORES.map((c) => c.id) : [],
     molduras: v ? MOLDURAS.map((m) => m.id) : ["classica"],
     letras: v ? LETRAS.map((l) => l.id) : ["moderna"],
     efeitos: v ? EFEITOS.map((e) => e.id) : ["desfocado"],
@@ -130,10 +163,18 @@ export function limparFrase(texto) {
     .slice(0, FRASE_MAX);
 }
 
+/* Pura. O nome do link do cartão: as regras da frase, sem os colchetes e
+   parênteses (que fechariam o link do Discord) e mais curto. */
+export function limparAssinatura(texto) {
+  return limparFrase(texto).replace(/[[\]()]/g, "").replace(/\s+/g, " ").trim().slice(0, ASSINATURA_MAX);
+}
+
 /* Pura. O estilo pedido, valendo só o que está liberado: o resto volta ao
    padrão. Quem salva usa isto antes de gravar; o bot, antes de desenhar
-   (um item que deixou de existir não quebra o perfil de ninguém). */
-export function estiloValido(pedido, votos) {
+   (um item que deixou de existir não quebra o perfil de ninguém).
+   `conquistados`: os títulos já ganhos (titulosConquistados); título que a
+   pessoa não ganhou não fica escolhido. */
+export function estiloValido(pedido, votos, conquistados = []) {
   const p = pedido && typeof pedido === "object" ? pedido : {};
   const lib = liberados(votos);
   const de = (lista, valor, padrao) => (lista.includes(valor) ? valor : padrao);
@@ -150,5 +191,9 @@ export function estiloValido(pedido, votos) {
     cartao_estilo: de(ESTILOS_DO_CARTAO, p.cartao_estilo, PADRAO.cartao_estilo),
     cartao_grande: p.cartao_grande === true,
     cartao_emoji: de(lib.emojis, p.cartao_emoji, ""),
+    titulo: de(Array.isArray(conquistados) ? conquistados : [], p.titulo, ""),
+    sala_cor: de(lib.coresDaSala, p.sala_cor, ""),
+    sala_emoji: de(lib.emojis, p.sala_emoji, ""),
+    sala_assinatura: lib.frase ? limparAssinatura(p.sala_assinatura) : "",
   };
 }
