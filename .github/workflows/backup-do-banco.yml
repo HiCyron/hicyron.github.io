@@ -161,6 +161,8 @@ jobs:
               "top_membros", "top_convites",
               # --- o que cada jogador conquistou: nível, heróis, cartas, sequência ---
               "cyron_xp", "cyron_duelo_personagem", "cyron_colecao", "cyron_diario",
+              # --- o estilo do Estúdio e os votos contados no top.gg ---
+              "cyron_perfil",
               # --- prêmio, sorteio em andamento, cota gasta, fuso de cada um ---
               "cyron_indicacao", "cyron_sorteio", "cyron_sorteio_entrada",
               "cyron_uso_audio", "cyron_uso_recurso", "cyron_fuso", "cyron_suporte",

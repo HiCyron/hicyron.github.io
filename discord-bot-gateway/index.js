@@ -22,6 +22,8 @@ import { QUEM_SOU, REGRAS, DUVIDAS } from "./roteiro.js";
 import { LOCAIS_DO_DISCORD, DESCRICOES_DOS_COMANDOS, ESCOLHAS_DOS_COMANDOS, NOMES_DOS_MENUS, DESCRICOES_DE_FORA,
   DESCRICOES_DA_AJUDA } from "./comandos-linguas.js";
 import { PERSONAGENS, ESPACOS, EFEITOS, NIVEIS_DO_PERSONAGEM } from "./duelo-elenco.js";
+import { estiloValido as estiloDoEstudio, corPorId, liberados as liberadosDoEstudio, HEROIS as HEROIS_DO_ESTUDIO,
+  PADRAO as PADRAO_DO_ESTUDIO } from "./estudio-regras.js";
 import { FIGURINHAS, sugestoesDeFigurinha, acharFigurinha } from "./figurinhas.js";
 import { FIGURINHAS_DO_DISCORD } from "./figurinhas-do-discord.js";
 /* O que e' so' da alianca [TOP]: fica fora daqui para nao se misturar com o
@@ -356,6 +358,7 @@ async function sbDel(caminho) {
 const GUARDO_POR = [
   ["discord_msg_traducao", 7, "o texto das mensagens"],
   ["discord_traducao_cache", 90, "o cache de traduções", "usado_em"],
+  ["cyron_estudio_link", 2, "os links do Estúdio", "expira_em"],
   ["discord_fala_espelhada", 14, "as falas espelhadas"],
   /* Evento acontecido some sozinho seis horas depois, na varredura que
      redesenha a agenda. Este prazo e' a rede embaixo: servidor de onde eu fui
@@ -12401,15 +12404,22 @@ const TEXTOS_DO_PERFIL_DUELO = {
 const PERFIL_DUELO_NA_LINGUA = new Map();
 
 async function desenharPerfil(sharp, { nome, reserva, nivel, dentro, precisa, posicao, xp, mensagens, foto, fundo, idioma = null,
-  duelo = null, semXp = false }, fontfile = FONTE_DA_IMAGEM) {
+  duelo = null, semXp = false, cor = corPorId("ceu"), moldura = "classica", fundoRetrato = false, efeito = "desfocado",
+  letra = "moderna", frase = "" }, fontfile = FONTE_DA_IMAGEM) {
   const fonte = await fonteDoDesenho(fontfile);
   const W = PF_LARGURA, H = PF_ALTURA + (duelo ? PF_FAIXA_DUELO : 0), x = 300, larg = W - x - 50;
   const quem = [soLetrasDaFonte(fonte, nome), soLetrasDaFonte(fonte, reserva)].find(temLetra) || "?";
-  const linha = (t, y, tam, cor, maxL = larg) => {
+  const linha = (t, y, tam, tinta, maxL = larg, f = fonte) => {
     let s2 = tam;
-    while (s2 > 10 && fonte.getAdvanceWidth(t, s2) > maxL) s2 -= 2;
-    return `<path d="${fonte.getPath(t, x, y, s2).toPathData(2)}" fill="${cor}" filter="url(#s)"/>`;
+    while (s2 > 10 && f.getAdvanceWidth(t, s2) > maxL) s2 -= 2;
+    return `<path d="${f.getPath(t, x, y, s2).toPathData(2)}" fill="${tinta}" filter="url(#s)"/>`;
   };
+  /* A letra do nome escolhida no Estúdio. Nome com letra que a fonte não
+     tem (cirílico na Cinzel, por exemplo) volta para a de sempre inteiro,
+     em vez de sair com buracos. */
+  const arquivoDoNome = letra === "medieval" ? FONTE_TITULO : letra === "classica" ? FONTE_LIVRO_NEGRITO : null;
+  const fonteDoNome = arquivoDoNome ? fonteQueEscreve(await fonteDoDesenho(arquivoDoNome), fonte, quem) : fonte;
+  const fraseLimpa = frase ? soLetrasDaFonte(fonte, String(frase)).trim() : "";
   const direita = (t, y, tam, cor) => {
     const w = fonte.getAdvanceWidth(t, tam);
     return `<path d="${fonte.getPath(t, W - 50 - w, y, tam).toPathData(2)}" fill="${cor}" filter="url(#s)"/>`;
@@ -12420,24 +12430,40 @@ async function desenharPerfil(sharp, { nome, reserva, nivel, dentro, precisa, po
   const nomeDoIdioma = idioma ? (temLetra(soLetrasDaFonte(fonte, idioma.nome)) && soLetrasDaFonte(fonte, idioma.nome) === idioma.nome
     ? idioma.nome : String(idioma.codigo || "").toUpperCase()) : "";
   const fmt = (n) => Number(n || 0).toLocaleString("en-US");
-  const base = await sharp(fundo || FUNDO_DA_CYRON).resize(W, H, { fit: "cover" }).blur(6).toBuffer();
+  /* Retrato de herói (em pé, 384x512) cortado no meio pegaria o peito: o
+     corte "attention" do sharp procura a parte mais marcante, o rosto. */
+  let fundoBase = sharp(fundo || FUNDO_DA_CYRON)
+    .resize(W, H, { fit: "cover", position: fundoRetrato && sharp.strategy ? sharp.strategy.attention : "centre" });
+  if (efeito === "tingido") fundoBase = fundoBase.blur(4).tint(cor.c2);
+  else if (efeito !== "nitido") fundoBase = fundoBase.blur(6);
+  const base = await fundoBase.toBuffer();
+  const aros = {
+    classica: `<circle cx="150" cy="170" r="122" fill="${cor.c1}" opacity="0.7" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="#FFFFFF"/>`,
+    dourada: `<circle cx="150" cy="170" r="124" fill="#FFD95A" opacity="0.75" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="url(#ouro)"/>`,
+    neon: `<circle cx="150" cy="170" r="130" fill="${cor.c2}" opacity="0.9" filter="url(#g)"/>` +
+      `<circle cx="150" cy="170" r="124" fill="none" stroke="${cor.c2}" stroke-width="6"/><circle cx="150" cy="170" r="118" fill="${cor.c1}"/>`,
+    arcoiris: `<circle cx="150" cy="170" r="122" fill="${cor.c1}" opacity="0.6" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="url(#arco)"/>`,
+  };
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>` +
+    `<linearGradient id="ouro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#D99A0B"/><stop offset="1" stop-color="#FFE08A"/></linearGradient>` +
+    `<linearGradient id="arco" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5E5E"/><stop offset="0.2" stop-color="#FFD95A"/><stop offset="0.4" stop-color="#5EE38B"/>` +
+    `<stop offset="0.6" stop-color="#5EC8FF"/><stop offset="0.8" stop-color="#B07CFF"/><stop offset="1" stop-color="#FF5E9E"/></linearGradient>` +
     `<linearGradient id="v" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.75"/>` +
     `<stop offset="1" stop-color="#000" stop-opacity="0.35"/></linearGradient>` +
-    `<linearGradient id="b" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#7FD3FF"/><stop offset="1" stop-color="#5865F2"/></linearGradient>` +
+    `<linearGradient id="b" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${cor.c1}"/><stop offset="1" stop-color="${cor.c2}"/></linearGradient>` +
     `<filter id="g" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>` +
     `<filter id="s"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.6"/></filter></defs>` +
     `<rect width="${W}" height="${H}" fill="url(#v)"/>` +
-    `<circle cx="150" cy="170" r="122" fill="#7FD3FF" opacity="0.7" filter="url(#g)"/>` +
-    `<circle cx="150" cy="170" r="118" fill="#FFFFFF"/>` +
+    (aros[moldura] || aros.classica) +
     (foto ? "" : `<circle cx="150" cy="170" r="110" fill="#404249"/>`) +
-    linha(quem, 120, 56, "#FFFFFF", semXp ? larg : larg - 230) +
-    (semXp ? "" : direita(`LV. ${nivel}`, 120, 52, "#7FD3FF") +
+    linha(quem, 120, 56, "#FFFFFF", semXp ? larg : larg - 230, fonteDoNome) +
+    (semXp ? "" : direita(`LV. ${nivel}`, 120, 52, cor.c1) +
       linha(`#${fmt(posicao)} · ${fmt(xp)} XP · ${fmt(mensagens)} msg`, 172, 26, "#C9D6E3", idioma ? larg - 250 : larg)) +
     (nomeDoIdioma ? direita(nomeDoIdioma, 172, 26, "#FFFFFF") : "") +
     (semXp ? "" : `<rect x="${x}" y="212" width="${larg}" height="34" rx="17" fill="#000" opacity="0.45"/>` +
       `<rect x="${x}" y="212" width="${Math.max(34, Math.round(larg * pct))}" height="34" rx="17" fill="url(#b)"/>` +
       direita(`${fmt(dentro)} / ${fmt(precisa)}`, 284, 22, "#E6F4FF")) +
+    (fraseLimpa ? linha(`“${fraseLimpa}”`, 290, 24, "#FFFFFF", larg - 200) : "") +
     (duelo ? faixaDoDuelo(fonte, duelo, W, PF_ALTURA) : "") +
     `</svg>`;
   const camadas = [{ input: Buffer.from(svg) }];
@@ -12517,44 +12543,291 @@ async function comandoPerfil(inter) {
     const [t] = await nalingua(idioma, inter.guildId, "Não achei essa pessoa neste servidor. Escolha o nome na lista que aparece enquanto você digita.");
     return inter.editReply({ content: `🤷 ${t}` });
   }
-  /* O duelo entra no perfil de quem ja' duelou -- mesmo com os niveis do
-     chat desligados, ai' o perfil mostra so' o duelo. */
-  const resumo = resumoDoDuelo(await sb(`cyron_duelo_personagem?user_id=eq.${alvo.id}&select=personagem,xp,vitorias,derrotas`).catch(() => null));
-  if (!servidor?.niveis_ligado && !resumo) {
+  const liberado = await estudioLiberadoEm(inter.guild);
+  const feito = await perfilDe(inter.guild, alvo, servidor, idioma, liberado);
+  if (feito.desligado) {
     const [t] = await nalingua(idioma, inter.guildId, "Os níveis estão desligados neste servidor. Quem administra liga com /niveis.");
     return inter.editReply({ content: `📊 ${t}` });
   }
+  /* 🎨 e 🗳️ embaixo de todo perfil: quem vê o perfil enfeitado de alguém
+     descobre ali mesmo como enfeitar o seu (o botão abre o Estúdio DE QUEM
+     TOCOU, nunca o do dono do perfil). */
+  const t = await textosDoEstudio(idioma, inter.guildId).catch(() => TEXTOS_DO_ESTUDIO);
+  return inter.editReply({ content: feito.imagem ? `<@${alvo.id}>` : feito.texto, allowedMentions: { parse: [] },
+    ...(feito.imagem ? { files: [{ attachment: feito.imagem, name: "perfil.jpg" }] } : {}),
+    components: liberado ? [botoesDoPerfil(t, inter.guildId)] : [] });
+}
+
+/* O /perfil de alguém num servidor: a imagem (ou o texto, se não der para
+   desenhar), com o estilo que a pessoa escolheu no Estúdio. `desligado`:
+   níveis desligados e ninguém duelou -- não há o que mostrar. */
+async function perfilDe(guild, alvo, servidor, idioma, comEstilo = true) {
+  /* O duelo entra no perfil de quem ja' duelou -- mesmo com os niveis do
+     chat desligados, ai' o perfil mostra so' o duelo. */
+  const resumo = resumoDoDuelo(await sb(`cyron_duelo_personagem?user_id=eq.${alvo.id}&select=personagem,xp,vitorias,derrotas`).catch(() => null));
+  if (!servidor?.niveis_ligado && !resumo) return { desligado: true };
   const semXp = !servidor?.niveis_ligado;
   let duelo = null;
   if (resumo) {
-    const ranking = await rankingDoServidor(inter.guildId).catch(() => []);
+    const ranking = await rankingDoServidor(guild.id).catch(() => []);
     const lugar = ranking.findIndex((r) => r.userId === alvo.id);
     const heroi = personagemPorId(resumo.favorito?.id);
     duelo = { ...resumo, posicao: lugar >= 0 ? lugar + 1 : null, heroiNivel: heroi ? resumo.favorito.nivel : null,
       heroiFoto: heroi ? `${RETRATOS_DO_DUELO}${heroi.id}.jpg` : null,
-      tx: await textosNaLingua(TEXTOS_DO_PERFIL_DUELO, idioma, inter.guildId, PERFIL_DUELO_NA_LINGUA).catch(() => TEXTOS_DO_PERFIL_DUELO) };
+      tx: await textosNaLingua(TEXTOS_DO_PERFIL_DUELO, idioma, guild.id, PERFIL_DUELO_NA_LINGUA).catch(() => TEXTOS_DO_PERFIL_DUELO) };
   }
-  const { xp, mensagens } = semXp ? { xp: 0, mensagens: 0 } : await xpAgora(inter.guildId, alvo.id);
-  const acima = semXp ? 0 : await rpc("cyron_posicao_xp", { p_guild: inter.guildId, p_xp: xp }).catch(() => null);
+  const { xp, mensagens } = semXp ? { xp: 0, mensagens: 0 } : await xpAgora(guild.id, alvo.id);
+  const acima = semXp ? 0 : await rpc("cyron_posicao_xp", { p_guild: guild.id, p_xp: xp }).catch(() => null);
   const n = nivelDoXp(xp);
+  const estilo = comEstilo ? (await perfilGuardado(alvo.id)).estilo : PADRAO_DO_ESTUDIO;
   const sharp = await carregarSharp();
   let imagem = null;
   if (sharp && process.memoryUsage().rss <= MEMORIA_PARA_DESENHAR) {
     imagem = await naFilaDeDesenho(async () => {
       const [foto, fundo] = await Promise.all([
-        fotoRedonda(sharp, alvo.displayAvatarURL({ extension: "png", size: 256 })), fundoDe(inter.guild)]);
+        fotoRedonda(sharp, alvo.displayAvatarURL({ extension: "png", size: 256 })), fundoDoEstilo(estilo, guild)]);
       const codigo = await idiomaEscolhido(alvo.id).catch(() => "");
       const achado = LINGUAS_MENU.find(([c]) => c === codigo);
-      const idioma = achado ? { codigo, nome: achado[3] || achado[1], bandeira: await imagemDaBandeira(codigo).catch(() => null) } : null;
+      const lingua = achado ? { codigo, nome: achado[3] || achado[1], bandeira: await imagemDaBandeira(codigo).catch(() => null) } : null;
       const args = { nome: alvo.displayName, reserva: alvo.user?.username, ...n, posicao: (Number(acima) || 0) + 1,
-        xp, mensagens, foto, fundo, idioma, duelo, semXp };
+        xp, mensagens, foto, fundo, idioma: lingua, duelo, semXp, cor: corPorId(estilo.perfil_cor),
+        moldura: estilo.perfil_moldura, fundoRetrato: estilo.perfil_fundo.startsWith("heroi:"), efeito: estilo.perfil_efeito,
+        letra: estilo.perfil_letra, frase: estilo.perfil_frase };
       return await desenharPerfil(sharp, args).catch(() => desenharPerfil(sharp, { ...args, fundo: null }));
     }).catch(() => null);
   }
   const texto = `📊 <@${alvo.id}>` + (semXp ? "" : ` · **Lv. ${n.nivel}** · ${xp.toLocaleString("en-US")} XP`) +
     (duelo ? ` · ⚔️ **${duelo.tx[`p_${patenteDe(duelo.vitorias).nome}`] || patenteDe(duelo.vitorias).nome}** · ${duelo.vitorias}🏆` : "");
-  return inter.editReply({ content: imagem ? `<@${alvo.id}>` : texto, allowedMentions: { parse: [] },
-    ...(imagem ? { files: [{ attachment: imagem, name: "perfil.jpg" }] } : {}) });
+  return { imagem, texto };
+}
+
+/* 🎨 O ESTÚDIO CYRON, DO LADO DO BOT.
+
+   O dono (24/11): votar no top.gg libera a personalização, escolhida numa
+   página do site "anônima" (sem login), com a prévia de como fica. Quem
+   decide o que cada voto libera é estudio-regras.js -- o mesmo arquivo da
+   página e da função que salva. Aqui:
+   - o botão 🎨 Personalizar (no /perfil e em todo cartão da bandeira) cria
+     o link pessoal e mostra o painel;
+   - o ✅ Já votei pergunta ao top.gg e conta o voto uma vez só;
+   - o /perfil e o cartão leem o estilo guardado (perfilGuardado).
+
+   Voto no top.gg é o que faz a CYRON subir na lista de lá, a maior vitrine
+   que ela tem; quem vota ganha uma coisa que aparece no chat. */
+const LINK_DO_VOTO = "https://top.gg/bot/1498142929041096856/vote";
+const ESTUDIO_VALE = 6 * 3600 * 1000;
+
+/* EM TESTE. O dono (24/11): "no momento não deixa público, preciso testar
+   antes" e "deixa só liberado no painel e no TOP". Fora desses dois, nada
+   do Estúdio aparece -- nem os botões, nem o estilo no /perfil e no cartão.
+   O 🎨 Estúdio das ferramentas do /admin libera para todos (ajuste
+   `estudio_publico`), sem publicar o bot. */
+const ESTUDIO_EM_TESTE = [/^\[TOP\]\s*Best Alliance/i];
+async function estudioLiberadoEm(guild) {
+  if (!guild) return false;
+  const a = await ajustes().catch(() => ({}));
+  if (String(a.estudio_publico || "") === "1") return true;
+  if (ESTUDIO_EM_TESTE.some((r) => r.test(String(guild.name || "")))) return true;
+  return await ehOPainel(guild.id).catch(() => false);
+}
+
+async function alternarEstudio(inter) {
+  const a = await ajustes();
+  const publico = String(a.estudio_publico || "") === "1";
+  await porAjuste("estudio_publico", publico ? "0" : "1");
+  return inter.reply({ flags: 64, content: publico
+    ? "🎨 Estúdio de volta ao **teste**: só no painel e no [TOP]. Nos outros servidores os botões somem e o /perfil volta ao normal."
+    : "🎨 Estúdio **liberado para todos**: 🎨 Personalizar no /perfil e nos cartões da bandeira, em todo servidor." });
+}
+
+/* O estilo e os votos guardados de alguém. Meio minuto de memória: um
+   cartão da bandeira por reação não precisa ir ao banco toda vez, e quem
+   acabou de salvar no Estúdio vê a mudança logo. */
+const PERFIL_NA_MEMORIA = new Map();
+async function perfilGuardado(userId) {
+  const lembrado = PERFIL_NA_MEMORIA.get(userId);
+  if (lembrado && Date.now() - lembrado.t < 30000) return lembrado.v;
+  const r = await sb(`cyron_perfil?user_id=eq.${userId}&select=votos,voto_em,estilo`).catch(() => null);
+  const votos = Math.max(0, Number(r?.[0]?.votos) || 0);
+  const v = { votos, votoEm: r?.[0]?.voto_em || null, estilo: estiloDoEstudio(r?.[0]?.estilo, votos) };
+  /* Só guarda o que veio do banco: uma falha de rede não pode virar meio
+     minuto de perfil sem estilo. */
+  if (r) {
+    PERFIL_NA_MEMORIA.set(userId, { t: Date.now(), v });
+    while (PERFIL_NA_MEMORIA.size > 2000) PERFIL_NA_MEMORIA.delete(PERFIL_NA_MEMORIA.keys().next().value);
+  }
+  return v;
+}
+
+/* O fundo escolhido, do jeito que o desenho recebe (caminho ou bytes). */
+async function fundoDoEstilo(estilo, guild) {
+  if (estilo.perfil_fundo === "cyron") return FUNDO_DA_CYRON;
+  if (estilo.perfil_fundo.startsWith("heroi:")) {
+    const p = personagemPorId(estilo.perfil_fundo.slice(6));
+    if (p) return `${RETRATOS_DO_DUELO}${p.id}.jpg`;
+  }
+  return await fundoDe(guild);
+}
+
+/* O link pessoal: uma chave aleatória no link, e só o resumo dela no banco
+   (quem ler a tabela não monta um link que funcione). Vale seis horas. */
+async function linkDoEstudio(user, member = null) {
+  const chave = randomBytes(32).toString("base64url");
+  await sbPost("cyron_estudio_link", {
+    resumo: createHash("sha256").update(chave).digest("hex"),
+    user_id: user.id,
+    nome: String(member?.displayName || user.globalName || user.username || "").slice(0, 100),
+    avatar: String((member || user).displayAvatarURL?.({ extension: "png", size: 256 }) || "").slice(0, 300),
+    expira_em: new Date(Date.now() + ESTUDIO_VALE).toISOString(),
+  });
+  return `${SITE_DO_CYRON}estudio.html#t=${chave}`;
+}
+
+/* Os textos do painel, em português; vão pelo tradutor uma vez por língua. */
+const TEXTOS_DO_ESTUDIO = {
+  titulo: "Estúdio CYRON",
+  explica: "Escolha como as traduções chegam para você e como fica o seu /perfil, vendo a prévia ao vivo. O link é só seu e vale 6 horas.",
+  semVoto: "Vote na CYRON no top.gg para liberar as cores, as molduras, as letras, os fundos, a sua frase e um herói do Duelo a cada voto. O que você liberar fica para sempre.",
+  votos: "votos", herois: "heróis",
+  proximo: "O próximo voto libera", todos: "Você liberou todos os heróis!", denovo: "Você pode votar de novo",
+  abrir: "Abrir o estúdio", votar: "Votar no top.gg", votei: "Já votei", personalizar: "Personalizar",
+  contado: "Voto contado! Obrigado 💜", liberou: "Liberou", tudo: "cores, molduras, letras e a sua frase",
+  jaContado: "Esse voto já foi contado.",
+  naoAchei: "Ainda não achei o seu voto. Depois de votar, o top.gg pode levar um minuto: toque em Já votei de novo.",
+  semResposta: "O top.gg não respondeu agora. Tente de novo em um minuto.",
+  calma: "Calma, tente de novo em alguns segundos.",
+  semLink: "Não consegui criar o seu link agora. Toque em Personalizar de novo em instantes.",
+};
+const ESTUDIO_NA_LINGUA = new Map();
+function textosDoEstudio(idioma, guildId) {
+  return textosNaLingua(TEXTOS_DO_ESTUDIO, idioma, guildId, ESTUDIO_NA_LINGUA);
+}
+
+/* Pura. Os dois botões embaixo do /perfil. */
+function botoesDoPerfil(t, guildId = "") {
+  return { type: 1, components: [
+    { type: 2, style: 2, custom_id: `perfil:estilo:${guildId || ""}`, label: String(t.personalizar).slice(0, 80), emoji: { name: "🎨" } },
+    { type: 2, style: 5, url: LINK_DO_VOTO, label: String(t.votar).slice(0, 80), emoji: { name: "🗳️" } },
+  ] };
+}
+
+/* Pura. O painel do Estúdio no Discord: o link, os votos e o que o próximo
+   voto libera. `perfil`: o de perfilGuardado. */
+function painelDoEstudio(t, perfil, link, aviso = "", agora = Date.now()) {
+  const lib = liberadosDoEstudio(perfil.votos);
+  const linhas = aviso ? [aviso, ""] : [];
+  linhas.push(link ? t.explica : `⚠️ ${t.semLink}`, "");
+  if (!perfil.votos) linhas.push(`🗳️ ${t.semVoto}`);
+  else {
+    linhas.push(`🗳️ **${perfil.votos}** ${t.votos} · 🦸 **${lib.herois.length}/${HEROIS_DO_ESTUDIO.length}** ${t.herois}`);
+    linhas.push(lib.proximo ? `➡️ ${t.proximo}: ${lib.proximo.bandeira} **${lib.proximo.nome}**` : `🏆 ${t.todos}`);
+    const volta = perfil.votoEm ? Math.floor(Date.parse(perfil.votoEm) / 1000) + 12 * 3600 : 0;
+    if (volta * 1000 > agora) linhas.push(`⏳ ${t.denovo} <t:${volta}:R>`);
+  }
+  return {
+    embeds: [{ color: parseInt(corPorId(perfil.estilo?.perfil_cor).c2.slice(1), 16), title: `🎨 ${t.titulo}`,
+      description: linhas.join("\n") }],
+    components: [{ type: 1, components: [
+      ...(link ? [{ type: 2, style: 5, url: link, label: String(t.abrir).slice(0, 80), emoji: { name: "🎨" } }] : []),
+      { type: 2, style: 5, url: LINK_DO_VOTO, label: String(t.votar).slice(0, 80), emoji: { name: "🗳️" } },
+      { type: 2, style: 1, custom_id: "perfil:votei", label: String(t.votei).slice(0, 80), emoji: { name: "✅" } },
+    ] }],
+  };
+}
+
+/* Pura. O que um voto acabou de liberar, para dizer na hora. */
+function novidadesDoVoto(antes, depois, t) {
+  const saiu = [];
+  if (depois.cores.length > antes.cores.length) saiu.push(`🎨 ${t.tudo}`);
+  for (const f of depois.fundos) {
+    if (antes.fundos.includes(f)) continue;
+    if (f === "cyron") saiu.push("🌐 CYRON");
+    const h = f.startsWith("heroi:") ? HEROIS_DO_ESTUDIO.find((x) => x.id === f.slice(6)) : null;
+    if (h) saiu.push(`${h.bandeira} ${h.nome}`);
+  }
+  return saiu;
+}
+
+/* O voto da pessoa no top.gg agora: { votou, quando, peso } ou { erro }.
+   v1 primeiro (diz QUANDO foi, e é isso que evita contar duas vezes); v0
+   se a v1 recusar a chave, como em avisarTopgg. */
+async function votoNoTopgg(userId, buscar = fetch) {
+  const token = await chaveDoTopgg();
+  if (!token) return { erro: "sem token" };
+  const v1 = await buscar(`${TOPGG_API}/v1/projects/@me/votes/${userId}?source=discord`, {
+    headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) });
+  if (v1.status === 404) return { votou: false };
+  if (v1.ok) {
+    const j = await v1.json().catch(() => ({}));
+    return { votou: true, quando: j.created_at || null, peso: Number(j.weight) || 1 };
+  }
+  if (v1.status !== 401 && v1.status !== 403) return { erro: `HTTP ${v1.status}` };
+  const v0 = await buscar(`${TOPGG_API}/bots/${client.user?.id}/check?userId=${userId}`, {
+    headers: { Authorization: token }, signal: AbortSignal.timeout(10000) });
+  if (!v0.ok) return { erro: `HTTP ${v1.status} (v1) / ${v0.status} (v0)` };
+  const j = await v0.json().catch(() => ({}));
+  return Number(j.voted) ? { votou: true, quando: null, peso: 1 } : { votou: false };
+}
+
+/* 🎨 Personalizar: cria o link e mostra o painel, só para quem tocou. */
+async function cliquePersonalizar(inter) {
+  const guildId = inter.customId.split(":")[2] || inter.guildId || "";
+  if (!await estudioLiberadoEm(client.guilds.cache.get(guildId) || inter.guild)) {
+    return inter.reply({ flags: 64, content: "🎨 Em breve! · _Coming soon!_" });
+  }
+  await inter.deferReply({ flags: 64 });
+  const idioma = await linguaDe(inter);
+  const [t, perfil, link] = await Promise.all([
+    textosDoEstudio(idioma, inter.guildId).catch(() => TEXTOS_DO_ESTUDIO),
+    perfilGuardado(inter.user.id),
+    linkDoEstudio(inter.user, inter.member?.displayName ? inter.member : null).catch((e) => {
+      console.error("estudio: nao criei o link:", e?.message || e);
+      return null;
+    }),
+  ]);
+  return inter.editReply(painelDoEstudio(t, perfil, link));
+}
+
+/* ✅ Já votei: pergunta ao top.gg e conta o voto uma vez só. O link do
+   Estúdio do painel continua o mesmo (vem do próprio botão). */
+const ULTIMO_JA_VOTEI = new Map();
+const ESPERA_JA_VOTEI = 15000;
+async function cliqueJaVotei(inter) {
+  const idioma = await linguaDe(inter);
+  const t = await textosDoEstudio(idioma, inter.guildId).catch(() => TEXTOS_DO_ESTUDIO);
+  const agora = Date.now();
+  if (agora - (ULTIMO_JA_VOTEI.get(inter.user.id) || 0) < ESPERA_JA_VOTEI) {
+    return inter.reply({ flags: 64, content: `⏳ ${t.calma}` });
+  }
+  ULTIMO_JA_VOTEI.set(inter.user.id, agora);
+  await inter.deferUpdate();
+  const link = (inter.message?.components || []).flatMap((r) => r.components || [])
+    .find((c) => String(c.url || "").includes("/estudio.html#t="))?.url || null;
+  const v = await votoNoTopgg(inter.user.id).catch((e) => ({ erro: String(e?.message || e) }));
+  PERFIL_NA_MEMORIA.delete(inter.user.id);
+  let perfil = await perfilGuardado(inter.user.id);
+  let aviso;
+  if (v.erro) {
+    if (v.erro !== "sem token") console.error("top.gg: nao consegui conferir o voto:", v.erro);
+    aviso = `⚠️ ${t.semResposta}`;
+  } else if (!v.votou) {
+    aviso = `🔎 ${t.naoAchei}`;
+  } else {
+    const quando = v.quando || new Date(agora).toISOString();
+    const total = await rpc("cyron_contar_voto", { p_user: inter.user.id, p_quando: quando, p_peso: v.peso,
+      p_folga: v.quando ? "0 seconds" : "11 hours" })
+      .catch((e) => { console.error("top.gg: nao contei o voto:", e?.message || e); return undefined; });
+    if (total === undefined) aviso = `⚠️ ${t.semResposta}`;
+    else if (total === null) aviso = `✅ ${t.jaContado}`;
+    else {
+      const antes = liberadosDoEstudio(perfil.votos);
+      PERFIL_NA_MEMORIA.delete(inter.user.id);
+      perfil = { ...perfil, votos: total, votoEm: quando };
+      const novos = novidadesDoVoto(antes, liberadosDoEstudio(total), t);
+      aviso = `🎉 **${t.contado}**` + (novos.length ? `\n${t.liberou}: ${novos.join(" · ")}` : "");
+    }
+  }
+  return inter.editReply(painelDoEstudio(t, perfil, link, aviso));
 }
 
 /* A guerra de bandeiras: a XP de cada lingua, somada. So' a CYRON sabe a
@@ -22445,7 +22718,7 @@ function linhasDoAdmin(aba = "resumo", servidores = []) {
       [botao("comandos", "🧪", "Meus comandos"), botao("novocomando", "➕", "Novo comando", 4),
         botao("suporte", "🏗️", "Montar suporte"), botao("remontar", "🔄", "Remontar painel"), convite],
       [botao("ia", "🧠", "IA do privado", 1), botao("presente", "🎁", "Código do Kingshot", 3),
-        botao("topgg", "🗳️", "top.gg", 1)],
+        botao("topgg", "🗳️", "top.gg", 1), botao("estudio", "🎨", "Estúdio", 2)],
     ],
   }[aba] || [];
   /* A lista de servidores e' um menu, e nao texto: escolher abre a ficha com
@@ -22710,6 +22983,7 @@ async function embedDasFerramentas() {
         "🔄 **Remontar painel** — refaz os canais deste painel",
         "🧠 **IA do privado** — chave da Groq, ligar e desligar, perguntas por dia",
         "🗳️ **top.gg** — token da página: o número de servidores vai sozinho, de hora em hora",
+        `🎨 **Estúdio** — personalização pelo voto: ${String(a.estudio_publico || "") === "1" ? "**liberado para todos**" : "**em teste** (só no painel e no [TOP])"}; toque para trocar`,
       ].join("\n") },
     ],
   };
@@ -23157,6 +23431,7 @@ async function cliqueAdmin(inter) {
   if (acao === "ajustes" && inter.isButton()) return inter.showModal(janelaValida(await janelaDeAjustes()));
   if (acao === "chaves" && inter.isButton()) return inter.showModal(janelaValida(await janelaDasChaves()));
   if (acao === "topgg" && inter.isButton()) return inter.showModal(janelaValida(await janelaDoTopgg()));
+  if (acao === "estudio" && inter.isButton()) return await alternarEstudio(inter);
   if (acao === "visao" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaVisao()));
   if (acao === "fala" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaFala()));
   if (acao === "ia" && inter.isButton()) return inter.showModal(janelaValida(await janelaDaIA()));
@@ -27790,6 +28065,9 @@ client.on("interactionCreate", async (inter) => {
     if (inter.isButton() && inter.customId.startsWith("aud:ouvir")) {
       return await cliqueOuvirAudio(inter);
     }
+    /* 🎨 o Estúdio (o link pessoal) e o ✅ "Já votei" do top.gg. */
+    if (inter.isButton() && inter.customId.startsWith("perfil:estilo")) return await cliquePersonalizar(inter);
+    if (inter.isButton() && inter.customId === "perfil:votei") return await cliqueJaVotei(inter);
     if (inter.isModalSubmit()) {
       if (inter.customId === "jogo:reino") return await reinoDasSalasDoJogo(inter);
       if (inter.customId === "cyron:motor") return await salvarMotor(inter);
@@ -28284,8 +28562,9 @@ client.on("messageReactionAdd", async (reacao, quem) => {
 
     /* As palavras do cartão vêm junto, em paralelo: na segunda vez em diante
        elas saem da memória, e na primeira não somam espera à tradução. */
-    const [traduzido, palavras] = await Promise.all([
-      traduzirLongo(texto, idioma, motorDe(servidor)), palavrasDaBandeira(idioma)]);
+    const [traduzido, palavras, perfil, comEstudio] = await Promise.all([
+      traduzirLongo(texto, idioma, motorDe(servidor)), palavrasDaBandeira(idioma), perfilGuardado(quem.id),
+      estudioLiberadoEm(msg.guild)]);
     if (!traduzido) {
       await entregarNoPrivado(quem, msg.channel, {
         embeds: [{ color: COR, title: "❌ Não deu / Failed",
@@ -28297,7 +28576,7 @@ client.on("messageReactionAdd", async (reacao, quem) => {
 
     const onde = await entregarNoPrivado(quem, msg.channel,
       cartaoDaBandeira(msg, idioma, traduzido, rodapeDeDivulgacao(servidor, palavras.divulga),
-        linguasDaBandeira(reacao.emoji?.name), quem.id, palavras));
+        linguasDaBandeira(reacao.emoji?.name), quem.id, palavras, comEstudio ? perfil.estilo : null, texto));
     if (!onde) return; // nem privado nem sala: nao ha o que limpar
     contarUso("bandeira", msg.guild.id);
 
@@ -28324,21 +28603,32 @@ client.on("messageReactionAdd", async (reacao, quem) => {
    menu leva no nome o servidor, o canal, a
    mensagem e QUEM reagiu: no privado so' essa pessoa o ve; na sala (privado
    fechado), so' ela consegue usar. */
-function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], quem = "", palavras = PALAVRAS_DA_BANDEIRA.en) {
+function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], quem = "", palavras = PALAVRAS_DA_BANDEIRA.en,
+  estilo = null, original = "") {
   const p = { ...PALAVRAS_DA_BANDEIRA.en, ...(palavras || {}) };
+  /* O jeito de quem reagiu, escolhido no Estúdio (estudio-regras.js): cor,
+     herói, enfeite, letra grande, texto original, compacto. Sem estilo, o
+     cartão de sempre. */
+  const e = estilo || PADRAO_DO_ESTUDIO;
+  const compacto = e.cartao_estilo === "compacto";
+  const texto = String(traduzido || "").slice(0, 3600);
+  const corpo = e.cartao_grande ? texto.split("\n").map((l) => (l.trim() ? `### ${l}` : l)).join("\n") : texto;
+  const linhasDoOriginal = e.cartao_original ? String(original || "").slice(0, 300).split("\n").filter((l) => l.trim()) : [];
+  const doOriginal = linhasDoOriginal.length ? "\n\n" + linhasDoOriginal.map((l, i) => `-# ${i ? "" : "💬 "}${l}`).join("\n") : "";
   const autor = msg.member?.displayName || msg.author?.username || "";
   const outras = (linguas || []).filter((l) => l !== idioma && linhaDaLingua(l)).slice(0, 25);
   const varias = outras.length > 0;
   return {
     embeds: [{
-      color: COR,
-      author: autor ? { name: autor, icon_url: msg.author?.displayAvatarURL?.() } : undefined,
-      title: tituloDaLingua(idioma),
-      description: String(traduzido || "").slice(0, 3800) + (msg.url ? `\n\n[⤴ ${p.voltar}](${msg.url})` : "") +
+      color: parseInt(corPorId(e.cartao_cor).c2.slice(1), 16),
+      author: autor && !compacto ? { name: autor, icon_url: msg.author?.displayAvatarURL?.() } : undefined,
+      title: compacto ? undefined : `${tituloDaLingua(idioma)}${e.cartao_emoji ? ` ${e.cartao_emoji}` : ""}`,
+      description: corpo + (msg.url ? `\n\n[⤴ ${p.voltar}](${msg.url})` : "") + doOriginal +
         (varias ? `\n\n-# 🌐 ${p.varias}` : "") + rodape,
+      thumbnail: e.cartao_heroi ? { url: `${SITE_DO_CYRON}img/duelo/${e.cartao_heroi}.jpg` } : undefined,
       footer: { text: `#${msg.channel?.name || ""} · ${msg.guild?.name || ""}` },
     }],
-    ...(varias ? { components: [{ type: 1, components: [{
+    components: [...(varias ? [{ type: 1, components: [{
       type: 3,
       custom_id: `bandeira:${msg.guild?.id}:${msg.channel?.id}:${msg.id}:${quem}`.slice(0, 100),
       placeholder: `🌐 ${p.outra}`.slice(0, 150),
@@ -28347,7 +28637,12 @@ function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], que
         return { label: (proprio && proprio !== nome ? `${proprio} · ${nome}` : nome).slice(0, 100), value: l,
           emoji: { name: sinal }, default: l === idioma };
       }),
-    }] }] } : {}),
+    }] }] : []),
+    /* 🎨 no cartão: é aqui que a pessoa vê como a tradução chega, então é
+       daqui que ela vai querer mudar. Abre o Estúdio de quem tocou. Só vem
+       com estilo (estilo = Estúdio liberado no servidor da mensagem). */
+    ...(estilo ? [{ type: 1, components: [{ type: 2, style: 2, custom_id: `perfil:estilo:${msg.guild?.id || ""}`,
+      label: String(p.personalizar).slice(0, 80), emoji: { name: "🎨" } }] }] : [])],
   };
 }
 
@@ -28372,15 +28667,16 @@ async function cliqueBandeiraLingua(inter) {
     return inter.followUp({ flags: 64, content: "A mensagem original não existe mais. · _The original message is gone._" }).catch(() => {});
   }
   const servidor = await servidorDoGuild(guildId).catch(() => null);
-  const [traduzido, palavras] = await Promise.all([
-    traduzirLongo(texto, lingua, motorDe(servidor)), palavrasDaBandeira(lingua)]);
+  const [traduzido, palavras, perfil, comEstudio] = await Promise.all([
+    traduzirLongo(texto, lingua, motorDe(servidor)), palavrasDaBandeira(lingua), perfilGuardado(inter.user.id),
+    estudioLiberadoEm(client.guilds.cache.get(guildId))]);
   if (!traduzido) {
     return inter.followUp({ flags: 64, content: "❌ Não consegui traduzir agora. · _Could not translate right now._" }).catch(() => {});
   }
-  const linguas = (inter.message?.components?.[0]?.components?.[0]?.options || []).map((o) => o.value);
+  const linguas = (inter.message?.components?.find((r) => r.components?.[0]?.type === 3)?.components?.[0]?.options || []).map((o) => o.value);
   contarUso("bandeira", guildId);
   return inter.editReply(cartaoDaBandeira(msg, lingua, traduzido, rodapeDeDivulgacao(servidor, palavras.divulga),
-    linguas, dono, palavras));
+    linguas, dono, palavras, comEstudio ? perfil.estilo : null, texto));
 }
 
 /* AS PALAVRAS DO CARTÃO DA BANDEIRA, NA LÍNGUA DA TRADUÇÃO.
@@ -28398,9 +28694,9 @@ async function cliqueBandeiraLingua(inter) {
    aquela frase fica em inglês, que é a segunda língua mais lida. */
 const PALAVRAS_DA_BANDEIRA = {
   pt: { voltar: "Voltar", varias: "Este país fala mais de uma língua: escolha a sua no menu abaixo.",
-    outra: "Outra língua", divulga: "traduza o seu servidor também" },
+    outra: "Outra língua", divulga: "traduza o seu servidor também", personalizar: "Personalizar" },
   en: { voltar: "Back", varias: "This country speaks more than one language: pick yours in the menu below.",
-    outra: "Another language", divulga: "translate your server too" },
+    outra: "Another language", divulga: "translate your server too", personalizar: "Customize" },
 };
 
 async function palavrasDaBandeira(idioma) {

@@ -38,6 +38,11 @@ globalThis.StringSelectMenuBuilder = StringSelectMenuBuilder;
 import { CATEGORIAS, CATEGORIA_DONO, RECURSOS, recursosDa, doCliente, doDono, numeroDe }
   from "./catalogo.js";
 import { pagina as paginaDeRecursos, DESTINO as HTML_RECURSOS } from "./fazer-recursos.js";
+/* As regras do Estúdio (o que cada voto libera): arquivo puro, como o
+   catálogo. O index.js importa com outros nomes; aqui entram os mesmos. */
+import * as ESTUDIO from "./estudio-regras.js";
+Object.assign(globalThis, { estiloDoEstudio: ESTUDIO.estiloValido, corPorId: ESTUDIO.corPorId,
+  liberadosDoEstudio: ESTUDIO.liberados, HEROIS_DO_ESTUDIO: ESTUDIO.HEROIS, PADRAO_DO_ESTUDIO: ESTUDIO.PADRAO });
 globalThis.CATEGORIAS = CATEGORIAS;
 globalThis.RECURSOS = RECURSOS;
 /* A agenda e' origem por conta propria; varias funcoes do painel a deixam de fora. */
@@ -2643,7 +2648,7 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("e o título com o nome que quem lê usa", emHindi.embeds[0].title, "🇮🇳 हिन्दी");
     ok("português e inglês vêm prontos, sem tradutor", [PALAVRAS_DA_BANDEIRA.pt.voltar, PALAVRAS_DA_BANDEIRA.en.voltar], ["Voltar", "Back"]);
     const simples = cartaoDaBandeira(msg, "ja", "こんにちは", "", ["ja"], "u1");
-    verdade("país de uma língua: cartão sem menu e sem a frase", !simples.components && !/more than one language/.test(simples.embeds[0].description));
+    verdade("país de uma língua: cartão sem menu e sem a frase", !simples.components.length && !/more than one language/.test(simples.embeds[0].description));
 
     /* As palavras das outras línguas saem do inglês pelo tradutor, uma vez
        por língua (o cache faz o resto); se ele falhar, fica o inglês. */
@@ -2661,20 +2666,161 @@ function conferirCartao(onde, embed, componentes = []) {
       ok("português não chama o tradutor", [pt.voltar, pedidos.length], ["Voltar", 0]);
       const ta = await palavrasDaBandeira("ta");
       verdade("tâmil: traduz do inglês, pelo motor gratuito",
-        pedidos.length === 4 && pedidos.every(([l, m, o]) => l === "ta" && m === "auto" && o === "en"));
+        pedidos.length === Object.keys(PALAVRAS_DA_BANDEIRA.en).length && pedidos.every(([l, m, o]) => l === "ta" && m === "auto" && o === "en"));
       ok("e a frase que falhou fica em inglês", [ta.voltar, ta.outra], ["Back", "[ta] Another language"]);
       globalThis.falaFixa = antes.f; globalThis.MOTOR_AUTO = antes.m;
     }
     const reacao = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
     verdade("a reação e a troca no menu mandam as palavras da língua para o cartão",
-      (reacao.match(/palavrasDaBandeira\((idioma|lingua)\)\]\)/g) || []).length === 2 &&
-      (reacao.match(/quem\.id, palavras\)\)|linguas, dono, palavras\)\)/g) || []).length === 2);
+      (reacao.match(/palavrasDaBandeira\((idioma|lingua)\), perfilGuardado\(/g) || []).length === 2 &&
+      (reacao.match(/(quem\.id|dono), palavras, comEstudio \? perfil\.estilo : null, texto\)\)/g) || []).length === 2);
     const fonte2 = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
     verdade("o menu da bandeira é tratado", /inter\.customId\.startsWith\("bandeira:"\)\) return await cliqueBandeiraLingua\(inter\)/.test(fonte2));
     const clique = semComentarios(pedaco("cliqueBandeiraLingua"));
     verdade("só quem reagiu troca a língua", /if \(dono && inter\.user\.id !== dono\)/.test(clique));
     verdade("e a troca respeita o limite por minuto", /podeTraduzirAgora\(inter\.user\.id\)/.test(clique));
   }
+  /* ====== 🎨 O ESTÚDIO CYRON ======
+
+     O dono (24/11): votar no top.gg libera a personalização, escolhida numa
+     página do site sem login, com prévia. Em teste: só no painel e no [TOP]
+     até ele liberar no /admin. */
+  {
+    const regras = readFileSync(`${aqui}/estudio-regras.js`, "utf8");
+    ok("as regras do Estúdio são as mesmas no bot, na página e na função",
+      [readFileSync(`${aqui}/../cyron/estudio-regras.js`, "utf8") === regras,
+        readFileSync(`${aqui}/../supabase/functions/cyron-estudio/regras.js`, "utf8") === regras], [true, true]);
+    const { PERSONAGENS: ELENCO } = await import("./duelo-elenco.js");
+    ok("os heróis do Estúdio são os do Duelo, na mesma ordem", ESTUDIO.HEROIS.map((h) => h.id), ELENCO.map((p) => p.id));
+    const semRetrato = ESTUDIO.HEROIS.filter((h) => !existsSync(`${aqui}/img/duelo/${h.id}.jpg`) || !existsSync(`${aqui}/../cyron/img/duelo/${h.id}.jpg`));
+    ok("todo herói tem retrato no bot e no site (fundo do perfil e figura do cartão)", semRetrato.map((h) => h.id), []);
+    verdade("as letras do Estúdio existem no bot", existsSync(`${aqui}/fontes/Cinzel_700Bold.ttf`) && existsSync(`${aqui}/fontes/EBGaramond_700Bold.ttf`));
+
+    const sem = ESTUDIO.liberados(0);
+    ok("sem voto: só as cores de sempre e o fundo do servidor", [sem.cores, sem.fundos, sem.herois, sem.frase, sem.proximo.id],
+      [["ceu", "cyron"], ["servidor"], [], false, "alexandre"]);
+    const um = ESTUDIO.liberados(1);
+    ok("1º voto: todas as cores, o fundo da CYRON, a frase e o primeiro herói",
+      [um.cores.length, um.fundos, um.frase, um.proximo.id, um.letras.length, um.efeitos.length, um.emojis.length],
+      [ESTUDIO.CORES.length, ["servidor", "cyron", "heroi:alexandre"], true, "napoleao", 3, 3, ESTUDIO.EMOJIS_DO_TITULO.length]);
+    ok("12 votos: todos os heróis, e não há próximo", [ESTUDIO.liberados(12).herois.length, ESTUDIO.liberados(12).proximo], [12, null]);
+
+    const pedido = { perfil_cor: "rosa", perfil_fundo: "heroi:tesla", cartao_heroi: "napoleao", perfil_letra: "medieval",
+      cartao_original: true, cartao_grande: true, cartao_estilo: "compacto", cartao_emoji: "🐻", perfil_frase: "oi <@123> https://x.y rally" };
+    const zero = ESTUDIO.estiloValido(pedido, 0);
+    ok("sem voto, o trancado volta ao padrão e o útil do cartão vale", [zero.perfil_cor, zero.perfil_fundo, zero.cartao_heroi,
+      zero.perfil_letra, zero.cartao_emoji, zero.perfil_frase, zero.cartao_original, zero.cartao_grande, zero.cartao_estilo],
+      ["ceu", "servidor", "", "moderna", "", "", true, true, "compacto"]);
+    const dois = ESTUDIO.estiloValido(pedido, 2);
+    ok("com 2 votos: Napoleão sim, Tesla ainda não, e a frase sem menção nem link",
+      [dois.cartao_heroi, dois.perfil_fundo, dois.perfil_cor, dois.perfil_frase], ["napoleao", "servidor", "rosa", "oi 123 rally"]);
+    ok("lixo vira o padrão", ESTUDIO.estiloValido("<script>", 5), { ...ESTUDIO.PADRAO });
+    ok("a frase não passa de 40 letras nem leva caractere invisível",
+      ESTUDIO.limparFrase("a".repeat(60) + String.fromCharCode(0x202e)).length, 40);
+    verdade("e o invisível some", ESTUDIO.limparFrase(`oi${String.fromCharCode(0x200b)}${String.fromCharCode(0x2028)}tudo`) === "oitudo");
+
+    /* O cartão da bandeira com o estilo de quem reagiu. */
+    Object.assign(globalThis, carregar(["SITE_DO_CYRON"]));
+    const E = carregar(["linhaDaLingua", "tituloDaLingua", "PALAVRAS_DA_BANDEIRA", "cartaoDaBandeira", "TEXTOS_DO_ESTUDIO",
+      "LINK_DO_VOTO", "botoesDoPerfil", "painelDoEstudio", "novidadesDoVoto"]);
+    const msg = { id: "m1", url: "https://discord.com/channels/g1/c1/m1", guild: { id: "g1", name: "Servidor" },
+      channel: { id: "c1", name: "geral" }, author: { username: "ana", displayAvatarURL: () => "https://x/a.png" }, member: { displayName: "Ana" } };
+    const enfeitado = ESTUDIO.estiloValido({ cartao_cor: "rosa", cartao_heroi: "alexandre", cartao_emoji: "🐻", cartao_grande: true,
+      cartao_original: true }, 1);
+    const c = E.cartaoDaBandeira(msg, "pt", "Olá a todos\nTudo bem?", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt, enfeitado, "Hello everyone");
+    const em = c.embeds[0];
+    ok("o cartão sai na cor escolhida", em.color, 0xE0457B);
+    verdade("com o enfeite no título e o herói no canto", / 🐻$/.test(em.title) && /img\/duelo\/alexandre\.jpg$/.test(em.thumbnail?.url || ""));
+    verdade("letra grande: cada linha vira título", /^### Olá a todos\n### Tudo bem\?/.test(em.description));
+    verdade("e o original embaixo, em letra pequena", em.description.includes("-# 💬 Hello everyone"));
+    ok("o 🎨 leva o servidor da mensagem", c.components.at(-1).components[0].custom_id, "perfil:estilo:g1");
+    const compacto = E.cartaoDaBandeira(msg, "pt", "Oi", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt,
+      ESTUDIO.estiloValido({ cartao_estilo: "compacto" }, 0), "Hi").embeds[0];
+    verdade("compacto: sem autor e sem título, mas com o voltar", !compacto.author && !compacto.title && /⤴ Voltar/.test(compacto.description));
+    const normal = E.cartaoDaBandeira(msg, "pt", "Oi", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt, null, "Hi");
+    verdade("Estúdio fora do servidor (sem estilo): o laranja de sempre, sem 🎨 e sem figura",
+      normal.embeds[0].color === 0xF5A623 && !normal.components.length && !normal.embeds[0].thumbnail);
+    const padrao = E.cartaoDaBandeira(msg, "pt", "Oi", "", ["pt"], "u1", E.PALAVRAS_DA_BANDEIRA.pt, ESTUDIO.PADRAO, "Hi");
+    verdade("com o Estúdio e o estilo padrão: o mesmo laranja, agora com o 🎨", padrao.embeds[0].color === 0xF5A623 && padrao.components.length === 1);
+
+    /* O painel do Estúdio no Discord. */
+    const T = E.TEXTOS_DO_ESTUDIO;
+    const perfil0 = { votos: 0, votoEm: null, estilo: ESTUDIO.PADRAO };
+    const p0 = E.painelDoEstudio(T, perfil0, "https://hicyron.github.io/estudio.html#t=abc");
+    const bts = p0.components[0].components;
+    verdade("o painel traz o link do Estúdio, o voto e o Já votei",
+      bts[0].url.endsWith("#t=abc") && bts[1].url === E.LINK_DO_VOTO && bts[2].custom_id === "perfil:votei");
+    verdade("sem voto, ele explica o que o voto libera", p0.embeds[0].description.includes(T.semVoto));
+    const agora = Date.parse("2026-11-24T12:00:00Z");
+    const p3 = E.painelDoEstudio(T, { votos: 3, votoEm: "2026-11-24T10:00:00Z", estilo: ESTUDIO.PADRAO }, null, "", agora);
+    verdade("com votos: quantos, o próximo herói e quando votar de novo",
+      /\*\*3\*\* votos/.test(p3.embeds[0].description) && /Musashi/.test(p3.embeds[0].description) && /<t:\d+:R>/.test(p3.embeds[0].description));
+    verdade("sem link (o banco falhou): avisa, e o botão do Estúdio não aparece",
+      p3.embeds[0].description.includes(T.semLink) && p3.components[0].components.length === 2);
+    ok("o voto conta o que liberou", E.novidadesDoVoto(ESTUDIO.liberados(0), ESTUDIO.liberados(1), T), [`🎨 ${T.tudo}`, "🌐 CYRON", "🇬🇷 Alexandre"]);
+    ok("os botões do /perfil: 🎨 com o servidor e o voto", E.botoesDoPerfil(T, "g9").components.map((b) => b.custom_id || b.url),
+      ["perfil:estilo:g9", E.LINK_DO_VOTO]);
+
+    /* O voto no top.gg: v1 diz quando; v0 de reserva. */
+    {
+      const antes = { k: globalThis.chaveDoTopgg, c: globalThis.client };
+      globalThis.chaveDoTopgg = async () => "tok";
+      globalThis.client = { user: { id: "bot1" } };
+      const V = carregar(["TOPGG_API", "votoNoTopgg"]);
+      const pedidos = [];
+      const resposta = (status, corpo) => ({ ok: status < 300, status, json: async () => corpo });
+      const fila = (...rs) => async (url, o) => { pedidos.push([url, o.headers.Authorization]); return rs.shift(); };
+      ok("não votou (404)", await V.votoNoTopgg("u1", fila(resposta(404, {}))), { votou: false });
+      ok("votou: a hora e o peso do fim de semana", await V.votoNoTopgg("u1", fila(resposta(200, { created_at: "2026-11-24T10:00:00Z", weight: 2 }))),
+        { votou: true, quando: "2026-11-24T10:00:00Z", peso: 2 });
+      verdade("pela v1, com Bearer", /\/v1\/projects\/@me\/votes\/u1\?source=discord$/.test(pedidos[1][0]) && pedidos[1][1] === "Bearer tok");
+      ok("v1 recusou a chave: pergunta à v0", await V.votoNoTopgg("u1", fila(resposta(401, {}), resposta(200, { voted: 1 }))),
+        { votou: true, quando: null, peso: 1 });
+      verdade("a v0 vai com a chave sem prefixo", /\/bots\/bot1\/check\?userId=u1$/.test(pedidos[3][0]) && pedidos[3][1] === "tok");
+      globalThis.chaveDoTopgg = async () => "";
+      ok("sem token, não pergunta nada", await V.votoNoTopgg("u1", fila()), { erro: "sem token" });
+      globalThis.chaveDoTopgg = antes.k; globalThis.client = antes.c;
+    }
+
+    /* Em teste: só no painel e no [TOP], até o dono liberar. */
+    {
+      const antes = { a: globalThis.ajustes, p: globalThis.ehOPainel };
+      let publico = "";
+      globalThis.ajustes = async () => ({ estudio_publico: publico });
+      globalThis.ehOPainel = async (id) => id === "painel1";
+      const L = carregar(["ESTUDIO_EM_TESTE", "estudioLiberadoEm"]);
+      ok("liberado no [TOP] e no painel; fora deles, não", [
+        await L.estudioLiberadoEm({ id: "t1", name: "[TOP]Best Alliance Kingshot" }),
+        await L.estudioLiberadoEm({ id: "painel1", name: "CYRON painel" }),
+        await L.estudioLiberadoEm({ id: "x1", name: "[MET] Altecaia" }),
+        await L.estudioLiberadoEm(null)], [true, true, false, false]);
+      publico = "1";
+      ok("o dono liberou no /admin: todo servidor", await L.estudioLiberadoEm({ id: "x1", name: "[MET] Altecaia" }), true);
+      globalThis.ajustes = antes.a; globalThis.ehOPainel = antes.p;
+    }
+
+    const fonte = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    verdade("o /perfil só mostra 🎨 e 🗳️ onde o Estúdio está liberado", /components: liberado \? \[botoesDoPerfil\(t, inter\.guildId\)\] : \[\]/.test(fonte));
+    verdade("e só desenha com o estilo onde está liberado", /perfilDe\(inter\.guild, alvo, servidor, idioma, liberado\)/.test(fonte));
+    verdade("o 🎨 e o Já votei são atendidos", /customId\.startsWith\("perfil:estilo"\)\) return await cliquePersonalizar/.test(fonte) &&
+      /customId === "perfil:votei"\) return await cliqueJaVotei/.test(fonte));
+    verdade("o Personalizar confere a trava pelo servidor do botão", /async function cliquePersonalizar[^]*?estudioLiberadoEm\(/.test(fonte));
+    verdade("o voto conta uma vez: pela hora do top.gg, ou 11 horas de folga sem ela",
+      /cyron_contar_voto[^]*?p_folga: v\.quando \? "0 seconds" : "11 hours"/.test(fonte));
+    verdade("o /admin tem o 🎨 que libera para todos", /botao\("estudio", "🎨", "Estúdio", 2\)/.test(fonte) &&
+      /acao === "estudio" && inter\.isButton\(\)\) return await alternarEstudio/.test(fonte));
+    const mig = readFileSync(`${aqui}/../supabase/migracoes/024-estudio.sql`, "utf8");
+    verdade("o banco do Estúdio: estilo, link (só o resumo) e a conta do voto, fechados ao público",
+      ["create table if not exists cyron_perfil", "create table if not exists cyron_estudio_link", "resumo    text",
+        "function cyron_contar_voto", "revoke all on function cyron_contar_voto"].every((t) => mig.includes(t)));
+    const funcao = readFileSync(`${aqui}/../supabase/functions/cyron-estudio/index.ts`, "utf8");
+    verdade("quem salva confere com os votos do banco, e não com o que o navegador manda",
+      /import \{ estiloValido \} from "\.\/regras\.js"/.test(funcao) && /estiloValido\(corpo\.estilo, votos\)/.test(funcao));
+    const pagina = readFileSync(`${aqui}/../cyron/estudio.html`, "utf8");
+    verdade("a página tira o link da barra de endereço e não entra no Google",
+      /history\.replaceState/.test(pagina) && /name="robots" content="noindex"/.test(pagina));
+  }
+
   ok("joinha não vira idioma", idiomaDaBandeira("👍"), "");
 
   /* Regressão que importa: se alguém trocar a bandeira de uma linha do menu,
@@ -9199,6 +9345,25 @@ function conferirCartao(onde, embed, componentes = []) {
     const soDuelo = await x.desenharPerfil(sharpP, { nome: "Tiago", reserva: "t", nivel: 0, dentro: 0, precisa: 100, posicao: 1, xp: 0, mensagens: 0,
       foto: null, fundo: null, semXp: true, duelo: { vitorias: 0, derrotas: 2, posicao: null } }, FONTE_P);
     verdade("níveis desligados: o perfil sai só com o duelo", soDuelo.length > 10000);
+    /* O /perfil com tudo do Estúdio ligado: cor, moldura, letra, efeito,
+       fundo de herói (retrato em pé) e frase. Tem que sair inteiro, e cada
+       moldura e efeito tem que desenhar sem estourar. */
+    globalThis.FONTE_TITULO = new URL("./fontes/Cinzel_700Bold.ttf", import.meta.url).pathname;
+    globalThis.FONTE_LIVRO_NEGRITO = new URL("./fontes/EBGaramond_700Bold.ttf", import.meta.url).pathname;
+    Object.assign(globalThis, carregar(["fonteQueEscreve"]));
+    const retrato = new URL("./img/duelo/cleopatra.jpg", import.meta.url).pathname;
+    const tamanhos = [];
+    for (const [moldura, efeito, letra] of [["dourada", "tingido", "medieval"], ["neon", "nitido", "classica"], ["arcoiris", "desfocado", "moderna"]]) {
+      const img = await x.desenharPerfil(sharpP, { nome: "Tiago", reserva: "t", nivel: 9, dentro: 50, precisa: 100, posicao: 1, xp: 900,
+        mensagens: 80, foto: null, fundo: retrato, fundoRetrato: true, cor: corPorId("roxo"), moldura, efeito, letra,
+        frase: "Rally no urso toda noite 🐻" }, FONTE_P);
+      const m = await sharpP(img).metadata();
+      tamanhos.push(`${m.width}x${m.height}`);
+    }
+    ok("o /perfil do Estúdio desenha com cada moldura, efeito e letra", tamanhos, ["1024x340", "1024x340", "1024x340"]);
+    const cirilico = await x.desenharPerfil(sharpP, { nome: "Иван", reserva: "i", nivel: 1, dentro: 1, precisa: 100, posicao: 1, xp: 1,
+      mensagens: 1, foto: null, fundo: null, letra: "medieval" }, FONTE_P);
+    verdade("nome que a letra medieval não escreve sai na de sempre, sem estourar", cirilico.length > 10000);
   }
   const meta = await sharp(card).metadata();
   ok("o cartão do /perfil sai em JPEG 1024x340", [meta.format, meta.width, meta.height], ["jpeg", 1024, 340]);
