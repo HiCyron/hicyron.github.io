@@ -31382,8 +31382,36 @@ async function contarQueVoltei() {
   if (surdo > 0) await porAjuste("surdo", "0").catch(() => {});
 }
 
+/* 🎧 O STATUS DA CYRON: "Ouvindo ...".
+
+   O dono (24/11), vendo outro bot "Jogando GTA VI em Vice City": "ela
+   escutando música?". O Discord escreve o "Ouvindo"/"Listening to" na
+   língua de quem olha; o resto é texto fixo, igual para todo mundo -- então
+   vai curto e quase sem língua. Troca a cada 10 minutos; a troca também
+   refaz o status depois de uma reconexão (e client.options.presence leva o
+   atual para a próxima sessão). */
+const MUSICAS_DA_CYRON = ["🎧 lo-fi", "🎵 Kingshot OST", "🌐 {n} servers"];
+const STATUS_A_CADA = 10 * 60 * 1000;
+let vezDoStatus = 0;
+
+/* Pura. O status da vez: tipo 2 é "Ouvindo" (ActivityType.Listening). */
+function statusDaCyron(vez, servidores) {
+  const n = MUSICAS_DA_CYRON.length;
+  return { name: MUSICAS_DA_CYRON[((vez % n) + n) % n].replace("{n}", String(servidores || 0)), type: 2 };
+}
+
+function trocarStatus() {
+  if (!client.user) return;
+  const presenca = { status: "online", activities: [statusDaCyron(vezDoStatus++, client.guilds.cache.size)] };
+  client.options.presence = presenca;
+  client.user.setPresence(presenca);
+}
+
 client.once("clientReady", () => {
   console.log(`Conectado como ${client.user.tag}, em ${client.guilds.cache.size} servidor(es).`);
+
+  trocarStatus();
+  setInterval(trocarStatus, STATUS_A_CADA);
 
   /* O historico dos erros antes de tudo: o que der errado na subida ja' conta
      a partir de onde a ficha estava. */
