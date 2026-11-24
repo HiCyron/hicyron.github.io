@@ -24380,51 +24380,80 @@ async function salvarTopgg(inter) {
     : `🔑 Token guardado, mas o top.gg recusou: ${String(r?.erro || "sem resposta").slice(0, 150)}. Confira se copiou o token inteiro.`);
 }
 
-/* ---------------- 🗳️ votos no discordbotlist ----------------
+/* ---------------- 🗳️ votos no top.gg ----------------
 
    O Google e as IAs indicam bot pelo que acham nas listas, e as listas
    ordenam por voto. Entao votar tem que valer a pena: quem vota ganha uma
-   carta de heroi e um obrigado no privado, com o botao de votar de novo.
+   carta de heroi e um obrigado no privado, com o botao de votar de novo -- e
+   o voto ja' conta no Estudio, sem precisar tocar em ✅ Ja' votei.
+
+   Um site so': o top.gg (dono, 25/11: "acho que devemos focar em 1 site
+   para os votos, ja' que somos poucos"). Era o discordbotlist; dividir os
+   poucos votos em duas listas deixava a CYRON fraca nas duas. O
+   discordbotlist continua recebendo a lista de comandos e os servidores.
 
    Sem webhook -- o bot nao abre porta nenhuma, de proposito. A cada 5 min eu
-   pergunto a lista os votos das ultimas 12 h (os 500 mais novos) e pago os
-   que chegaram depois da marca guardada no banco (`voto_dbl_ate`): reinicio
-   nenhum paga o mesmo voto duas vezes. A marca anda ANTES de pagar -- falhar
-   no meio perde um premio, nunca paga dois. */
+   pergunto ao top.gg os votos desde a marca guardada no banco
+   (`voto_topgg_ate`) e pago os que chegaram depois dela: reinicio nenhum
+   paga o mesmo voto duas vezes. A marca anda ANTES de pagar -- falhar no
+   meio perde um premio, nunca paga dois. */
 const VOTOS_A_CADA = 5 * 60 * 1000;
 const PREMIOS_POR_RODADA = 50;
+/* Primeira rodada (ou banco sem marca): as ultimas 12 horas, o tempo de um
+   voto no top.gg. Quem votou pouco antes desta troca tambem ganha a carta. */
+const VOTOS_DESDE_NO_COMECO = 12 * 60 * 60 * 1000;
+/* Bot parado muito tempo: no maximo uma semana para tras. */
+const VOTOS_ATE_UMA_SEMANA = 7 * 24 * 60 * 60 * 1000;
+const PAGINAS_DE_VOTO = 5;
 
 function linkDeVoto() {
-  return `https://discordbotlist.com/bots/${client?.user?.id || "1498142929041096856"}/upvote`;
+  return LINK_DO_VOTO;
 }
 
-/* Os votos que chegaram depois de `desde`, do mais velho ao mais novo. Pura. */
+/* Os votos que chegaram depois de `desde`, do mais velho ao mais novo. Pura.
+   O top.gg manda { platform_id (o id do Discord), weight, created_at }. */
 function votosNovos(lista, desde) {
   return (Array.isArray(lista) ? lista : [])
-    .map((v) => ({ user: String(v?.user_id || ""), quando: Date.parse(v?.timestamp || "") || 0 }))
+    .map((v) => ({ user: String(v?.platform_id || ""), quando: Date.parse(v?.created_at || "") || 0,
+      peso: Math.max(1, Math.min(2, Number(v?.weight) || 1)), em: String(v?.created_at || "") }))
     .filter((v) => /^\d{17,20}$/.test(v.user) && v.quando > desde)
     .sort((a, b) => a.quando - b.quando);
 }
 
 async function colherVotos(buscar = fetch, agora = Date.now()) {
-  const chave = await chaveDoDbl();
+  const chave = await chaveDoTopgg();
   if (!chave || !client.user) return 0;
-  const r = await buscar(`${DBL_API}/${client.user.id}/upvotes`, { headers: { Authorization: chave }, signal: AbortSignal.timeout(15000) });
-  if (!r.ok) throw new Error(`upvotes HTTP ${r.status}`);
-  const corpo = await r.json().catch(() => null);
   const marcas = await ajustes();
   if (marcas.falhou) return 0;
-  const desde = Number(marcas.voto_dbl_ate) || 0;
-  /* Primeira rodada: a marca nasce agora. Os votos de antes deste recurso
-     existir nao viram uma enxurrada de cartas de uma vez. */
-  if (!desde) { await porAjuste("voto_dbl_ate", String(agora)); return 0; }
-  const novos = votosNovos(corpo?.upvotes, desde);
-  if (!novos.length) return 0;
-  await porAjuste("voto_dbl_ate", String(novos[novos.length - 1].quando));
+  const desde = Math.max(Number(marcas.voto_topgg_ate) || agora - VOTOS_DESDE_NO_COMECO, agora - VOTOS_ATE_UMA_SEMANA);
+  /* Páginas por cursor, da data pedida para a frente; poucas por rodada --
+     o que sobrar vem na próxima, a partir da marca nova. */
+  const todos = [];
+  let url = `${TOPGG_API}/v1/projects/@me/votes?startDate=${encodeURIComponent(new Date(desde).toISOString())}`;
+  for (let pagina = 0; pagina < PAGINAS_DE_VOTO && url; pagina++) {
+    const r = await buscar(url, { headers: { Authorization: `Bearer ${chave}` }, signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`votos do top.gg HTTP ${r.status}`);
+    const corpo = await r.json().catch(() => null);
+    const dados = Array.isArray(corpo?.data) ? corpo.data : [];
+    todos.push(...dados);
+    url = dados.length && corpo?.cursor ? `${TOPGG_API}/v1/projects/@me/votes?cursor=${encodeURIComponent(corpo.cursor)}` : "";
+  }
+  const novos = votosNovos(todos, desde);
+  if (!novos.length) {
+    if (!marcas.voto_topgg_ate) await porAjuste("voto_topgg_ate", String(desde));
+    return 0;
+  }
+  await porAjuste("voto_topgg_ate", String(novos[novos.length - 1].quando));
   for (const v of novos.slice(-PREMIOS_POR_RODADA)) {
+    /* O voto conta no Estúdio com a hora que o top.gg deu: se a pessoa
+       tocar em ✅ Já votei depois, é o mesmo voto, e não soma de novo. */
+    await rpc("cyron_contar_voto", { p_user: v.user, p_quando: v.em, p_peso: v.peso, p_folga: "0 seconds" })
+      .catch((e) => console.log("voto: nao contei no Estudio:", e?.message || e));
+    PERFIL_NA_MEMORIA.delete(v.user);
+    TITULO_NA_MEMORIA.delete(v.user);
     await premiarVoto(v.user).catch((e) => console.log("voto: nao consegui premiar:", e?.message || e));
   }
-  console.log(`voto: ${novos.length} voto(s) novo(s) no discordbotlist`);
+  console.log(`voto: ${novos.length} voto(s) novo(s) no top.gg`);
   return novos.length;
 }
 
@@ -24440,7 +24469,9 @@ async function premiarVoto(userId, sorte = Math.random) {
       description: `Você ganhou uma carta: ${p.bandeira} **${p.nome}** · ${r.estrelas} ${r.pt}\n` +
         `_You got a card: ${p.bandeira} **${p.nome}** · ${r.estrelas} ${r.en}_\n\n` +
         "Dá para votar de novo em 12 horas, e cada voto vale outra carta. Veja todas no `/colecao`.\n" +
-        "_You can vote again in 12 hours, and every vote is another card. See them all in `/colecao`._",
+        "_You can vote again in 12 hours, and every vote is another card. See them all in `/colecao`._\n\n" +
+        "🎨 O voto também conta no Estúdio: `/perfil` → **Personalizar**.\n" +
+        "_🎨 Your vote also counts in the Studio: `/perfil` → **Customize**._",
       thumbnail: { url: `attachment://${p.id}.jpg` } }],
     files: [retratoDoHeroi(p)],
     components: [{ type: 1, components: [
