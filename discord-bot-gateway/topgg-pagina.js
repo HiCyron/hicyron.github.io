@@ -24,7 +24,7 @@ const CONVITE = "https://discord.com/oauth2/authorize?client_id=1498142929041096
 /* As artes (video-divulgacao/arte-topgg.html → cyron/img/topgg/), servidas pelo
    site. O ?v= muda quando a arte muda: o top.gg guarda imagem em cache, e sem
    isso a página continuaria mostrando a velha. */
-const VERSAO_DAS_ARTES = "1";
+const VERSAO_DAS_ARTES = "2";
 function arte(nome, lingua, alt) {
   return `![${alt}](${SITE}/img/topgg/${nome}-${lingua}.jpg?v=${VERSAO_DAS_ARTES})`;
 }
@@ -52,13 +52,18 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "",
         "## How it works",
         arte("como", "en", "The same message in Portuguese, English and Arabic rooms"),
-        "1. Members pick their language with one click.",
+        "1. Members pick their language with one click (language rooms in 22 languages).",
         "2. They chat in their own room (`#chat-pt`, `#chat-en`…) and every message shows up in the other rooms, already translated, with their name and avatar.",
         "3. Replies, mentions, edits, stickers, GIFs and emojis follow the message.",
         "",
+        "## Why CYRON",
+        arte("comparacao", "en", "Typical translation bot versus CYRON"),
+        "- Typical bots need a command or a reaction for every message, and mix every language in one channel.",
+        "- With CYRON people just chat: each person reads one room, in their own language, and replies, mentions, edits, stickers and emojis follow the message.",
+        "",
         "## Translation everywhere",
         arte("recursos", "en", "Flags, announcements, screenshots, voice notes, glossary and events"),
-        "- 🏳️ **React with a flag** — any message, translated privately for whoever reacted.",
+        "- 🏳️ **React with a flag** — any message, in **66 languages**, translated privately for whoever reacted.",
         "- 📢 **Announcements** — post once, it lands in every language.",
         "- 🖼️ **Screenshots** — reads the text in an image and translates it.",
         "- 🎧 **Voice notes** — transcribed and translated.",
@@ -93,13 +98,18 @@ export function paginaDoTopgg({ beta = false } = {}) {
         "",
         "## Como funciona",
         arte("como", "pt", "A mesma mensagem nas salas em português, inglês e árabe"),
-        "1. Cada membro escolhe a língua com um clique.",
+        "1. Cada membro escolhe a língua com um clique (salas em 22 línguas).",
         "2. Conversa na sala dele (`#chat-pt`, `#chat-en`…) e cada mensagem aparece nas outras salas já traduzida, com o nome e a foto de quem escreveu.",
         "3. Respostas, menções, edições, figurinhas, GIFs e emojis acompanham a mensagem.",
         "",
+        "## Por que a CYRON",
+        arte("comparacao", "pt", "Bot de tradução comum contra a CYRON"),
+        "- Bots comuns pedem um comando ou reação para cada mensagem, e misturam todas as línguas no mesmo canal.",
+        "- Com a CYRON as pessoas só conversam: cada um lê uma sala, na sua língua, e respostas, menções, edições, figurinhas e emojis acompanham a mensagem.",
+        "",
         "## Tradução em todo lugar",
         arte("recursos", "pt", "Bandeiras, avisos, prints, áudios, glossário e eventos"),
-        "- 🏳️ **Reaja com uma bandeira** — qualquer mensagem, traduzida no privado de quem reagiu.",
+        "- 🏳️ **Reaja com uma bandeira** — qualquer mensagem, em **66 línguas**, traduzida no privado de quem reagiu.",
         "- 📢 **Avisos** — você posta uma vez e chega em todas as línguas.",
         "- 🖼️ **Prints** — lê o texto da imagem e traduz.",
         "- 🎧 **Áudios** — transcritos e traduzidos.",

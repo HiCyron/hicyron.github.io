@@ -64,6 +64,21 @@
   .herois { display:flex; gap:10px; margin-top:14px }
   .herois img { width:58px; height:58px; border-radius:12px; border:1px solid var(--borda) }
 
+  /* comparação: o lado comum apagado, o da CYRON com a borda do degradê */
+  .lado { padding:28px 28px 30px }
+  .lado-rot { font-size:15px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--fraco) }
+  .cyron { border:1px solid transparent; background:
+    linear-gradient(var(--cartao),var(--cartao)) padding-box,
+    linear-gradient(135deg,var(--roxo),var(--azul)) border-box; box-shadow:0 10px 40px rgba(137,87,255,.18) }
+  .cyron .lado-rot { font-size:22px; letter-spacing:.06em }
+  .lista { list-style:none; margin-top:18px; display:grid; gap:14px }
+  .lista li { font-size:18px; line-height:1.4; padding-left:34px; position:relative }
+  .lista li::before { position:absolute; left:0; top:0; width:22px; height:22px; border-radius:50%;
+    display:grid; place-items:center; font-size:13px; font-weight:800 }
+  .nao li { color:var(--fraco) }
+  .nao li::before { content:"✕"; background:rgba(154,163,181,.14); color:var(--fraco) }
+  .sim li::before { content:"✓"; background:linear-gradient(135deg,var(--roxo),var(--azul)); color:#fff }
+
   /* botão */
   #botao { height:210px; display:none; place-items:center; padding:0 }
   #botao.ativa { display:grid }
@@ -130,6 +145,20 @@
   </div>
 </section>
 
+<section class="parte" id="comparacao">
+  <h2 data-t="cmp"></h2>
+  <div class="grade" style="grid-template-columns:1fr 1fr">
+    <div class="cartao lado">
+      <div class="lado-rot" data-t="cmpOutro"></div>
+      <ul class="lista nao"><li data-t="o1"></li><li data-t="o2"></li><li data-t="o3"></li><li data-t="o4"></li></ul>
+    </div>
+    <div class="cartao lado cyron">
+      <div class="lado-rot"><span class="grad">CYRON</span></div>
+      <ul class="lista sim"><li data-t="c1"></li><li data-t="c2"></li><li data-t="c3"></li><li data-t="c4"></li></ul>
+    </div>
+  </div>
+</section>
+
 <section class="parte" id="botao">
   <div class="bt"><span class="mais">+</span> <span data-t="bt"></span> <small data-t="btSub"></small></div>
 </section>
@@ -139,11 +168,11 @@ const TEXTOS = {
   en: {
     rotulo: "Discord translation bot", titulo1: "One server.", titulo2: "Every language.",
     sub: "Everyone writes in their own language and reads everyone else in theirs. No commands.",
-    chip1: "<b>22</b> languages", chip2: "<b>Free</b> to start", chip3: "Built for <b>alliances</b>",
+    chip1: "<b>66</b> languages", chip2: "<b>Free</b> to start", chip3: "Built for <b>alliances</b>",
     como: "Same conversation, every language", escreveu: "written in Portuguese",
     comoSub: "Each member picks a language and chats in their own room. Every message lands in the other rooms, translated, with the author's name and avatar.",
     recursos: "Translation everywhere",
-    r1t: "React with a flag", r1: "Any message, translated privately for whoever reacted.",
+    r1t: "React with a flag", r1: "Any message, in 66 languages, translated privately for whoever reacted.",
     r2t: "Announcements", r2: "Post once, it lands in every language.",
     r3t: "Screenshots", r3: "Reads the text in an image and translates it.",
     r4t: "Voice notes", r4: "Transcribed and translated.",
@@ -154,15 +183,20 @@ const TEXTOS = {
     k2t: "Hero book", k2: "Every hero, with tips to lead and join rallies.",
     k3t: "Duels & levels", k3: "Hero cards, duels, levels, role panels and welcome images.",
     bt: "Add CYRON to Discord", btSub: "free",
+    cmp: "Why CYRON", cmpOutro: "Typical translation bot",
+    o1: "A command or a reaction for every message", o2: "Every language mixed in one channel",
+    o3: "Replies and mentions get lost", o4: "Stickers and emojis left behind",
+    c1: "People just chat — translation happens on its own", c2: "Each person reads one room, in their language",
+    c3: "Replies, mentions and edits follow the message", c4: "Stickers, GIFs and emojis cross every room",
   },
   pt: {
     rotulo: "Bot de tradução para Discord", titulo1: "Um servidor.", titulo2: "Todas as línguas.",
     sub: "Cada um escreve na sua língua e lê os outros na sua. Sem comandos.",
-    chip1: "<b>22</b> línguas", chip2: "<b>Grátis</b> para começar", chip3: "Feita para <b>alianças</b>",
+    chip1: "<b>66</b> línguas", chip2: "<b>Grátis</b> para começar", chip3: "Feita para <b>alianças</b>",
     como: "A mesma conversa, em todas as línguas", escreveu: "escrito em português",
     comoSub: "Cada membro escolhe a língua e conversa na sala dele. Cada mensagem chega nas outras salas traduzida, com o nome e a foto de quem escreveu.",
     recursos: "Tradução em todo lugar",
-    r1t: "Reaja com uma bandeira", r1: "Qualquer mensagem, traduzida no privado de quem reagiu.",
+    r1t: "Reaja com uma bandeira", r1: "Qualquer mensagem, em 66 línguas, traduzida no privado de quem reagiu.",
     r2t: "Avisos", r2: "Você posta uma vez e chega em todas as línguas.",
     r3t: "Prints", r3: "Lê o texto da imagem e traduz.",
     r4t: "Áudios", r4: "Transcritos e traduzidos.",
@@ -173,6 +207,11 @@ const TEXTOS = {
     k2t: "Livro dos heróis", k2: "Cada herói, com dicas para liderar e entrar em rally.",
     k3t: "Duelos e níveis", k3: "Cartas de herói, duelos, níveis, painel de cargos e boas-vindas.",
     bt: "Adicionar a CYRON", btSub: "grátis",
+    cmp: "Por que a CYRON", cmpOutro: "Bot de tradução comum",
+    o1: "Um comando ou reação para cada mensagem", o2: "Todas as línguas misturadas no mesmo canal",
+    o3: "Respostas e menções se perdem", o4: "Figurinhas e emojis ficam para trás",
+    c1: "As pessoas só conversam — a tradução acontece sozinha", c2: "Cada um lê uma sala, na sua língua",
+    c3: "Respostas, menções e edições acompanham a mensagem", c4: "Figurinhas, GIFs e emojis atravessam as salas",
   },
 };
 const q = new URLSearchParams(location.search);

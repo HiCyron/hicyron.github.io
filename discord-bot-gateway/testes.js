@@ -199,6 +199,10 @@ Object.assign(globalThis, carregar(["WEBHOOK_REFEITO_EM", "ESPERA_PARA_REFAZER_W
 /* As salas do jogo ficam fora do menu de fontes: o painel e o clique do menu
    consultam esta lista. */
 Object.assign(globalThis, carregar(["TIPOS_DAS_SALAS_DO_JOGO"]));
+/* As linguas que so' a bandeira atende: a bandeira, o nome do idioma e os
+   motores consultam estas tabelas. */
+Object.assign(globalThis, carregar(["paisDaBandeira", "LINGUAS_DA_BANDEIRA", "PAIS_DA_BANDEIRA_EXTRA",
+  "linguaSoDaBandeira", "DEEPL_ACEITA", "motorAceita"]));
 /* O import do index que o FUNCOES usa (a função dos códigos nasce ligada nos servidores de Kingshot). */
 Object.assign(globalThis, { pareceKingshot: (await import("./codigos-jogo.js")).pareceKingshot });
 
@@ -2573,7 +2577,26 @@ function conferirCartao(onde, embed, componentes = []) {
 
   /* País cujo idioma eu não atendo devolve vazio, e o evento morre ali sem
      custar tradução nenhuma. */
-  ok("país sem idioma meu não vira nada", idiomaDaBandeira("🇰🇪"), "");
+  /* O Quênia era o exemplo de "país sem idioma meu" até 24/11, quando a
+     bandeira passou a atender suaíli. A Antártida continua sem língua. */
+  ok("país sem idioma meu não vira nada", idiomaDaBandeira("🇦🇶"), "");
+
+  /* AS LÍNGUAS SÓ DE BANDEIRA (24/11): a sala segue nas 22; a bandeira, que só
+     traduz quando alguém reage, atende quase todo país com bandeira. */
+  ok("Grécia lê em grego", idiomaDaBandeira("🇬🇷"), "el");
+  ok("Quênia lê em suaíli", idiomaDaBandeira("🇰🇪"), "sw");
+  ok("Israel lê em hebraico", idiomaDaBandeira("🇮🇱"), "he");
+  ok("Senegal lê em francês", idiomaDaBandeira("🇸🇳"), "fr");
+  ok("Belarus lê em russo", idiomaDaBandeira("🇧🇾"), "ru");
+  ok("Chipre lê em grego", idiomaDaBandeira("🇨🇾"), "el");
+  verdade("cada língua só de bandeira volta pela própria bandeira, e nenhuma repete o menu",
+    LINGUAS_DA_BANDEIRA.every(([cod, , bandeira]) => idiomaDaBandeira(bandeira) === cod && linguaSoDaBandeira(cod)));
+  verdade("e o menu continua mandando nas bandeiras dele", idiomaDaBandeira("🇧🇷") === "pt" && !linguaSoDaBandeira("pt"));
+  verdade("com mais de 60 línguas na bandeira", new Set([...Object.values(IDIOMA_DO_PAIS), ...Object.values(PAIS_DA_BANDEIRA_EXTRA)]).size >= 60);
+  /* DeepL não traduz para mongol: o motor do cliente é pulado, e não
+     marcado como falhando no painel. */
+  verdade("o DeepL é pulado nas línguas que ele não tem", !motorAceita("deepl", "mn") && motorAceita("deepl", "el") &&
+    motorAceita("azure", "mn") && motorAceita("auto", "mn"));
   ok("joinha não vira idioma", idiomaDaBandeira("👍"), "");
 
   /* Regressão que importa: se alguém trocar a bandeira de uma linha do menu,

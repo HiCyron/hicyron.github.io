@@ -31,7 +31,10 @@ CYRON was built first for Kingshot alliances, and ships game tools on top of tra
 - **Events in everyone's time zone** (/evento), with reminders and Kingshot event icons.
 - **Duels, hero cards, levels, role panels and welcome images** for community engagement.
 
-## Languages (22)
+## Languages
+
+- **Flag reactions: 66 languages.** Reacting with almost any country flag translates the message into that country's language, privately (Greek, Swedish, Norwegian, Danish, Finnish, Icelandic, Czech, Slovak, Hungarian, Romanian, Bulgarian, Serbian, Croatian, Bosnian, Slovenian, Macedonian, Albanian, Estonian, Latvian, Lithuanian, Maltese, Hebrew, Persian, Urdu, Bengali, Nepali, Burmese, Khmer, Lao, Mongolian, Georgian, Armenian, Azerbaijani, Kazakh, Uzbek, Kyrgyz, Turkmen, Amharic, Swahili, Somali, Malagasy, Haitian Creole, Samoan and Tongan, on top of the 22 below).
+- **Language rooms: 22 languages:**
 
 English, Portuguese, Spanish, French, German, Italian, Dutch, Polish, Russian, Ukrainian, Turkish, Arabic, Hindi, Chinese (Simplified), Chinese (Traditional), Japanese, Korean, Indonesian, Malay, Thai, Vietnamese, Filipino.
 

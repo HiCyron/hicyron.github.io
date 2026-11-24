@@ -690,9 +690,55 @@ const IDIOMA_DO_PAIS = {
   BH: "ar", OM: "ar", JO: "ar", LB: "ar", LY: "ar", TN: "ar", YE: "ar",
 };
 
+/* MAIS LINGUAS NA BANDEIRA (dono, 24/11: "quanto mais idiomas mais
+   visibilidade").
+
+   As salas continuam nas 22 do menu -- sala custa espaco no servidor e
+   traducao a cada fala. A bandeira, nao: so' traduz quando alguem reage, e
+   so' para quem reagiu. Entao ela pode atender quase todo pais com bandeira,
+   e um grego que reage com 🇬🇷 recebe em grego em vez de nada.
+
+   [codigo, nome em portugues, bandeira, nome na propria lingua]. O codigo e'
+   o do Google (o gratuito); a Azure chama tres deles de outro jeito
+   (AZURE_IDIOMA), e o DeepL so' conhece parte (DEEPL_ACEITA) -- lingua que um
+   motor nao tem cai no seguinte sem marcar falha (ver motorAceita). */
+const LINGUAS_DA_BANDEIRA = [
+  ["el", "Grego", "🇬🇷", "Ελληνικά"], ["sv", "Sueco", "🇸🇪", "Svenska"], ["no", "Norueguês", "🇳🇴", "Norsk"],
+  ["da", "Dinamarquês", "🇩🇰", "Dansk"], ["fi", "Finlandês", "🇫🇮", "Suomi"], ["is", "Islandês", "🇮🇸", "Íslenska"],
+  ["cs", "Tcheco", "🇨🇿", "Čeština"], ["sk", "Eslovaco", "🇸🇰", "Slovenčina"], ["hu", "Húngaro", "🇭🇺", "Magyar"],
+  ["ro", "Romeno", "🇷🇴", "Română"], ["bg", "Búlgaro", "🇧🇬", "Български"], ["sr", "Sérvio", "🇷🇸", "Српски"],
+  ["hr", "Croata", "🇭🇷", "Hrvatski"], ["bs", "Bósnio", "🇧🇦", "Bosanski"], ["sl", "Esloveno", "🇸🇮", "Slovenščina"],
+  ["mk", "Macedônio", "🇲🇰", "Македонски"], ["sq", "Albanês", "🇦🇱", "Shqip"], ["et", "Estoniano", "🇪🇪", "Eesti"],
+  ["lv", "Letão", "🇱🇻", "Latviešu"], ["lt", "Lituano", "🇱🇹", "Lietuvių"], ["mt", "Maltês", "🇲🇹", "Malti"],
+  ["he", "Hebraico", "🇮🇱", "עברית"], ["fa", "Persa", "🇮🇷", "فارسی"], ["ur", "Urdu", "🇵🇰", "اردو"],
+  ["bn", "Bengali", "🇧🇩", "বাংলা"], ["ne", "Nepalês", "🇳🇵", "नेपाली"], ["my", "Birmanês", "🇲🇲", "မြန်မာ"],
+  ["km", "Khmer", "🇰🇭", "ខ្មែរ"], ["lo", "Laosiano", "🇱🇦", "ລາວ"], ["mn", "Mongol", "🇲🇳", "Монгол"],
+  ["ka", "Georgiano", "🇬🇪", "ქართული"], ["hy", "Armênio", "🇦🇲", "Հայերեն"], ["az", "Azerbaijano", "🇦🇿", "Azərbaycan"],
+  ["kk", "Cazaque", "🇰🇿", "Қазақ"], ["uz", "Uzbeque", "🇺🇿", "Oʻzbek"], ["ky", "Quirguiz", "🇰🇬", "Кыргызча"],
+  ["tk", "Turcomeno", "🇹🇲", "Türkmen"], ["am", "Amárico", "🇪🇹", "አማርኛ"], ["sw", "Suaíli", "🇰🇪", "Kiswahili"],
+  ["so", "Somali", "🇸🇴", "Soomaali"], ["mg", "Malgaxe", "🇲🇬", "Malagasy"], ["ht", "Crioulo haitiano", "🇭🇹", "Kreyòl"],
+  ["sm", "Samoano", "🇼🇸", "Gagana Sāmoa"], ["to", "Tonganês", "🇹🇴", "Lea fakatonga"],
+];
+
+/* Os paises que falam uma lingua que ja' tem bandeira propria acima, ou uma
+   do menu, mas cuja bandeira ainda nao levava a nada. Mesma regra de antes:
+   a lingua que a maioria le'. */
+const PAIS_DA_BANDEIRA_EXTRA = {
+  ...Object.fromEntries(LINGUAS_DA_BANDEIRA.map(([cod, , bandeira]) => [paisDaBandeira(bandeira), cod])),
+  CY: "el", MD: "ro", ME: "sr", XK: "sq", AF: "fa", TZ: "sw",
+  BY: "ru", KP: "ko",
+  SN: "fr", CI: "fr", CM: "fr", ML: "fr", BF: "fr", NE: "fr", TD: "fr", GN: "fr", BJ: "fr", TG: "fr",
+  CD: "fr", CG: "fr", GA: "fr", MC: "fr", LU: "fr",
+  ZA: "en", NG: "en", GH: "en", JM: "en", UG: "en", ZW: "en", ZM: "en",
+  CV: "pt", GW: "pt", ST: "pt", TL: "pt",
+  HN: "es", SV: "es", NI: "es", CU: "es", PR: "es", GQ: "es",
+  SD: "ar", SY: "ar", PS: "ar", MR: "ar",
+  SR: "nl", SM: "it", VA: "it",
+};
+
 function idiomaDaBandeira(emoji) {
   const pais = paisDaBandeira(emoji);
-  if (pais) return IDIOMA_DO_PAIS[pais] || "";
+  if (pais) return IDIOMA_DO_PAIS[pais] || PAIS_DA_BANDEIRA_EXTRA[pais] || "";
   /* Lingua cujo sinal no menu nao e' bandeira (a lanterna do chines
      tradicional): reagir com o sinal que o proprio bot mostra traduz. */
   const achado = LINGUAS_MENU.find(([, , sinal]) => sinal === emoji && !paisDaBandeira(sinal));
@@ -1175,8 +1221,18 @@ function decifrar(guardado) {
 }
 
 /* Cada tradutor chama os idiomas do seu jeito. */
-const AZURE_IDIOMA = { "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", tl: "fil" };
-const DEEPL_IDIOMA = { pt: "PT-BR", en: "EN-US", "zh-CN": "ZH-HANS", "zh-TW": "ZH-HANT" };
+const AZURE_IDIOMA = { "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", tl: "fil", no: "nb", sr: "sr-Cyrl", mn: "mn-Cyrl" };
+const DEEPL_IDIOMA = { pt: "PT-BR", en: "EN-US", "zh-CN": "ZH-HANS", "zh-TW": "ZH-HANT", no: "NB" };
+/* O que o DeepL traduz (destino). Fora disso ele recusa -- e recusa nao pode
+   virar "o DeepL deste servidor esta' falhando" no painel por causa de uma
+   bandeira da Mongolia. */
+const DEEPL_ACEITA = new Set(["ar", "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hu", "id", "it",
+  "ja", "ko", "lt", "lv", "no", "nl", "pl", "pt", "ro", "ru", "sk", "sl", "sv", "tr", "uk", "zh-CN", "zh-TW"]);
+/* Pura. O motor sabe traduzir para esta lingua? O gratuito (Google) sabe
+   todas; o DeepL, so' as da lista. */
+function motorAceita(tipo, alvo) {
+  return tipo !== "deepl" || DEEPL_ACEITA.has(alvo);
+}
 
 /* Uma chamada a' Azure para todos os idiomas da mesma frase.
 
@@ -2082,6 +2138,7 @@ async function tentarChavesDoDono(texto, alvo, motor) {
   if (motor.conta && contaEstourou(motor.conta)) return null;
   for (const reserva of motoresDoDono()) {
     if (estaDescansando(`dono:${reserva.tipo}`)) continue;
+    if (!motorAceita(reserva.tipo, alvo)) continue;
     try {
       const saiu = await MOTORES[reserva.tipo].traduzir(texto, alvo, reserva);
       if (saiu) {
@@ -2095,6 +2152,9 @@ async function tentarChavesDoDono(texto, alvo, motor) {
          cada fala nao traz o mes de volta -- seis horas de canto, e a fila
          segue nos gratuitos ate' la. */
       const porque = String(e?.message || e);
+      /* Lingua so' de bandeira que esta chave nao tem: segue para o gratuito
+         sem castigar a chave, que continua boa para todo o resto. */
+      if (linguaSoDaBandeira(alvo) && /\b400\b/.test(porque)) continue;
       const acabou = /40[36]|quota|limit/i.test(porque);
       porDeCastigo(`dono:${reserva.tipo}`, acabou ? 6 * 60 * 60 * 1000 : DESCANSO_APOS_QUEDA);
       tradutorFalhas.erros++; tradutorFalhas.ultimoErro = `${reserva.tipo} do dono: ${porque.slice(0, 90)}`;
@@ -2107,7 +2167,7 @@ async function tentarChavesDoDono(texto, alvo, motor) {
 
 async function traduzir(texto, alvo, motor = MOTOR_AUTO) {
   const escolhido = MOTORES[motor.tipo];
-  if (escolhido && motor.chave) {
+  if (escolhido && motor.chave && motorAceita(motor.tipo, alvo)) {
     try {
       const saiu = await escolhido.traduzir(texto, alvo, motor);
       if (saiu) {
@@ -2118,9 +2178,15 @@ async function traduzir(texto, alvo, motor = MOTOR_AUTO) {
       throw new Error("resposta vazia");
     } catch (e) {
       const porque = String(e?.message || e).slice(0, 160);
-      tradutorFalhas.erros++; tradutorFalhas.quedas++; tradutorFalhas.ultimoErro = porque;
-      console.error(`tradutor: ${motor.tipo} falhou:`, porque);
-      if (motor.servidorId) falhaDoMotor.set(motor.servidorId, { quando: Date.now(), porque });
+      /* Lingua so' de bandeira que o motor do cliente nao tem: cai no
+         gratuito calado. A chave dele esta' boa; so' nao fala mongol. */
+      if (linguaSoDaBandeira(alvo) && /\b400\b/.test(porque)) {
+        /* nada a anotar */
+      } else {
+        tradutorFalhas.erros++; tradutorFalhas.quedas++; tradutorFalhas.ultimoErro = porque;
+        console.error(`tradutor: ${motor.tipo} falhou:`, porque);
+        if (motor.servidorId) falhaDoMotor.set(motor.servidorId, { quando: Date.now(), porque });
+      }
       /* Cai no gratuito em vez de devolver nada: mensagem sem traducao ainda
          chega; mensagem nenhuma some da conversa. */
     }
@@ -5359,8 +5425,13 @@ const INTERVALO_SINCRONIA = 10 * 60 * 1000;
    qualquer codigo nosso rodar. */
 const SEGUNDOS_ENTRE_FALAS = 5;
 
+/* Pura. A lingua existe so' na bandeira (nao tem sala nem menu)? */
+function linguaSoDaBandeira(cod) {
+  return LINGUAS_DA_BANDEIRA.some(([c]) => c === cod) && !LINGUAS_MENU.some(([c]) => c === cod);
+}
+
 function nomeDoIdioma(cod) {
-  const achado = LINGUAS_MENU.find(([c]) => c === cod);
+  const achado = LINGUAS_MENU.find(([c]) => c === cod) || LINGUAS_DA_BANDEIRA.find(([c]) => c === cod);
   return achado ? `${achado[2]} ${achado[1]}` : cod;
 }
 
