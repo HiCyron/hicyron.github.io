@@ -15248,11 +15248,13 @@ function conferirCartao(onde, embed, componentes = []) {
 /* ====== 🎧 o status da CYRON: "Ouvindo ..." ====== */
 {
   const S = carregar(["MUSICAS_DA_CYRON", "statusDaCyron"]);
-  ok("o status é \"Ouvindo\" e troca de música", [0, 1, 2, 3].map((v) => [S.statusDaCyron(v, 12).type, S.statusDaCyron(v, 12).name]),
-    [[2, "🎧 lo-fi"], [2, "🎵 Kingshot OST"], [2, "🌐 12 servers"], [2, "🎧 lo-fi"]]);
+  ok("o status é \"Ouvindo\" e troca de música (de verdade: Sabrina Carpenter, Lady Gaga)",
+    [0, 1, S.MUSICAS_DA_CYRON.length].map((v) => [S.statusDaCyron(v, 12).type, S.statusDaCyron(v, 12).name]),
+    [[2, "🎵 Espresso — Sabrina Carpenter"], [2, "🎵 Abracadabra — Lady Gaga"], [2, "🎵 Espresso — Sabrina Carpenter"]]);
+  verdade("uma música por vez, sem repetir na volta", new Set(S.MUSICAS_DA_CYRON).size === S.MUSICAS_DA_CYRON.length);
   verdade("todo status cabe no Discord (128)", S.MUSICAS_DA_CYRON.every((m) => m.replace("{n}", "99999").length <= 128));
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
-  verdade("o status entra na subida e troca de 10 em 10 minutos",
+  verdade("o status entra na subida e troca a cada música",
     /client\.once\("clientReady", \(\) => \{[^]{0,200}trocarStatus\(\);\s*setInterval\(trocarStatus, STATUS_A_CADA\)/.test(idx));
 }
 

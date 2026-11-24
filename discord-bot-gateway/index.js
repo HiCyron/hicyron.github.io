@@ -31387,12 +31387,21 @@ async function contarQueVoltei() {
    O dono (24/11), vendo outro bot "Jogando GTA VI em Vice City": "ela
    escutando música?". O Discord escreve o "Ouvindo"/"Listening to" na
    língua de quem olha; o resto é texto fixo, igual para todo mundo -- então
-   vai curto e quase sem língua. Troca a cada 10 minutos; a troca também
-   refaz o status depois de uma reconexão (e client.options.presence leva o
-   atual para a próxima sessão). */
-const MUSICAS_DA_CYRON = ["🎧 lo-fi", "🎵 Kingshot OST", "🌐 {n} servers"];
-const STATUS_A_CADA = 10 * 60 * 1000;
-let vezDoStatus = 0;
+   vai curto e quase sem língua. E depois: "música de verdade, tipo Sabrina
+   Carpenter, Lady Gaga". Troca a cada 4 minutos (o tempo de uma música),
+   começando de uma qualquer a cada subida; a troca também refaz o status
+   depois de uma reconexão (e client.options.presence leva o atual para a
+   próxima sessão). Bot não ganha o cartão do Spotify (capa, barra, botão):
+   o Discord só aceita o tipo e o texto. */
+const MUSICAS_DA_CYRON = [
+  "🎵 Espresso — Sabrina Carpenter", "🎵 Abracadabra — Lady Gaga",
+  "🎵 Please Please Please — Sabrina Carpenter", "🎵 Die With A Smile — Lady Gaga & Bruno Mars",
+  "🎵 Taste — Sabrina Carpenter", "🎵 Bad Romance — Lady Gaga",
+  "🎵 Manchild — Sabrina Carpenter", "🎵 Poker Face — Lady Gaga",
+  "🎵 Feather — Sabrina Carpenter", "🎵 Shallow — Lady Gaga & Bradley Cooper",
+];
+const STATUS_A_CADA = 4 * 60 * 1000;
+let vezDoStatus = Math.floor(Math.random() * MUSICAS_DA_CYRON.length);
 
 /* Pura. O status da vez: tipo 2 é "Ouvindo" (ActivityType.Listening). */
 function statusDaCyron(vez, servidores) {
