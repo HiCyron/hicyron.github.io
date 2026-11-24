@@ -2897,6 +2897,29 @@ function conferirCartao(onde, embed, componentes = []) {
       /\[\$\{nomeDoLink\}\]\(https:\/\/discord\.com\/users\/\$\{msg\.author\.id\}\)\$\{enfeiteDoNome\(meuPerfil\?\.estilo\?\.sala_emoji, salaDestino\)\}/.test(fonte) &&
       /username: nome,/.test(fonte));
     verdade("o botão do título é atendido", /customId\.startsWith\("titulo:"\)\) return await cliqueTitulo/.test(fonte));
+    {
+      /* O enfeite animado de um título ("tt:apoiador") passa no espelho: o
+         estilo é conferido COM os títulos ganhos, não só pelos votos (dono,
+         24/11: "no site tá selecionado, mas no canal não vai"). */
+      const antes = { perfilGuardado: globalThis.perfilGuardado, rpc: globalThis.rpc };
+      const P = carregar(["TITULO_NA_MEMORIA", "estudioDaPessoa", "tituloDaPessoa"]);
+      const bruto = { sala_emoji: "tt:apoiador", titulo: "apoiador", sala_cor: "rosa" };
+      globalThis.perfilGuardado = async () => ({ votos: 1, votoEm: null, estilo: ESTUDIO.estiloValido(bruto, 1), bruto });
+      verdade("(conferido só pelos votos, o enfeite do título cai -- era o defeito)", ESTUDIO.estiloValido(bruto, 1).sala_emoji === "");
+      globalThis.rpc = async () => ({ votos: 1, linguas: 0, vitorias: 0, sequencia: 0 });
+      const d = await P.estudioDaPessoa("555");
+      ok("com o título ganho, o enfeite animado e o título valem", [d.perfil.estilo.sala_emoji, d.titulo?.id, d.perfil.estilo.sala_cor],
+        ["tt:apoiador", "apoiador", "rosa"]);
+      ok("e o tituloDaPessoa usa a mesma conta", (await P.tituloDaPessoa("555"))?.id, "apoiador");
+      globalThis.rpc = async () => { throw new Error("fora"); };
+      P.TITULO_NA_MEMORIA.clear();
+      const f = await P.estudioDaPessoa("556");
+      ok("sem saber os títulos (banco fora): o estilo dos votos, sem título", [f.perfil.estilo.sala_emoji, f.titulo, f.perfil.estilo.sala_cor],
+        ["", null, "rosa"]);
+      Object.assign(globalThis, antes);
+      verdade("o espelho pega perfil e título conferidos com os títulos",
+        /const daPessoa = comEstudioAqui \? await estudioDaPessoa\(msg\.author\.id\)/.test(fonte) && /const meuPerfil = daPessoa\?\.perfil \|\| null;/.test(fonte));
+    }
     verdade("a bandeira conta a língua para o Poliglota, só onde o Estúdio está liberado", /if \(comEstudio\) anotarLingua\(quem\.id, idioma\)/.test(fonte));
     const mig25 = readFileSync(`${aqui}/../supabase/migracoes/025-titulos.sql`, "utf8");
     verdade("o banco dos títulos: as línguas e a conta do que a pessoa fez, fechados ao público",
