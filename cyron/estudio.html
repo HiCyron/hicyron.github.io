@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CYRON — Estúdio</title>
+<meta name="description" content="Personalize como as traduções da CYRON chegam para você e como fica o seu /perfil, com prévia ao vivo.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="./img/cyron.png">
+<!-- O ESTÚDIO: aberto pelo botão 🎨 Personalizar da CYRON no Discord, com um
+     link pessoal (#t=...) que vale por algumas horas -- sem login. O link fica
+     depois do "#", que o navegador não manda a servidor nenhum (nem ao
+     GitHub): só esta página e a função que salva chegam a vê-lo.
+     Sem o link, a página abre em demonstração: dá para mexer em tudo, só não
+     salva. As regras (o que cada voto libera) vêm de estudio-regras.js, o
+     mesmo arquivo que o bot e a função usam. -->
+<style>
+/* A letra "Medieval" do /perfil (Cinzel, licença OFL em fontes/), a mesma
+   que o bot usa no desenho. A "Clássica" (EB Garamond) mostra aqui com uma
+   serifa do sistema, para a página não baixar meio mega de fonte. */
+@font-face{font-family:"Cinzel CYRON"; src:url("./fontes/Cinzel_700Bold.ttf") format("truetype"); font-weight:700; font-display:swap}
+:root{
+  --fundo:#1E1F22; --fundo-2:#2B2D31; --fundo-3:#313338; --fundo-4:#383A40;
+  --linha:#3F4147; --texto:#DBDEE1; --forte:#F2F3F5; --fraco:#949BA4; --fraquinho:#80848E;
+  --blurple:#5865F2; --verde:#23A55A; --vermelho:#F23F43; --embed:#2B2D31;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--fundo); color:var(--texto); font:15px/1.45 "gg sans","Noto Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; -webkit-font-smoothing:antialiased}
+a{color:#00A8FC; text-decoration:none}
+a:hover{text-decoration:underline}
+button{font:inherit; color:inherit}
+[data-en]{display:none}
+html[lang="en"] [data-pt]{display:none}
+html[lang="en"] [data-en]{display:revert}
+
+/* topo */
+.topo{position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:10px; height:56px; padding:0 16px; background:rgba(30,31,34,.92); backdrop-filter:blur(8px); border-bottom:1px solid #111214}
+.topo .marca{display:flex; align-items:center; gap:8px; color:var(--forte); font-weight:800; letter-spacing:.02em}
+.topo .marca img{width:30px; height:30px; border-radius:50%}
+.topo .marca small{font-weight:600; color:var(--fraco); letter-spacing:0}
+.topo .idioma{margin-left:auto; display:flex; background:var(--fundo-2); border-radius:6px; padding:2px}
+.topo .idioma button{border:0; background:none; padding:4px 10px; border-radius:4px; font-size:13px; font-weight:700; color:var(--fraco); cursor:pointer}
+.topo .idioma button[aria-pressed="true"]{background:var(--fundo-4); color:var(--forte)}
+
+.pagina{max-width:1120px; margin:0 auto; padding:20px 16px 120px}
+
+/* quem é e os votos */
+.quem{display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:linear-gradient(135deg,#2B2D31,#25262B); border:1px solid #2E3035; border-radius:16px; padding:16px 18px}
+.quem .foto{width:56px; height:56px; border-radius:50%; background:var(--fundo-4); object-fit:cover; flex:0 0 auto}
+.quem h1{margin:0; font-size:20px; color:var(--forte); line-height:1.2}
+.quem p{margin:2px 0 0; color:var(--fraco); font-size:14px}
+.quem .contas{margin-left:auto; display:flex; gap:8px; flex-wrap:wrap}
+.chip{display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; border-radius:15px; background:var(--fundo-4); color:var(--forte); font-size:13.5px; font-weight:600; white-space:nowrap}
+.chip b{color:#FFD95A}
+
+.convite-voto{margin-top:12px; display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 18px; border-radius:16px; border:1px solid rgba(255,217,90,.35); background:linear-gradient(135deg,rgba(255,217,90,.10),rgba(88,101,242,.10))}
+.convite-voto p{margin:0; flex:1 1 280px}
+.convite-voto p b{color:var(--forte)}
+.bt{display:inline-flex; align-items:center; justify-content:center; gap:8px; height:40px; padding:0 18px; border-radius:8px; border:0; background:var(--blurple); color:#fff; font-weight:700; cursor:pointer; white-space:nowrap; text-decoration:none!important}
+.bt:hover{filter:brightness(1.08)}
+.bt.amarelo{background:#FFD95A; color:#1E1F22}
+.bt.cinza{background:var(--fundo-4); color:var(--forte)}
+.bt:disabled{opacity:.55; cursor:not-allowed; filter:none}
+.dica{font-size:13px; color:var(--fraco)}
+
+/* a mesa: prévia de um lado, opções do outro */
+.mesa{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:20px; margin-top:20px; align-items:start}
+.previa{position:sticky; top:72px}
+.abas{display:flex; gap:6px; margin-bottom:10px}
+.abas button{flex:1; border:0; background:var(--fundo-2); color:var(--fraco); height:40px; border-radius:10px; font-weight:700; cursor:pointer}
+.abas button[aria-selected="true"]{background:var(--fundo-4); color:var(--forte); box-shadow:inset 0 -2px 0 var(--acento,#5865F2)}
+.palco{background:var(--fundo-3); border-radius:16px; padding:18px 14px; border:1px solid #2E3035; min-height:220px}
+.palco .rotulo-palco{font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; color:var(--fraquinho); margin:0 0 10px 4px}
+
+/* o cartão da tradução, como o Discord desenha */
+.msg{display:grid; grid-template-columns:40px minmax(0,1fr); gap:0 14px}
+.msg .av{width:40px; height:40px; border-radius:50%}
+.msg .nome{font-weight:600; color:var(--forte)}
+.msg .tag{display:inline-block; background:var(--blurple); color:#fff; font-size:10.5px; font-weight:700; padding:1px 5px; border-radius:4px; margin-left:5px; vertical-align:2px}
+.msg .hora{font-size:12px; color:var(--fraquinho); margin-left:6px}
+.embed{position:relative; margin-top:6px; max-width:440px; background:var(--embed); border-left:4px solid var(--cor-cartao,#5865F2); border-radius:4px; padding:10px 14px 14px; transition:border-color .2s}
+.embed.com-figura{padding-right:96px}
+.embed .autor{display:flex; align-items:center; gap:8px; font-size:13.5px; font-weight:600; color:var(--forte)}
+.embed .autor i{width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font-style:normal; font-size:12px; font-weight:700; color:#fff; background:#E67E22}
+.embed .titulo{font-size:16px; font-weight:700; color:var(--forte); margin-top:6px}
+.embed .texto{font-size:14.5px; margin-top:6px; color:var(--texto)}
+.embed .voltar{display:block; margin-top:10px; font-size:14px}
+.embed .original{margin-top:10px; font-size:12.5px; color:var(--fraco); border-left:2px solid var(--linha); padding-left:8px}
+.embed .rodape{margin-top:10px; font-size:12px; color:var(--fraco)}
+.embed .figura{position:absolute; top:12px; right:12px; width:72px; height:72px; border-radius:6px; object-fit:cover; object-position:top}
+.embed.compacto .autor,.embed.compacto .titulo{display:none}
+.embed.grande .texto{font-size:20px; font-weight:700; line-height:1.3; color:var(--forte)}
+.embed.compacto .texto{margin-top:0}
+
+/* o /perfil, nas medidas do desenho do bot (1024x340), escalado */
+.perfil-caixa{width:100%; aspect-ratio:1024/340; position:relative; border-radius:12px; overflow:hidden; background:#000; box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.perfil{position:absolute; left:0; top:0; width:1024px; height:340px; transform-origin:0 0}
+.perfil .fundo{position:absolute; inset:-20px; background:center/cover no-repeat; filter:blur(6px)}
+.perfil .fundo.retrato{background-position:center 22%}
+.perfil .fundo.nitido{filter:none; inset:0}
+.perfil .fundo.tingido{filter:blur(4px) grayscale(1)}
+.perfil .tinta{position:absolute; inset:0; mix-blend-mode:color; opacity:0; transition:opacity .2s}
+.perfil .nome.medieval{font-family:"Cinzel CYRON",serif; font-size:50px; top:68px}
+.perfil .nome.classica{font-family:"EB Garamond",Georgia,"Times New Roman",serif; font-size:58px; top:60px}
+.perfil .veu{position:absolute; inset:0; background:linear-gradient(90deg,rgba(0,0,0,.75),rgba(0,0,0,.35))}
+.perfil .aro{position:absolute; left:32px; top:52px; width:236px; height:236px; border-radius:50%}
+.perfil .brilho{position:absolute; left:28px; top:48px; width:244px; height:244px; border-radius:50%; filter:blur(10px); opacity:.7}
+.perfil .foto{position:absolute; left:40px; top:60px; width:220px; height:220px; border-radius:50%; object-fit:cover; background:#404249}
+.perfil .nome,.perfil .lv,.perfil .linha,.perfil .numeros,.perfil .frase{position:absolute; white-space:nowrap; text-shadow:0 3px 8px rgba(0,0,0,.6); font-family:"DejaVu Sans","Noto Sans",Arial,sans-serif}
+.perfil .nome{left:300px; top:62px; font-size:56px; font-weight:700; color:#fff; max-width:440px; overflow:hidden; text-overflow:ellipsis}
+.perfil .lv{right:50px; top:66px; font-size:52px; font-weight:700}
+.perfil .linha{left:300px; top:144px; font-size:26px; color:#C9D6E3}
+.perfil .barra{position:absolute; left:300px; top:212px; width:674px; height:34px; border-radius:17px; background:rgba(0,0,0,.45); overflow:hidden}
+.perfil .barra i{display:block; height:100%; width:62%; border-radius:17px}
+.perfil .numeros{right:50px; top:262px; font-size:22px; color:#E6F4FF}
+.perfil .frase{left:300px; top:262px; font-size:24px; font-style:italic; color:#fff; max-width:470px; overflow:hidden; text-overflow:ellipsis}
+.nota-previa{font-size:12.5px; color:var(--fraquinho); margin:10px 4px 0}
+
+/* as opções */
+.grupo{background:var(--fundo-2); border:1px solid #2E3035; border-radius:16px; padding:16px; margin-bottom:14px}
+.grupo h2{margin:0 0 2px; font-size:16px; color:var(--forte); display:flex; align-items:center; gap:8px}
+.grupo > p{margin:0 0 6px; font-size:13.5px; color:var(--fraco)}
+.campo{margin-top:14px}
+.campo > b{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.03em; color:var(--fraco); margin-bottom:8px}
+.cores{display:flex; flex-wrap:wrap; gap:10px}
+.cor{position:relative; width:40px; height:40px; border-radius:50%; border:0; cursor:pointer; box-shadow:0 0 0 2px var(--fundo-2),0 0 0 3px transparent; transition:transform .15s}
+.cor:hover{transform:scale(1.08)}
+.cor[aria-pressed="true"]{box-shadow:0 0 0 3px var(--fundo-2),0 0 0 5px var(--forte)}
+.trancado{position:relative}
+.trancado::after{content:"🔒"; position:absolute; right:-4px; bottom:-4px; font-size:13px; line-height:1; filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+.cor.trancado{opacity:.45}
+.opcoes-linha{display:flex; flex-wrap:wrap; gap:8px}
+.opcao{display:inline-flex; align-items:center; gap:8px; min-height:38px; padding:6px 14px; border-radius:10px; border:1px solid var(--linha); background:var(--fundo-3); color:var(--texto); cursor:pointer; font-weight:600; font-size:14px}
+.opcao:hover{border-color:#5B5E66}
+.opcao[aria-pressed="true"]{border-color:var(--acento,#5865F2); background:color-mix(in srgb,var(--acento,#5865F2) 18%,var(--fundo-3)); color:var(--forte)}
+.opcao.trancado{opacity:.5}
+.opcao .anel{width:18px; height:18px; border-radius:50%; flex:0 0 auto}
+.fundos{display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px}
+.fundo-op{position:relative; aspect-ratio:3/4; border-radius:10px; overflow:hidden; border:2px solid transparent; background:var(--fundo-3) center/cover no-repeat; cursor:pointer; padding:0}
+.fundo-op .nome{position:absolute; left:0; right:0; bottom:0; padding:14px 6px 5px; font-size:11.5px; font-weight:700; color:#fff; text-align:center; background:linear-gradient(transparent,rgba(0,0,0,.85)); text-shadow:0 1px 3px #000}
+.fundo-op[aria-pressed="true"]{border-color:var(--acento,#5865F2); box-shadow:0 0 0 2px rgba(255,255,255,.12)}
+.fundo-op.trancado{filter:grayscale(.85) brightness(.55)}
+.fundo-op.trancado::after{right:6px; bottom:auto; top:6px; font-size:16px}
+.fundo-op.proximo{filter:grayscale(.3) brightness(.8)}
+.fundo-op .selo-proximo{position:absolute; top:6px; left:6px; right:6px; font-size:10px; font-weight:800; color:#1E1F22; background:#FFD95A; border-radius:6px; padding:2px 4px; text-align:center; text-transform:uppercase}
+.interruptor{width:100%; text-align:left; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:10px; background:var(--fundo-3); border:1px solid var(--linha); cursor:pointer}
+.interruptor span small{display:block; color:var(--fraco); font-size:12.5px; font-weight:400}
+.interruptor span{font-weight:600}
+.interruptor i{position:relative; width:42px; height:24px; border-radius:12px; background:#80848E; flex:0 0 auto; transition:background .2s}
+.interruptor i::after{content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; transition:left .2s}
+.interruptor[aria-checked="true"] i{background:var(--verde)}
+.interruptor[aria-checked="true"] i::after{left:21px}
+.frase-campo{display:flex; gap:8px; align-items:center}
+.frase-campo input{flex:1; min-width:0; height:40px; border-radius:8px; border:1px solid var(--linha); background:var(--fundo); color:var(--forte); padding:0 12px; font:inherit}
+.frase-campo input:disabled{opacity:.5}
+.frase-campo small{color:var(--fraquinho); font-size:12px; min-width:38px; text-align:right}
+.livre{display:inline-block; margin-left:6px; font-size:11px; font-weight:800; color:#1E1F22; background:var(--verde); padding:1px 6px; border-radius:6px; vertical-align:1px; text-transform:uppercase}
+
+/* a barra de salvar, presa embaixo */
+.salvar{position:fixed; left:0; right:0; bottom:0; z-index:30; background:rgba(30,31,34,.96); backdrop-filter:blur(8px); border-top:1px solid #111214; padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+.salvar .dentro{max-width:1120px; margin:0 auto; display:flex; align-items:center; gap:12px}
+.salvar .estado{flex:1; font-size:13.5px; color:var(--fraco); min-width:0}
+.salvar .estado b{color:var(--forte)}
+
+.aviso{position:fixed; left:50%; bottom:86px; transform:translate(-50%,20px); opacity:0; pointer-events:none; z-index:40; max-width:min(92vw,460px); background:#111214; color:var(--forte); border:1px solid #2E3035; border-radius:12px; padding:12px 16px; font-size:14px; box-shadow:0 12px 32px rgba(0,0,0,.5); transition:opacity .2s, transform .2s}
+.aviso.ver{opacity:1; transform:translate(-50%,0); pointer-events:auto}
+
+@media (max-width:860px){
+  .mesa{grid-template-columns:minmax(0,1fr)}
+  .previa{position:sticky; top:56px; z-index:10; background:var(--fundo); padding:10px 0 8px; margin:0 -16px; padding-left:16px; padding-right:16px; border-bottom:1px solid #111214}
+  .palco{padding:12px 10px; min-height:0}
+  /* No celular a prévia fica presa no alto enquanto se mexe nas opções:
+     só o cartão, sem a linha "CYRON APP 20:46", para sobrar tela. */
+  .palco .msg{display:block}
+  .palco .msg > .av,.palco .msg .nome,.palco .msg .tag,.palco .msg .hora{display:none}
+  .palco .embed{margin-top:0}
+  .embed .texto{font-size:14px}
+  .abas{margin-bottom:8px}
+  .abas button{height:36px; font-size:14px}
+  .salvar .estado{font-size:12.5px}
+  .palco .rotulo-palco{display:none}
+  .embed{max-width:none}
+  .nota-previa{display:none}
+  .quem .contas{margin-left:0}
+}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <a class="marca" href="./"><img src="./img/cyron.png" alt="" width="30" height="30">CYRON <small><span data-pt>Estúdio</span><span data-en>Studio</span></small></a>
+  <div class="idioma" role="group" aria-label="Idioma / Language">
+    <button type="button" data-troca="pt" aria-pressed="true">PT</button>
+    <button type="button" data-troca="en" aria-pressed="false">EN</button>
+  </div>
+</header>
+
+<main class="pagina">
+  <section class="quem">
+    <img class="foto" id="foto" src="./img/cyron.png" alt="" width="56" height="56">
+    <div>
+      <h1 id="ola"><span data-pt>Seu estilo na CYRON</span><span data-en>Your CYRON style</span></h1>
+      <p id="sub"><span data-pt>Escolha como as traduções chegam para você e como fica o seu /perfil.</span><span data-en>Choose how translations reach you and how your /perfil looks.</span></p>
+    </div>
+    <div class="contas">
+      <span class="chip">🗳️ <b id="n-votos">0</b> <span data-pt>votos</span><span data-en>votes</span></span>
+      <span class="chip">🦸 <b id="n-herois">0/12</b> <span data-pt>heróis</span><span data-en>heroes</span></span>
+    </div>
+  </section>
+
+  <section class="convite-voto" id="convite-voto">
+    <p id="convite-texto"></p>
+    <a class="bt amarelo" id="votar" href="https://top.gg/bot/1498142929041096856/vote" target="_blank" rel="noopener">🗳️ <span data-pt>Votar no top.gg</span><span data-en>Vote on top.gg</span></a>
+  </section>
+
+  <div class="mesa">
+    <div class="previa">
+      <div class="abas" role="tablist">
+        <button type="button" role="tab" aria-selected="true" data-aba="cartao">💬 <span data-pt>Cartão da tradução</span><span data-en>Translation card</span></button>
+        <button type="button" role="tab" aria-selected="false" data-aba="perfil">🪪 /perfil</button>
+      </div>
+      <div class="palco" id="palco-cartao">
+        <p class="rotulo-palco"><span data-pt>No seu privado, quando você reage com uma bandeira</span><span data-en>In your DMs, when you react with a flag</span></p>
+        <div class="msg">
+          <img class="av" src="./img/cyron.png" alt="" width="40" height="40">
+          <div>
+            <span class="nome">CYRON</span><span class="tag">APP</span><span class="hora">20:46</span>
+            <div class="embed" id="cartao">
+              <div class="autor"><i>M</i>Maelle</div>
+              <div class="titulo" id="cartao-titulo"></div>
+              <div class="texto" id="cartao-texto"></div>
+              <a class="voltar" href="#" onclick="return false">⤴ <span data-pt>Voltar</span><span data-en>Back</span></a>
+              <div class="original" id="cartao-original"></div>
+              <div class="rodape">#💬general-chat · [TOP]Best Alliance Kingshot</div>
+              <img class="figura" id="cartao-figura" alt="" hidden>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="palco" id="palco-perfil" hidden>
+        <p class="rotulo-palco"><span data-pt>Quando alguém usa /perfil com você</span><span data-en>When someone uses /perfil on you</span></p>
+        <div class="perfil-caixa" id="perfil-caixa">
+          <div class="perfil" id="perfil">
+            <div class="fundo" id="pf-fundo"></div>
+            <div class="tinta" id="pf-tinta"></div>
+            <div class="veu"></div>
+            <div class="brilho" id="pf-brilho"></div>
+            <div class="aro" id="pf-aro"></div>
+            <img class="foto" id="pf-foto" src="./img/cyron.png" alt="">
+            <div class="nome" id="pf-nome">Você</div>
+            <div class="lv" id="pf-lv">LV. 14</div>
+            <div class="linha">#3 · 12,480 XP · 1,204 msg</div>
+            <div class="barra"><i id="pf-barra"></i></div>
+            <div class="frase" id="pf-frase"></div>
+            <div class="numeros">620 / 1,000</div>
+          </div>
+        </div>
+        <p class="nota-previa"><span data-pt>Os números são de exemplo. “Fundo do servidor” usa o banner ou o ícone de cada servidor.</span><span data-en>Numbers are just an example. “Server background” uses each server's banner or icon.</span></p>
+      </div>
+    </div>
+
+    <div class="opcoes">
+      <section class="grupo" id="grupo-cartao">
+        <h2>💬 <span data-pt>Cartão da tradução</span><span data-en>Translation card</span></h2>
+        <p><span data-pt>Como a tradução chega no seu privado quando você reage com uma bandeira.</span><span data-en>How the translation reaches your DMs when you react with a flag.</span></p>
+        <div class="campo"><b><span data-pt>Cor</span><span data-en>Color</span></b><div class="cores" id="op-cartao-cor"></div></div>
+        <div class="campo"><b><span data-pt>Herói no cartão</span><span data-en>Hero on the card</span></b><div class="opcoes-linha" id="op-cartao-heroi"></div></div>
+        <div class="campo"><b><span data-pt>Enfeite do título</span><span data-en>Title flourish</span></b><div class="opcoes-linha" id="op-cartao-emoji"></div></div>
+        <div class="campo"><b><span data-pt>Jeito</span><span data-en>Layout</span><span class="livre"><span data-pt>grátis</span><span data-en>free</span></span></b><div class="opcoes-linha" id="op-cartao-estilo"></div></div>
+        <div class="campo">
+          <button type="button" class="interruptor" id="op-cartao-grande" role="switch" aria-checked="false">
+            <span><span data-pt>Letra grande</span><span data-en>Large text</span><span class="livre"><span data-pt>grátis</span><span data-en>free</span></span>
+              <small><span data-pt>A tradução em letra maior, boa para ler no celular.</span><span data-en>The translation in bigger letters, easier to read on a phone.</span></small></span>
+            <i></i>
+          </button>
+        </div>
+        <div class="campo">
+          <button type="button" class="interruptor" id="op-cartao-original" role="switch" aria-checked="false">
+            <span><span data-pt>Mostrar o texto original</span><span data-en>Show the original text</span><span class="livre"><span data-pt>grátis</span><span data-en>free</span></span>
+              <small><span data-pt>Embaixo da tradução, em letra pequena. Bom para aprender a outra língua.</span><span data-en>Below the translation, in small print. Good for learning the other language.</span></small></span>
+            <i></i>
+          </button>
+        </div>
+      </section>
+
+      <section class="grupo" id="grupo-perfil">
+        <h2>🪪 /perfil</h2>
+        <p><span data-pt>A imagem que aparece quando alguém usa /perfil com você, em qualquer servidor.</span><span data-en>The image shown when someone uses /perfil on you, in any server.</span></p>
+        <div class="campo"><b><span data-pt>Cor</span><span data-en>Color</span></b><div class="cores" id="op-perfil-cor"></div></div>
+        <div class="campo"><b><span data-pt>Moldura da foto</span><span data-en>Photo frame</span></b><div class="opcoes-linha" id="op-perfil-moldura"></div></div>
+        <div class="campo"><b><span data-pt>Letra do nome</span><span data-en>Name font</span></b><div class="opcoes-linha" id="op-perfil-letra"></div></div>
+        <div class="campo"><b><span data-pt>Fundo</span><span data-en>Background</span></b><div class="fundos" id="op-perfil-fundo"></div></div>
+        <div class="campo"><b><span data-pt>Efeito do fundo</span><span data-en>Background effect</span></b><div class="opcoes-linha" id="op-perfil-efeito"></div></div>
+        <div class="campo"><b><span data-pt>Sua frase</span><span data-en>Your tagline</span></b>
+          <div class="frase-campo"><input id="op-perfil-frase" maxlength="40" autocomplete="off" spellcheck="false"><small id="frase-conta">0/40</small></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<div class="salvar">
+  <div class="dentro">
+    <div class="estado" id="estado"></div>
+    <button type="button" class="bt" id="bt-salvar"><span data-pt>Salvar</span><span data-en>Save</span></button>
+  </div>
+</div>
+<div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+<script type="module">
+import { CORES, MOLDURAS, HEROIS, LETRAS, EFEITOS, EMOJIS_DO_TITULO, PADRAO, FRASE_MAX, corPorId, liberados, estiloValido, limparFrase } from "./estudio-regras.js";
+
+const FUNCAO = "https://mslzcjqkfeivuavfxwli.supabase.co/functions/v1/cyron-estudio";
+const VOTO = "https://top.gg/bot/1498142929041096856/vote";
+const parametros = new URLSearchParams(location.hash.slice(1));
+/* O link sai da barra de endereço depois de lido (ver "começar"), mas fica
+   na aba: recarregar a página -- depois de votar, por exemplo -- não pode
+   jogar a pessoa de volta na demonstração. sessionStorage morre com a aba. */
+const token = parametros.get("t") || (() => { try { return sessionStorage.getItem("estudio_t") || ""; } catch { return ""; } })();
+try { if (parametros.get("t")) sessionStorage.setItem("estudio_t", parametros.get("t")); } catch {}
+/* Demonstração: sem link pessoal. #demo=3 mostra como fica com 3 votos. */
+const demo = !token;
+
+const $ = (id) => document.getElementById(id);
+const lingua = () => document.documentElement.lang === "en" ? "en" : "pt";
+const T = (pt, en) => lingua() === "en" ? en : pt;
+
+let pessoa = { nome: "", avatar: "", votos: demo ? Math.max(0, Number(parametros.get("demo")) || 0) : 0, votoEm: null };
+let salvo = { ...PADRAO };
+let rascunho = { ...PADRAO };
+let aba = "cartao";
+
+/* ---- idioma da página ---- */
+function idioma(l) {
+  document.documentElement.lang = l === "en" ? "en" : "pt-BR";
+  document.querySelectorAll("[data-troca]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.troca === l)));
+  try { localStorage.setItem("idioma", l); } catch {}
+  desenharTudo();
+}
+document.querySelectorAll("[data-troca]").forEach((b) => b.addEventListener("click", () => idioma(b.dataset.troca)));
+
+/* ---- aviso passageiro ---- */
+let relogioDoAviso = 0;
+function avisar(html, ms = 3200) {
+  const a = $("aviso");
+  a.innerHTML = html;
+  a.classList.add("ver");
+  clearTimeout(relogioDoAviso);
+  relogioDoAviso = setTimeout(() => a.classList.remove("ver"), ms);
+}
+function trancado() {
+  avisar(`🔒 ${T("Vote na CYRON no top.gg para liberar.", "Vote for CYRON on top.gg to unlock this.")} <a href="${VOTO}" target="_blank" rel="noopener">${T("Votar", "Vote")} →</a>`);
+}
+
+/* ---- as opções ---- */
+function botaoCor(alvo, campo, lib) {
+  const caixa = $(alvo);
+  caixa.innerHTML = "";
+  for (const c of CORES) {
+    const aberto = lib.cores.includes(c.id);
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "cor" + (aberto ? "" : " trancado");
+    b.style.background = `linear-gradient(135deg, ${c.c1}, ${c.c2})`;
+    b.title = c[lingua()];
+    b.setAttribute("aria-label", c[lingua()]);
+    b.setAttribute("aria-pressed", String(rascunho[campo] === c.id));
+    b.onclick = () => aberto ? mudar(campo, c.id) : trancado();
+    caixa.appendChild(b);
+  }
+}
+
+function botaoOpcao(caixa, rotulo, ativo, aberto, aoTocar, antes = "") {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "opcao" + (aberto ? "" : " trancado");
+  b.innerHTML = antes + `<span>${rotulo}</span>`;
+  b.setAttribute("aria-pressed", String(ativo));
+  b.onclick = () => aberto ? aoTocar() : trancado();
+  caixa.appendChild(b);
+  return b;
+}
+
+function desenharOpcoes() {
+  const lib = liberados(pessoa.votos);
+  botaoCor("op-cartao-cor", "cartao_cor", lib);
+  botaoCor("op-perfil-cor", "perfil_cor", lib);
+
+  const herois = $("op-cartao-heroi");
+  herois.innerHTML = "";
+  botaoOpcao(herois, T("Nenhum", "None"), !rascunho.cartao_heroi, true, () => mudar("cartao_heroi", ""));
+  for (const h of HEROIS) {
+    botaoOpcao(herois, h.nome, rascunho.cartao_heroi === h.id, lib.herois.includes(h.id), () => mudar("cartao_heroi", h.id),
+      `<img src="./img/duelo/${h.id}.jpg" alt="" width="22" height="22" style="width:22px;height:22px;border-radius:50%;object-fit:cover;object-position:top">`);
+  }
+
+  const estilos = $("op-cartao-estilo");
+  estilos.innerHTML = "";
+  botaoOpcao(estilos, T("Completo", "Full"), rascunho.cartao_estilo === "completo", true, () => mudar("cartao_estilo", "completo"), "🗂️");
+  botaoOpcao(estilos, T("Compacto", "Compact"), rascunho.cartao_estilo === "compacto", true, () => mudar("cartao_estilo", "compacto"), "📄");
+
+  const emojis = $("op-cartao-emoji");
+  emojis.innerHTML = "";
+  botaoOpcao(emojis, T("Nenhum", "None"), !rascunho.cartao_emoji, true, () => mudar("cartao_emoji", ""));
+  for (const e of EMOJIS_DO_TITULO) {
+    const b = botaoOpcao(emojis, e, rascunho.cartao_emoji === e, lib.emojis.includes(e), () => mudar("cartao_emoji", e));
+    b.style.fontSize = "18px";
+  }
+
+  const orig = $("op-cartao-original");
+  orig.setAttribute("aria-checked", String(!!rascunho.cartao_original));
+  orig.onclick = () => mudar("cartao_original", !rascunho.cartao_original);
+  const grande = $("op-cartao-grande");
+  grande.setAttribute("aria-checked", String(!!rascunho.cartao_grande));
+  grande.onclick = () => mudar("cartao_grande", !rascunho.cartao_grande);
+
+  const letras = $("op-perfil-letra");
+  letras.innerHTML = "";
+  for (const l of LETRAS) {
+    const b = botaoOpcao(letras, l[lingua()], rascunho.perfil_letra === l.id, lib.letras.includes(l.id), () => mudar("perfil_letra", l.id));
+    b.style.fontFamily = l.id === "medieval" ? '"Cinzel CYRON",serif' : l.id === "classica" ? '"EB Garamond",Georgia,serif' : "";
+  }
+  const efeitos = $("op-perfil-efeito");
+  efeitos.innerHTML = "";
+  for (const e of EFEITOS) {
+    botaoOpcao(efeitos, e[lingua()], rascunho.perfil_efeito === e.id, lib.efeitos.includes(e.id), () => mudar("perfil_efeito", e.id),
+      e.id === "desfocado" ? "🌫️" : e.id === "nitido" ? "🔍" : "🎨");
+  }
+
+  const molduras = $("op-perfil-moldura");
+  molduras.innerHTML = "";
+  for (const m of MOLDURAS) {
+    botaoOpcao(molduras, m[lingua()], rascunho.perfil_moldura === m.id, lib.molduras.includes(m.id), () => mudar("perfil_moldura", m.id),
+      `<i class="anel" style="background:${fundoDaMoldura(m.id, corPorId(rascunho.perfil_cor))}"></i>`);
+  }
+
+  const fundos = $("op-perfil-fundo");
+  fundos.innerHTML = "";
+  const lista = [["servidor", T("Do servidor", "Server"), "./img/banner.jpg"], ["cyron", "CYRON", "./img/estudio/fundo-cyron.jpg"],
+    ...HEROIS.map((h) => [`heroi:${h.id}`, h.nome, `./img/duelo/${h.id}.jpg`])];
+  for (const [id, nome, img] of lista) {
+    const aberto = lib.fundos.includes(id);
+    const eProximo = !aberto && lib.proximo && id === `heroi:${lib.proximo.id}` && pessoa.votos > 0;
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "fundo-op" + (aberto ? "" : eProximo ? " proximo" : " trancado");
+    b.style.backgroundImage = `url("${img}")`;
+    b.innerHTML = (eProximo ? `<span class="selo-proximo">${T("próximo voto", "next vote")}</span>` : "") + `<span class="nome">${nome}</span>`;
+    b.setAttribute("aria-pressed", String(rascunho.perfil_fundo === id));
+    b.onclick = () => aberto ? mudar("perfil_fundo", id) : trancado();
+    fundos.appendChild(b);
+  }
+
+  const frase = $("op-perfil-frase");
+  frase.disabled = !lib.frase;
+  frase.placeholder = lib.frase ? T("Ex.: Rally no urso toda noite 🐻", "e.g. Bear rally every night 🐻") : T("🔒 Vote para liberar", "🔒 Vote to unlock");
+  if (document.activeElement !== frase) frase.value = rascunho.perfil_frase || "";
+  $("frase-conta").textContent = `${(rascunho.perfil_frase || "").length}/${FRASE_MAX}`;
+}
+
+function fundoDaMoldura(id, cor) {
+  if (id === "dourada") return "linear-gradient(135deg,#FFF3B0,#D99A0B 55%,#FFE08A)";
+  if (id === "neon") return cor.c1;
+  if (id === "arcoiris") return "conic-gradient(#FF5E5E,#FFD95A,#5EE38B,#5EC8FF,#B07CFF,#FF5E9E,#FF5E5E)";
+  return "#FFFFFF";
+}
+
+/* ---- a prévia ---- */
+function desenharPrevia() {
+  const cc = corPorId(rascunho.cartao_cor);
+  const cartao = $("cartao");
+  cartao.style.setProperty("--cor-cartao", cc.c2);
+  cartao.classList.toggle("compacto", rascunho.cartao_estilo === "compacto");
+  cartao.classList.toggle("grande", !!rascunho.cartao_grande);
+  const fig = $("cartao-figura");
+  fig.hidden = !rascunho.cartao_heroi;
+  cartao.classList.toggle("com-figura", !!rascunho.cartao_heroi);
+  if (rascunho.cartao_heroi) fig.src = `./img/duelo/${rascunho.cartao_heroi}.jpg`;
+  $("cartao-titulo").textContent = T("🇧🇷 Português", "🇬🇧 English") + (rascunho.cartao_emoji ? ` ${rascunho.cartao_emoji}` : "");
+  $("cartao-texto").textContent = T("Quem vai no rally do Urso às 20h? Faltam 3!", "Who's joining the Bear rally at 8pm? We need 3 more!");
+  const orig = $("cartao-original");
+  orig.hidden = !rascunho.cartao_original;
+  orig.textContent = "💬 " + T("Who's joining the Bear rally at 8pm? We need 3 more!", "Quem vai no rally do Urso às 20h? Faltam 3!");
+
+  const pc = corPorId(rascunho.perfil_cor);
+  const f = rascunho.perfil_fundo;
+  const fundo = $("pf-fundo");
+  fundo.classList.toggle("retrato", f.startsWith("heroi:"));
+  fundo.classList.toggle("nitido", rascunho.perfil_efeito === "nitido");
+  fundo.classList.toggle("tingido", rascunho.perfil_efeito === "tingido");
+  $("pf-tinta").style.background = pc.c2;
+  $("pf-tinta").style.opacity = rascunho.perfil_efeito === "tingido" ? "1" : "0";
+  $("pf-nome").className = "nome" + (rascunho.perfil_letra === "moderna" ? "" : ` ${rascunho.perfil_letra}`);
+  fundo.style.backgroundImage = `url("${f === "cyron" ? "./img/estudio/fundo-cyron.jpg" : f.startsWith("heroi:") ? `./img/duelo/${f.slice(6)}.jpg` : "./img/banner.jpg"}")`;
+  $("pf-brilho").style.background = rascunho.perfil_moldura === "neon" ? pc.c2 : rascunho.perfil_moldura === "dourada" ? "#FFD95A" : pc.c1;
+  $("pf-aro").style.background = fundoDaMoldura(rascunho.perfil_moldura, pc);
+  $("pf-aro").style.boxShadow = rascunho.perfil_moldura === "neon" ? `0 0 0 6px ${pc.c2}` : "none";
+  $("pf-lv").style.color = pc.c1;
+  $("pf-barra").style.background = `linear-gradient(90deg, ${pc.c1}, ${pc.c2})`;
+  $("pf-frase").textContent = rascunho.perfil_frase ? `“${rascunho.perfil_frase}”` : "";
+  $("pf-nome").textContent = pessoa.nome || T("Você", "You");
+  if (pessoa.avatar) $("pf-foto").src = pessoa.avatar;
+  document.documentElement.style.setProperty("--acento", (aba === "cartao" ? cc : pc).c2);
+  escalarPerfil();
+}
+
+function escalarPerfil() {
+  const caixa = $("perfil-caixa");
+  if (caixa.offsetWidth) $("perfil").style.transform = `scale(${caixa.offsetWidth / 1024})`;
+}
+addEventListener("resize", escalarPerfil);
+
+function desenharTopo() {
+  const lib = liberados(pessoa.votos);
+  $("n-votos").textContent = pessoa.votos;
+  $("n-herois").textContent = `${lib.herois.length}/${HEROIS.length}`;
+  if (pessoa.nome) {
+    $("ola").textContent = T(`Olá, ${pessoa.nome}!`, `Hi, ${pessoa.nome}!`);
+    if (pessoa.avatar) $("foto").src = pessoa.avatar;
+  }
+  const texto = !pessoa.votos
+    ? T("<b>Vote na CYRON no top.gg e libere tudo:</b> as cores, as molduras, as letras, os efeitos, o fundo da CYRON, a sua frase e um herói do Duelo a cada voto. O que você liberar fica para sempre.",
+      "<b>Vote for CYRON on top.gg to unlock everything:</b> colors, frames, fonts, effects, the CYRON background, your tagline and a Duel hero with every vote. Whatever you unlock is yours forever.")
+    : lib.proximo
+      ? T(`<b>O próximo voto libera ${lib.proximo.bandeira} ${lib.proximo.nome}.</b> Dá para votar a cada 12 horas, e no fim de semana o voto vale 2.`,
+        `<b>Your next vote unlocks ${lib.proximo.bandeira} ${lib.proximo.nome}.</b> You can vote every 12 hours, and weekend votes count twice.`)
+      : T("<b>Você liberou todos os heróis! 🏆</b> Obrigado por votar — cada voto ajuda a CYRON a chegar a mais servidores.",
+        "<b>You've unlocked every hero! 🏆</b> Thanks for voting — every vote helps CYRON reach more servers.");
+  $("convite-texto").innerHTML = texto + (demo ? "" : ` <span class="dica">${T("Depois de votar, toque em ✅ Já votei no Discord e recarregue esta página.", "After voting, tap ✅ I voted in Discord and reload this page.")}</span>`);
+}
+
+function desenharEstado() {
+  const mudou = JSON.stringify(estiloValido(rascunho, pessoa.votos)) !== JSON.stringify(estiloValido(salvo, pessoa.votos));
+  const bt = $("bt-salvar");
+  if (demo) {
+    $("estado").innerHTML = T("<b>Demonstração.</b> Para salvar, toque em 🎨 Personalizar no /perfil da CYRON, no Discord.",
+      "<b>Demo.</b> To save, tap 🎨 Customize on CYRON's /perfil, in Discord.");
+    bt.disabled = true;
+    return;
+  }
+  $("estado").innerHTML = mudou ? T("<b>Mudanças sem salvar.</b>", "<b>Unsaved changes.</b>") : T("Tudo salvo. Vale no Discord na hora.", "All saved. Live in Discord right away.");
+  bt.disabled = !mudou;
+}
+
+function desenharTudo() { desenharTopo(); desenharOpcoes(); desenharPrevia(); desenharEstado(); }
+
+function mudar(campo, valor) {
+  rascunho = { ...rascunho, [campo]: valor };
+  if (campo.startsWith("perfil_") && aba !== "perfil") trocarAba("perfil");
+  if (campo.startsWith("cartao_") && aba !== "cartao") trocarAba("cartao");
+  desenharOpcoes(); desenharPrevia(); desenharEstado();
+}
+
+$("op-perfil-frase").addEventListener("input", (e) => {
+  rascunho = { ...rascunho, perfil_frase: limparFrase(e.target.value) };
+  if (aba !== "perfil") trocarAba("perfil");
+  $("frase-conta").textContent = `${rascunho.perfil_frase.length}/${FRASE_MAX}`;
+  desenharPrevia(); desenharEstado();
+});
+
+function trocarAba(qual) {
+  aba = qual;
+  document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === qual)));
+  $("palco-cartao").hidden = qual !== "cartao";
+  $("palco-perfil").hidden = qual !== "perfil";
+  desenharPrevia();
+}
+document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click", () => trocarAba(b.dataset.aba)));
+
+/* ---- falar com quem guarda ---- */
+async function pedir(corpo) {
+  const r = await fetch(FUNCAO, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, ...corpo }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.erro || `HTTP ${r.status}`), { status: r.status });
+  return j;
+}
+
+$("bt-salvar").addEventListener("click", async () => {
+  if (demo) return;
+  const bt = $("bt-salvar");
+  bt.disabled = true;
+  try {
+    const j = await pedir({ acao: "salvar", estilo: estiloValido(rascunho, pessoa.votos) });
+    salvo = { ...PADRAO, ...j.estilo };
+    rascunho = { ...salvo };
+    avisar(T("✅ Salvo! Use /perfil ou reaja com uma bandeira no Discord para ver.", "✅ Saved! Use /perfil or react with a flag in Discord to see it."));
+  } catch (e) {
+    avisar(e.status === 401
+      ? T("⏳ Este link venceu. Toque em 🎨 Personalizar de novo no Discord para abrir um novo.", "⏳ This link expired. Tap 🎨 Customize in Discord again for a new one.")
+      : T("⚠️ Não consegui salvar agora. Tente de novo em instantes.", "⚠️ Couldn't save right now. Try again shortly."), 6000);
+  }
+  desenharTudo();
+});
+
+addEventListener("beforeunload", (e) => {
+  if (!demo && JSON.stringify(estiloValido(rascunho, pessoa.votos)) !== JSON.stringify(estiloValido(salvo, pessoa.votos))) e.preventDefault();
+});
+
+/* ---- começar ---- */
+(async function () {
+  let l = "pt";
+  try { l = localStorage.getItem("idioma") || ((navigator.language || "pt").toLowerCase().startsWith("pt") ? "pt" : "en"); } catch {}
+  document.documentElement.lang = l === "en" ? "en" : "pt-BR";
+  document.querySelectorAll("[data-troca]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.troca === l)));
+  if (token) {
+    /* O link sai da barra de endereço depois de lido: quem tirar print da
+       tela ou mandar o endereço para alguém não entrega a chave junto. */
+    history.replaceState(null, "", location.pathname);
+    try {
+      const j = await pedir({ acao: "ler" });
+      pessoa = { nome: j.nome || "", avatar: j.avatar || "", votos: Number(j.votos) || 0, votoEm: j.voto_em || null };
+      salvo = { ...PADRAO, ...estiloValido(j.estilo, pessoa.votos) };
+      rascunho = { ...salvo };
+    } catch (e) {
+      avisar(e.status === 401
+        ? T("⏳ Este link venceu. Toque em 🎨 Personalizar de novo no Discord.", "⏳ This link expired. Tap 🎨 Customize in Discord again.")
+        : T("⚠️ Não consegui abrir o seu estilo agora. Recarregue em instantes.", "⚠️ Couldn't load your style right now. Reload shortly."), 8000);
+      $("bt-salvar").disabled = true;
+    }
+  }
+  desenharTudo();
+})();
+</script>
+</body>
+</html>
