@@ -202,6 +202,7 @@ Object.assign(globalThis, carregar(["TIPOS_DAS_SALAS_DO_JOGO"]));
 /* As linguas que so' a bandeira atende: a bandeira, o nome do idioma e os
    motores consultam estas tabelas. */
 Object.assign(globalThis, carregar(["paisDaBandeira", "LINGUAS_DA_BANDEIRA", "PAIS_DA_BANDEIRA_EXTRA",
+  "BANDEIRAS_DO_RESTO_DO_MUNDO", "LINGUAS_SEM_BANDEIRA", "LINGUAS_DO_PAIS",
   "linguaSoDaBandeira", "DEEPL_ACEITA", "motorAceita"]));
 /* O import do index que o FUNCOES usa (a função dos códigos nasce ligada nos servidores de Kingshot). */
 Object.assign(globalThis, { pareceKingshot: (await import("./codigos-jogo.js")).pareceKingshot });
@@ -2597,6 +2598,48 @@ function conferirCartao(onde, embed, componentes = []) {
      marcado como falhando no painel. */
   verdade("o DeepL é pulado nas línguas que ele não tem", !motorAceita("deepl", "mn") && motorAceita("deepl", "el") &&
     motorAceita("azure", "mn") && motorAceita("auto", "mn"));
+
+  /* MAIS DE UMA LÍNGUA POR BANDEIRA: a bandeira traduz na primeira (a de
+     sempre) e oferece as outras num menu no mesmo cartão. É por aqui que
+     entram as línguas sem bandeira própria (tâmil, catalão, iorubá...). */
+  {
+    const { linguasDaBandeira, linhaDaLingua, nomeDoIdioma, cartaoDaBandeira } =
+      carregar(["linguasDaBandeira", "linhaDaLingua", "nomeDoIdioma", "cartaoDaBandeira"]);
+    const bandeiraDe = (pais) => [...pais].map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)).join("");
+    const errados = Object.entries(LINGUAS_DO_PAIS)
+      .filter(([pais, ls]) => idiomaDaBandeira(bandeiraDe(pais)) !== ls[0] || ls.some((l) => !linhaDaLingua(l)) || ls.length > 25)
+      .map(([pais]) => pais);
+    ok("em todo país com várias línguas, a primeira é a de sempre, e todas têm nome", errados, []);
+    ok("Índia: hindi primeiro, e tâmil no menu", [linguasDaBandeira("🇮🇳")[0], linguasDaBandeira("🇮🇳").includes("ta")], ["hi", true]);
+    ok("Espanha: espanhol, catalão, basco e galego", linguasDaBandeira("🇪🇸"), ["es", "ca", "eu", "gl"]);
+    ok("país de uma língua só não ganha menu", linguasDaBandeira("🇯🇵"), ["ja"]);
+    ok("Andorra lê em catalão", idiomaDaBandeira("🇦🇩"), "ca");
+    ok("e uma ilha do Caribe, em inglês", idiomaDaBandeira("🇧🇧"), "en");
+    ok("nome de língua sem bandeira própria", nomeDoIdioma("ta"), "🇮🇳 Tâmil");
+    const todas = new Set([...LINGUAS_MENU, ...LINGUAS_DA_BANDEIRA, ...LINGUAS_SEM_BANDEIRA].map(([c]) => c));
+    verdade(`passa de 100 línguas (tem ${todas.size})`, todas.size >= 100);
+    ok("e nenhuma língua aparece em duas tabelas", todas.size,
+      LINGUAS_MENU.length + LINGUAS_DA_BANDEIRA.length + LINGUAS_SEM_BANDEIRA.length);
+
+    globalThis.COR = globalThis.COR || 0x5865F2;
+    const msg = { id: "m1", url: "https://discord.com/channels/g1/c1/m1", guild: { id: "g1", name: "Servidor" },
+      channel: { id: "c1", name: "geral" }, author: { username: "ana", displayAvatarURL: () => "https://x/a.png" },
+      member: { displayName: "Ana" } };
+    const cartao = cartaoDaBandeira(msg, "hi", "नमस्ते", "", linguasDaBandeira("🇮🇳"), "u1");
+    const menu = cartao.components?.[0]?.components?.[0];
+    verdade("Índia: o cartão traz o menu das outras línguas", menu?.type === 3 && menu.options.length === 13);
+    ok("com o nome que diz servidor, canal, mensagem e quem reagiu", menu?.custom_id, "bandeira:g1:c1:m1:u1");
+    verdade("a língua mostrada vem marcada", menu.options.find((o) => o.default)?.value === "hi");
+    verdade("e uma frase curta explicando, nas duas línguas",
+      /mais de uma língua/.test(cartao.embeds[0].description) && /more than one language/.test(cartao.embeds[0].description));
+    const simples = cartaoDaBandeira(msg, "ja", "こんにちは", "", ["ja"], "u1");
+    verdade("país de uma língua: cartão sem menu e sem a frase", !simples.components && !/mais de uma língua/.test(simples.embeds[0].description));
+    const fonte2 = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+    verdade("o menu da bandeira é tratado", /inter\.customId\.startsWith\("bandeira:"\)\) return await cliqueBandeiraLingua\(inter\)/.test(fonte2));
+    const clique = semComentarios(pedaco("cliqueBandeiraLingua"));
+    verdade("só quem reagiu troca a língua", /if \(dono && inter\.user\.id !== dono\)/.test(clique));
+    verdade("e a troca respeita o limite por minuto", /podeTraduzirAgora\(inter\.user\.id\)/.test(clique));
+  }
   ok("joinha não vira idioma", idiomaDaBandeira("👍"), "");
 
   /* Regressão que importa: se alguém trocar a bandeira de uma linha do menu,

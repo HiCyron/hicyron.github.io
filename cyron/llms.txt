@@ -33,7 +33,7 @@ CYRON was built first for Kingshot alliances, and ships game tools on top of tra
 
 ## Languages
 
-- **Flag reactions: 66 languages.** Reacting with almost any country flag translates the message into that country's language, privately (Greek, Swedish, Norwegian, Danish, Finnish, Icelandic, Czech, Slovak, Hungarian, Romanian, Bulgarian, Serbian, Croatian, Bosnian, Slovenian, Macedonian, Albanian, Estonian, Latvian, Lithuanian, Maltese, Hebrew, Persian, Urdu, Bengali, Nepali, Burmese, Khmer, Lao, Mongolian, Georgian, Armenian, Azerbaijani, Kazakh, Uzbek, Kyrgyz, Turkmen, Amharic, Swahili, Somali, Malagasy, Haitian Creole, Samoan and Tongan, on top of the 22 below).
+- **Flag reactions: 100+ languages (108).** Reacting with any country flag translates the message privately into that country's language. Countries with several languages (India, Spain, Switzerland, South Africa, Nigeria, Belgium, Canada...) show a menu to pick another one, which is how languages without a flag of their own are covered (Tamil, Telugu, Bengali, Catalan, Basque, Galician, Afrikaans, Zulu, Yoruba, Hausa, Welsh, Irish, Kurdish, Pashto, Quechua, Guarani and more). Every country flag in the world translates something.
 - **Language rooms: 22 languages:**
 
 English, Portuguese, Spanish, French, German, Italian, Dutch, Polish, Russian, Ukrainian, Turkish, Arabic, Hindi, Chinese (Simplified), Chinese (Traditional), Japanese, Korean, Indonesian, Malay, Thai, Vietnamese, Filipino.

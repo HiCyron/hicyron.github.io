@@ -736,9 +736,74 @@ const PAIS_DA_BANDEIRA_EXTRA = {
   SR: "nl", SM: "it", VA: "it",
 };
 
+/* O RESTO DAS BANDEIRAS DO MUNDO: ilhas e territorios, cada um com a lingua
+   que a maioria la' le'. Com isto, qualquer bandeira de pais que alguem
+   aperte traduz alguma coisa (so' 🇦🇶 e as que nao sao de pais ficam de fora). */
+const BANDEIRAS_DO_RESTO_DO_MUNDO = {
+  AG: "en", AI: "en", AS: "en", BB: "en", BM: "en", BS: "en", BW: "en", BZ: "en", CC: "en", CK: "en",
+  CX: "en", DM: "en", FJ: "en", FK: "en", FM: "en", GD: "en", GG: "en", GI: "en", GM: "en", GS: "en",
+  GU: "en", GY: "en", HM: "en", IM: "en", IO: "en", JE: "en", KI: "en", KN: "en", KY: "en", LC: "en",
+  LR: "en", LS: "en", MH: "en", MP: "en", MS: "en", MU: "en", NA: "en", NF: "en", NR: "en", NU: "en",
+  PG: "en", PN: "en", PW: "en", SB: "en", SC: "en", SH: "en", SL: "en", SS: "en", SZ: "en", TC: "en",
+  TK: "en", TT: "en", TV: "en", UM: "en", VC: "en", VG: "en", VI: "en", VU: "en", BT: "en",
+  BI: "fr", BL: "fr", CF: "fr", DJ: "fr", GF: "fr", GP: "fr", KM: "fr", MF: "fr", MQ: "fr", NC: "fr",
+  PF: "fr", PM: "fr", RE: "fr", TF: "fr", WF: "fr", YT: "fr",
+  AW: "nl", BQ: "nl", CW: "nl", SX: "nl", AX: "sv", BV: "no", SJ: "no", FO: "da", GL: "da",
+  AD: "ca", EH: "ar", BN: "ms",
+};
+
+/* MAIS DE UMA LINGUA POR BANDEIRA (dono, 24/11: "mais idiomas por bandeira e'
+   justo"). A India fala hindi, tamil, telugu, bengali...; a Espanha, espanhol,
+   catalao, basco e galego. A bandeira traduz na PRIMEIRA (a de sempre) e, no
+   mesmo cartao, oferece as outras num menu: quem reagiu com 🇮🇳 e le' tamil
+   escolhe tamil. E' assim que entram as linguas que nao tem bandeira propria
+   -- nao existe emoji para "tamil" ou "catalao". */
+const LINGUAS_SEM_BANDEIRA = [
+  ["ta", "Tâmil", "🇮🇳", "தமிழ்"], ["te", "Telugu", "🇮🇳", "తెలుగు"], ["mr", "Marati", "🇮🇳", "मराठी"],
+  ["gu", "Guzerate", "🇮🇳", "ગુજરાતી"], ["pa", "Punjabi", "🇮🇳", "ਪੰਜਾਬੀ"], ["kn", "Canarês", "🇮🇳", "ಕನ್ನಡ"],
+  ["ml", "Malaiala", "🇮🇳", "മലയാളം"], ["or", "Oriá", "🇮🇳", "ଓଡ଼ିଆ"], ["as", "Assamês", "🇮🇳", "অসমীয়া"],
+  ["ca", "Catalão", "🇪🇸", "Català"], ["eu", "Basco", "🇪🇸", "Euskara"], ["gl", "Galego", "🇪🇸", "Galego"],
+  ["af", "Africâner", "🇿🇦", "Afrikaans"], ["zu", "Zulu", "🇿🇦", "isiZulu"], ["xh", "Xhosa", "🇿🇦", "isiXhosa"],
+  ["ha", "Hauçá", "🇳🇬", "Hausa"], ["yo", "Iorubá", "🇳🇬", "Yorùbá"], ["ig", "Igbo", "🇳🇬", "Igbo"],
+  ["ceb", "Cebuano", "🇵🇭", "Cebuano"], ["cy", "Galês", "🇬🇧", "Cymraeg"], ["gd", "Gaélico escocês", "🇬🇧", "Gàidhlig"],
+  ["ga", "Irlandês", "🇮🇪", "Gaeilge"], ["lb", "Luxemburguês", "🇱🇺", "Lëtzebuergesch"], ["mi", "Maori", "🇳🇿", "Māori"],
+  ["haw", "Havaiano", "🇺🇸", "ʻŌlelo Hawaiʻi"], ["qu", "Quíchua", "🇵🇪", "Runa Simi"], ["ay", "Aimará", "🇧🇴", "Aymar aru"],
+  ["gn", "Guarani", "🇵🇾", "Avañe'ẽ"], ["ku", "Curdo", "🇮🇶", "Kurdî"], ["ps", "Pashto", "🇦🇫", "پښتو"],
+  ["sd", "Sindi", "🇵🇰", "سنڌي"], ["om", "Oromo", "🇪🇹", "Afaan Oromoo"], ["ti", "Tigrínia", "🇪🇷", "ትግርኛ"],
+  ["tt", "Tártaro", "🇷🇺", "Татар"], ["ug", "Uigur", "🇨🇳", "ئۇيغۇرچە"], ["rw", "Quiniaruanda", "🇷🇼", "Kinyarwanda"],
+  ["ny", "Chichewa", "🇲🇼", "Chichewa"], ["dv", "Divehi", "🇲🇻", "ދިވެހި"], ["si", "Cingalês", "🇱🇰", "සිංහල"],
+  ["fy", "Frísio", "🇳🇱", "Frysk"], ["tg", "Tadjique", "🇹🇯", "Тоҷикӣ"], ["be", "Bielorrusso", "🇧🇾", "Беларуская"],
+];
+
+/* País -> as linguas dele, a primeira e' a que a bandeira usa sem perguntar
+   (a mesma de antes: um teste confere). Ate' 25 por pais, o teto do menu. */
+const LINGUAS_DO_PAIS = {
+  IN: ["hi", "bn", "ta", "te", "mr", "gu", "ur", "pa", "kn", "ml", "or", "as", "en"],
+  ES: ["es", "ca", "eu", "gl"], CH: ["de", "fr", "it"], BE: ["nl", "fr", "de"], CA: ["en", "fr"],
+  ZA: ["en", "af", "zu", "xh"], NG: ["en", "ha", "yo", "ig"], PH: ["tl", "ceb", "en"], GB: ["en", "cy", "gd"],
+  IE: ["en", "ga"], FI: ["fi", "sv"], LU: ["fr", "de", "lb"], SG: ["zh-CN", "en", "ms", "ta"],
+  MY: ["ms", "en", "zh-CN", "ta"], NZ: ["en", "mi"], US: ["en", "es", "haw"], PE: ["es", "qu"],
+  BO: ["es", "qu", "ay"], PY: ["es", "gn"], IQ: ["ar", "ku"], TR: ["tr", "ku"], AF: ["fa", "ps"],
+  PK: ["ur", "pa", "sd", "en"], ET: ["am", "om", "ti"], ER: ["ti", "ar"], RU: ["ru", "tt"], CN: ["zh-CN", "ug"],
+  LK: ["si", "ta"], KE: ["sw", "en"], TZ: ["sw", "en"], NL: ["nl", "fy"], BY: ["ru", "be"], TJ: ["tg", "ru"],
+  IL: ["he", "ar"], MA: ["ar", "fr"], DZ: ["ar", "fr"], TN: ["ar", "fr"], CY: ["el", "tr"], RW: ["rw", "fr", "en"],
+  MW: ["ny", "en"], MV: ["dv", "en"], HT: ["ht", "fr"], CM: ["fr", "en"], KZ: ["kk", "ru"],
+};
+
+/* Pura. As linguas que a bandeira deste pais oferece (a primeira e' a usada). */
+function linguasDaBandeira(emoji) {
+  const pais = paisDaBandeira(emoji);
+  if (!pais) return [];
+  const varias = LINGUAS_DO_PAIS[pais];
+  if (varias?.length) return [...varias];
+  const uma = IDIOMA_DO_PAIS[pais] || PAIS_DA_BANDEIRA_EXTRA[pais] || BANDEIRAS_DO_RESTO_DO_MUNDO[pais];
+  return uma ? [uma] : [];
+}
+
 function idiomaDaBandeira(emoji) {
   const pais = paisDaBandeira(emoji);
-  if (pais) return IDIOMA_DO_PAIS[pais] || PAIS_DA_BANDEIRA_EXTRA[pais] || "";
+  if (pais) return IDIOMA_DO_PAIS[pais] || LINGUAS_DO_PAIS[pais]?.[0] || PAIS_DA_BANDEIRA_EXTRA[pais] ||
+    BANDEIRAS_DO_RESTO_DO_MUNDO[pais] || "";
   /* Lingua cujo sinal no menu nao e' bandeira (a lanterna do chines
      tradicional): reagir com o sinal que o proprio bot mostra traduz. */
   const achado = LINGUAS_MENU.find(([, , sinal]) => sinal === emoji && !paisDaBandeira(sinal));
@@ -1221,7 +1286,9 @@ function decifrar(guardado) {
 }
 
 /* Cada tradutor chama os idiomas do seu jeito. */
-const AZURE_IDIOMA = { "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", tl: "fil", no: "nb", sr: "sr-Cyrl", mn: "mn-Cyrl" };
+const AZURE_IDIOMA = { "zh-CN": "zh-Hans", "zh-TW": "zh-Hant", tl: "fil", no: "nb", sr: "sr-Cyrl", mn: "mn-Cyrl",
+  /* O curdo do Google ("ku") e' o kurmanji; o "ku" da Azure e' o sorani. */
+  ku: "kmr" };
 const DEEPL_IDIOMA = { pt: "PT-BR", en: "EN-US", "zh-CN": "ZH-HANS", "zh-TW": "ZH-HANT", no: "NB" };
 /* O que o DeepL traduz (destino). Fora disso ele recusa -- e recusa nao pode
    virar "o DeepL deste servidor esta' falhando" no painel por causa de uma
@@ -5427,11 +5494,18 @@ const SEGUNDOS_ENTRE_FALAS = 5;
 
 /* Pura. A lingua existe so' na bandeira (nao tem sala nem menu)? */
 function linguaSoDaBandeira(cod) {
-  return LINGUAS_DA_BANDEIRA.some(([c]) => c === cod) && !LINGUAS_MENU.some(([c]) => c === cod);
+  return (LINGUAS_DA_BANDEIRA.some(([c]) => c === cod) || LINGUAS_SEM_BANDEIRA.some(([c]) => c === cod)) &&
+    !LINGUAS_MENU.some(([c]) => c === cod);
+}
+
+/* Pura. A linha da lingua em qualquer das tres tabelas: [codigo, nome, sinal, nome proprio]. */
+function linhaDaLingua(cod) {
+  return LINGUAS_MENU.find(([c]) => c === cod) || LINGUAS_DA_BANDEIRA.find(([c]) => c === cod) ||
+    LINGUAS_SEM_BANDEIRA.find(([c]) => c === cod) || null;
 }
 
 function nomeDoIdioma(cod) {
-  const achado = LINGUAS_MENU.find(([c]) => c === cod) || LINGUAS_DA_BANDEIRA.find(([c]) => c === cod);
+  const achado = linhaDaLingua(cod);
   return achado ? `${achado[2]} ${achado[1]}` : cod;
 }
 
@@ -27739,6 +27813,7 @@ client.on("interactionCreate", async (inter) => {
       if (inter.customId === "escolher-idioma") return await cliqueEscolherIdioma(inter);
       if (inter.customId.startsWith("traduzir-msg:")) return await cliqueTraduzirMsg(inter);
       if (inter.customId.startsWith("traduzir-fixo:")) return await cliqueTraduzirFixo(inter);
+      if (inter.customId.startsWith("bandeira:")) return await cliqueBandeiraLingua(inter);
       return;
     }
     /* Autocompletar do nome do evento: sem isto o oficial teria que digitar
@@ -28217,20 +28292,8 @@ client.on("messageReactionAdd", async (reacao, quem) => {
       return;
     }
 
-    /* Quem falou vem no cabecalho porque, no privado, a fala chega fora da
-       sala: sem o nome e sem o link de volta, e' um texto solto que a pessoa
-       nao consegue situar nem responder. */
-    const autor = msg.member?.displayName || msg.author?.username || "";
-    const onde = await entregarNoPrivado(quem, msg.channel, {
-      embeds: [{
-        color: COR,
-        author: autor ? { name: autor, icon_url: msg.author?.displayAvatarURL?.() } : undefined,
-        title: nomeDoIdioma(idioma),
-        description: traduzido.slice(0, 3800) + (msg.url ? `\n\n[⤴ Voltar / Back](${msg.url})` : "") +
-          rodapeDeDivulgacao(servidor),
-        footer: { text: `#${msg.channel?.name || ""} · ${msg.guild.name}` },
-      }],
-    });
+    const onde = await entregarNoPrivado(quem, msg.channel,
+      cartaoDaBandeira(msg, idioma, traduzido, rodapeDeDivulgacao(servidor), linguasDaBandeira(reacao.emoji?.name), quem.id));
     if (!onde) return; // nem privado nem sala: nao ha o que limpar
     contarUso("bandeira", msg.guild.id);
 
@@ -28244,6 +28307,74 @@ client.on("messageReactionAdd", async (reacao, quem) => {
     console.error("bandeira: nao consegui traduzir:", e?.message || e);
   }
 });
+
+/* O cartao da traducao por bandeira, o mesmo na reacao e na troca de lingua.
+
+   Quem falou vem no cabecalho porque, no privado, a fala chega fora da sala:
+   sem o nome e sem o link de volta, e' um texto solto que a pessoa nao
+   consegue situar nem responder.
+
+   Pais com mais de uma lingua ganha um menu embaixo, com uma frase curta
+   dizendo o que ele faz -- didatico, nas duas linguas, porque quem reagiu
+   ainda nao escolheu a dele. O menu leva no nome o servidor, o canal, a
+   mensagem e QUEM reagiu: no privado so' essa pessoa o ve; na sala (privado
+   fechado), so' ela consegue usar. */
+function cartaoDaBandeira(msg, idioma, traduzido, rodape = "", linguas = [], quem = "") {
+  const autor = msg.member?.displayName || msg.author?.username || "";
+  const outras = (linguas || []).filter((l) => l !== idioma && linhaDaLingua(l)).slice(0, 25);
+  const varias = outras.length > 0;
+  return {
+    embeds: [{
+      color: COR,
+      author: autor ? { name: autor, icon_url: msg.author?.displayAvatarURL?.() } : undefined,
+      title: nomeDoIdioma(idioma),
+      description: String(traduzido || "").slice(0, 3800) + (msg.url ? `\n\n[⤴ Voltar / Back](${msg.url})` : "") +
+        (varias ? "\n\n-# 🌐 Este país fala mais de uma língua: escolha outra no menu · " +
+          "This country speaks more than one language: pick another below" : "") + rodape,
+      footer: { text: `#${msg.channel?.name || ""} · ${msg.guild?.name || ""}` },
+    }],
+    ...(varias ? { components: [{ type: 1, components: [{
+      type: 3,
+      custom_id: `bandeira:${msg.guild?.id}:${msg.channel?.id}:${msg.id}:${quem}`.slice(0, 100),
+      placeholder: "🌐 Outra língua · Another language",
+      options: [idioma, ...outras].map((l) => {
+        const [, nome, sinal, proprio] = linhaDaLingua(l);
+        return { label: (proprio && proprio !== nome ? `${proprio} · ${nome}` : nome).slice(0, 100), value: l,
+          emoji: { name: sinal }, default: l === idioma };
+      }),
+    }] }] } : {}),
+  };
+}
+
+/* A troca de lingua no menu do cartao: traduz a mesma mensagem para a lingua
+   escolhida e redesenha o cartao no lugar. So' quem reagiu troca. */
+async function cliqueBandeiraLingua(inter) {
+  const [, guildId, canalId, msgId, dono] = inter.customId.split(":");
+  const lingua = inter.values?.[0];
+  if (dono && inter.user.id !== dono) {
+    return inter.reply({ flags: 64, content: "🌐 Esse menu é de quem reagiu com a bandeira. Reaja você também!\n" +
+      "_This menu belongs to whoever reacted. React with the flag yourself!_" });
+  }
+  if (!lingua || !linhaDaLingua(lingua)) return inter.deferUpdate().catch(() => {});
+  if (!podeTraduzirAgora(inter.user.id)) {
+    return inter.reply({ flags: 64, content: "⏳ Calma aí, tente de novo em um minuto. · _Slow down, try again in a minute._" });
+  }
+  await inter.deferUpdate();
+  const canal = await client.channels.fetch(canalId).catch(() => null);
+  const msg = canal?.messages ? await canal.messages.fetch(msgId).catch(() => null) : null;
+  const texto = msg ? textoDaMensagem(msg) : "";
+  if (!texto) {
+    return inter.followUp({ flags: 64, content: "A mensagem original não existe mais. · _The original message is gone._" }).catch(() => {});
+  }
+  const servidor = await servidorDoGuild(guildId).catch(() => null);
+  const traduzido = await traduzirLongo(texto, lingua, motorDe(servidor));
+  if (!traduzido) {
+    return inter.followUp({ flags: 64, content: "❌ Não consegui traduzir agora. · _Could not translate right now._" }).catch(() => {});
+  }
+  const linguas = (inter.message?.components?.[0]?.components?.[0]?.options || []).map((o) => o.value);
+  contarUso("bandeira", guildId);
+  return inter.editReply(cartaoDaBandeira(msg, lingua, traduzido, rodapeDeDivulgacao(servidor), linguas, dono));
+}
 
 /* ---------------- os comandos que aparecem em cada servidor -----------------
 
