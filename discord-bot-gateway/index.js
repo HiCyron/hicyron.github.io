@@ -12957,15 +12957,20 @@ function anotarLingua(userId, lingua) {
 /* Pura. O cartão que aparece para quem tocou no título. */
 function cartaoDoTitulo(t, tx, { membro = null, feitos = {}, conquistados = [], cor = corPorId("ceu"), eu = false,
   guildId = "", comEstudio = false } = {}) {
-  const numeros = [`🗳️ **${Number(feitos.votos) || 0}** ${tx.votos}`, `⚔️ **${Number(feitos.vitorias) || 0}** ${tx.vitorias}`,
-    `🌍 **${Number(feitos.linguas) || 0}** ${tx.linguas}`, `🔥 **${Number(feitos.sequencia) || 0}** ${tx.dias}`];
+  /* Cada número com o emoji ANIMADO do título que ele dá (dono, 24/11:
+     "aqui devia substituir pelos emojis"): votos → Apoiador, vitórias →
+     Duelista, línguas → Poliglota, dias → Sequência. Este cartão é a CYRON
+     quem manda (não o webhook), então o animado aparece em qualquer sala. */
+  const de = (id) => emojiDoTituloNoTexto(TITULOS_DO_ESTUDIO.find((x) => x.id === id));
+  const numeros = [`${de("apoiador")} **${Number(feitos.votos) || 0}** ${tx.votos}`, `${de("duelista")} **${Number(feitos.vitorias) || 0}** ${tx.vitorias}`,
+    `${de("poliglota")} **${Number(feitos.linguas) || 0}** ${tx.linguas}`, `${de("sequencia")} **${Number(feitos.sequencia) || 0}** ${tx.dias}`];
   const outros = TITULOS_DO_ESTUDIO.filter((x) => conquistados.includes(x.id));
   const e = EMOJIS_DA_CYRON.get(`tt_${t.id}`);
   return {
     embeds: [{
       color: parseInt(cor.c2.slice(1), 16),
       author: membro ? { name: String(membro.displayName || membro.user?.username || ""), icon_url: membro.displayAvatarURL?.() } : undefined,
-      title: `${t.emoji} ${tx[`n_${t.id}`] || t.pt}`,
+      title: `${emojiDoTituloNoTexto(t)} ${tx[`n_${t.id}`] || t.pt}`,
       description: [`**${tx.como}:** ${tx[`c_${t.id}`] || t.como_pt}`, "", numeros.join(" · "),
         ...(outros.length ? ["", `${tx.titulos}: ${outros.map(emojiDoTituloNoTexto).join(" ")}`] : []),
         ...(eu ? ["", `✨ ${tx.seu}`] : [])].join("\n"),
