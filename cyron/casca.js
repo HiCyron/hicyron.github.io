@@ -64,6 +64,9 @@
           canal("./#funciona", "como-funciona", "how-it-works") +
           canal("./passos.html", "primeiros-passos", "get-started", false, "passos") +
           '<div class="categoria">' + duas("O que ela faz", "What it does") + "</div>" +
+          canal("./#bandeira", "traduza-com-bandeira", "translate-with-a-flag") +
+          canal("./#por-que", "por-que-a-cyron", "why-cyron") +
+          canal("./#kingshot", "alianças-de-jogo", "game-alliances") +
           canal("./recursos.html", "tudo-que-ela-faz", "everything-it-does", false, "recursos") +
           canal("./recursos.html#ferramentas", "ferramentas", "tools") +
           canal("./guide.html", "guia-completo", "full-guide", false, "guide") +
