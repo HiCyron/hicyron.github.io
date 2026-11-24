@@ -2844,13 +2844,9 @@ function conferirCartao(onde, embed, componentes = []) {
       const emojisAntes = globalThis.EMOJIS_DA_CYRON;
       globalThis.EMOJIS_DA_CYRON = new Map([["tt_lenda", { id: "999", name: "tt_lenda_abc123", animated: true }]]);
       Object.assign(globalThis, { LINK_DO_VOTO: E.LINK_DO_VOTO });
-      const TT = carregar(["TITULO_A_CADA", "TITULO_MOSTRADO", "vezDoTitulo", "salaDeixaEmojiDeFora", "emojiDoTitulo", "emojiDoTituloNoTexto",
+      const TT = carregar(["salaDeixaEmojiDeFora", "emojiDoTitulo", "emojiDoTituloNoTexto",
         "enfeiteDoNome", "botaoDoTitulo",
         "TEXTOS_DOS_TITULOS", "TEXTOS_DOS_TITULOS_EN", "cartaoDoTitulo"]);
-      const vistos = new Map();
-      ok("o título aparece na primeira fala da sala e de novo só depois de meia hora",
-        [TT.vezDoTitulo("c1", "u1", 0, vistos), TT.vezDoTitulo("c1", "u1", 60000, vistos), TT.vezDoTitulo("c2", "u1", 60000, vistos),
-          TT.vezDoTitulo("c1", "u1", 31 * 60000, vistos)], [true, false, true, true]);
       const lenda = ESTUDIO.TITULOS.find((t) => t.id === "lenda");
       const bt = TT.botaoDoTitulo(lenda, "123456", "Leyenda");
       ok("o botão leva a pessoa e o título, com o emoji animado da CYRON", [bt.custom_id, bt.label, bt.emoji],
@@ -2885,7 +2881,9 @@ function conferirCartao(onde, embed, componentes = []) {
     verdade("o espelho põe a cor, o enfeite e o título só onde o Estúdio está liberado",
       /const comEstudioAqui = msg\.author \? await estudioLiberadoEm\(msg\.guild\)/.test(fonte) &&
       /color: corDoCartao,/.test(fonte) && /enfeiteDoNome\(meuPerfil\?\.estilo\?\.sala_emoji, salaDestino\)/.test(fonte) &&
-      /meuTitulo && vezDoTitulo\(destino\.canal_id, msg\.author\.id\)/.test(fonte));
+      /\.\.\.\(meuTitulo\s*\? \[botaoDoTitulo\(meuTitulo, msg\.author\.id/.test(fonte));
+    verdade("o título vem em todo cartão novo (sem a espera de meia hora, que parecia defeito)",
+      !/vezDoTitulo|TITULO_A_CADA/.test(fonte));
     ok("o nome do link do cartão: sem colchete, menção, link nem passar de 32",
       ESTUDIO.limparAssinatura("Rei [do] Urso (oficial) <@1> https://x.y e mais um pouco de texto"), "Rei do Urso oficial 1 e mais um ");
     ok("o enfeite animado é de quem conquistou o título", [ESTUDIO.estiloValido({ sala_emoji: "tt:lenda" }, 12, ["apoiador", "lenda"]).sala_emoji,

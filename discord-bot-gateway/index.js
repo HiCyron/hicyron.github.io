@@ -5005,9 +5005,12 @@ async function espelharMensagem(msg, lista, origem, texto, motor = MOTOR_AUTO, s
       const botoes = [
         ...(visaoDoDono && arquivos.some(ehImagemAnexo) ? botaoDeLerImagem(le)[0].components : []),
         ...(falaDoDono && arquivos.some(ehAudioAnexo) ? botaoDeOuvir(le, idiomaQueEscreve(origem))[0].components : []),
-        /* O título vem no cartão novo, e numa sala só de meia em meia hora
-           por pessoa (vezDoTitulo): visto, sem encher a conversa. */
-        ...(meuTitulo && vezDoTitulo(destino.canal_id, msg.author.id)
+        /* O título vem em TODO cartão novo da pessoa. Era um por sala a cada
+           meia hora, e o dono (24/11) viu o problema no primeiro teste: "as
+           pessoas vão achar que tá bugada se aparecer 1 vez e não aparecer
+           mais". Falas seguidas viram um cartão só (a emenda), então é um
+           botão por bloco de conversa -- não um por frase. */
+        ...(meuTitulo
           ? [botaoDoTitulo(meuTitulo, msg.author.id, await nomeDoTitulo(meuTitulo, le, msg.guild?.id), salaDeixaEmojiDeFora(salaDestino))] : []),
       ];
       const comBotao = botoes.length > 0;
@@ -12856,16 +12859,13 @@ async function cliqueJaVotei(inter) {
    público, preciso testar antes" -- então só onde o Estúdio está liberado
    (painel e [TOP]).
 
-   O botão vem embaixo do cartão da fala nas OUTRAS salas (a mensagem da
-   própria pessoa é dela, e não leva botão). Uma vez por sala a cada meia
-   hora por pessoa: o título é visto sem encher a conversa. Quem toca vê,
-   só para si, o cartão da pessoa e como conseguir o título.
+   O botão vem embaixo de todo cartão novo da fala nas OUTRAS salas (a
+   mensagem da própria pessoa é dela, e não leva botão). Quem toca vê, só
+   para si, o cartão da pessoa e como conseguir o título.
 
    Quais títulos existem e como se ganha cada um: TITULOS, em
    estudio-regras.js. O emoji animado de cada um sobe como emoji do próprio
    aplicativo (img/titulos/tt_<id>.gif); sem ele, vai o emoji comum. */
-const TITULO_A_CADA = 30 * 60 * 1000;
-const TITULO_MOSTRADO = new Map(); // `${canal}:${pessoa}` -> quando apareceu
 const TITULO_NA_MEMORIA = new Map(); // pessoa -> { t, v }
 
 /* O título que a pessoa escolheu e que ela de fato ganhou (null se nenhum).
@@ -12879,16 +12879,6 @@ async function tituloDaPessoa(userId) {
   TITULO_NA_MEMORIA.set(userId, { t: Date.now(), v });
   while (TITULO_NA_MEMORIA.size > 3000) TITULO_NA_MEMORIA.delete(TITULO_NA_MEMORIA.keys().next().value);
   return v;
-}
-
-/* Pura. É a vez do título nesta sala? Marca a vez quando é. */
-function vezDoTitulo(canalId, userId, agora = Date.now(), mostrados = TITULO_MOSTRADO) {
-  const chave = `${canalId}:${userId}`;
-  const ultima = mostrados.get(chave);
-  if (ultima !== undefined && agora - ultima < TITULO_A_CADA) return false;
-  mostrados.set(chave, agora);
-  while (mostrados.size > 5000) mostrados.delete(mostrados.keys().next().value);
-  return true;
 }
 
 /* O emoji do título: o animado da CYRON, ou o comum de reserva.
