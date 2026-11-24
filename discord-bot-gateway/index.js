@@ -15130,6 +15130,30 @@ function enfeitesDoAviso() {
   return { comeca: emojiKs("ks_fogo_raro", "🟢"), ultimo: emojiKs("ks_fogo_lendario", "🏁"), galho: emojiKs("ks_galho", "├"), fim: emojiKs("ks_galho_fim", "└") };
 }
 
+/* A FAXINA DA SEMANA: só UMA imagem da semana por sala. Apaga as outras
+   que a CYRON mandou (a cor da semana e a imagem semana.png), entre as
+   últimas mensagens da sala. Roda depois de toda semana nova e uma vez por
+   sala a cada ligada do bot -- é o que limpa um calendário que já ficou
+   repetido. */
+const COR_DA_SEMANA = 0x36C8E6;
+const SALAS_FAXINADAS = new Set();
+function ehSemanaDaCyron(m, euId) {
+  const e = m?.embeds?.[0];
+  return m?.author?.id === euId && e?.color === COR_DA_SEMANA && /semana\.png/.test(String(e?.image?.url || e?.image?.proxyURL || ""));
+}
+async function faxinaDaSemana(canal, idAtual) {
+  const ultimas = await canal.messages?.fetch?.({ limit: 30 }).catch(() => null);
+  if (!ultimas) return 0;
+  let apagadas = 0;
+  for (const m of ultimas.values()) {
+    if (m.id === idAtual || !ehSemanaDaCyron(m, client.user?.id)) continue;
+    if (await m.delete().then(() => true).catch(() => false)) apagadas++;
+  }
+  SALAS_FAXINADAS.add(canal.id);
+  if (apagadas) console.log(`agenda do jogo: ${apagadas} semana(s) repetida(s) apagada(s) em #${canal.name}`);
+  return apagadas;
+}
+
 async function agendaDoJogoNosCanais(agora = Date.now()) {
   if (!SUBIDA_DOS_EMOJIS.pronta) return "sem-emoji";
   const a = await ajustes();
@@ -15159,6 +15183,12 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
       dia = Math.floor(agora / 86400000) * 86400000;
     const canalDe = async (id) => guild.channels.cache.get(id) || await client.channels.fetch(id).catch(() => null);
     const chaveA = chaveDoAviso(eventos, agora);
+    /* Uma faxina por sala a cada ligada do bot (limpa repetido antigo). */
+    for (const sala of salas) {
+      if (SALAS_FAXINADAS.has(sala.canal) || !estado.semana[sala.canal]) continue;
+      const canal = await canalDe(sala.canal);
+      if (canal?.messages) await faxinaDaSemana(canal, estado.semana[sala.canal]);
+    }
     /* O histórico do reino, para a previsão (ver historicoNovo). */
     const historico = async () => {
       const marcaH = HISTORICO_DO_REINO(alvo.reino);
@@ -15187,6 +15217,7 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
         const nova = await canal.send(semana).catch((e) => { console.error(`agenda do jogo: não postei em #${canal.name}:`, e?.message || e); return null; });
         if (!nova) { await salvar(); continue; }
         estado.semana[sala.canal] = nova.id;
+        await faxinaDaSemana(canal, nova.id);
         if (doDia) {
           const aviso = await canal.send(doDia).catch((e) => { console.error(`agenda do jogo: aviso do dia falhou em #${canal.name}:`, e?.message || e); return null; });
           if (aviso) estado.avisos[sala.canal] = aviso.id;
@@ -15208,13 +15239,43 @@ async function agendaDoJogoNosCanais(agora = Date.now()) {
         if (typeof canal?.send !== "function") continue;
         const carga = await cargaDaSemana(eventos, agora, alvo.reino, sala.idioma, motor, daLideranca).catch((e) => { console.log("agenda do jogo: a semana falhou:", e?.message || e); return null; });
         if (!carga) continue;
-        const velha = estado.semana[sala.canal] && await canal.messages?.fetch?.(estado.semana[sala.canal]).catch(() => null);
+        /* A mensagem da semana: editar no lugar. Mandar uma nova só quando a
+           velha NÃO EXISTE MAIS (alguém apagou) ou a edição falhou -- e aí a
+           velha sai antes. Era aqui que o calendário duplicava (dono, 24/11:
+           "os calendários se multiplicaram, tem 2"): uma busca que falhava
+           por um instante, ou uma edição recusada, mandava a nova e deixava a
+           velha lá em cima. Falha passageira agora espera a próxima volta. */
+        const idVelha = estado.semana[sala.canal];
+        let velha = null, sumiu = !idVelha;
+        if (idVelha) {
+          velha = await canal.messages?.fetch?.(idVelha).catch((e) => {
+            if (e?.code === 10008) sumiu = true; // Unknown Message: apagada de verdade
+            else console.log(`agenda do jogo: não achei a semana em #${canal.name} agora (${e?.code || e?.message || e}); tento depois`);
+            return null;
+          });
+        }
         if (velha) {
-          if (await velha.edit({ ...carga, attachments: [] }).then(() => true).catch(() => false)) { aqui++; continue; }
+          const editou = await velha.edit({ ...carga, attachments: [] }).then(() => true)
+            .catch((e) => { console.log(`agenda do jogo: a edição da semana falhou em #${canal.name}:`, e?.message || e); return false; });
+          if (editou) { aqui++; continue; }
+          await velha.delete().catch(() => {});
+        } else if (!sumiu) {
+          continue;
         }
         const nova = await canal.send(carga).catch((e) => { console.error(`agenda do jogo: não postei em #${canal.name}:`, e?.message || e); return null; });
         if (!nova) continue;
         estado.semana[sala.canal] = nova.id;
+        await salvar();
+        await faxinaDaSemana(canal, nova.id);
+        /* A semana nova foi para o fim da sala: o aviso do dia desce junto,
+           logo embaixo dela (dono, 22/11: "era para ser embaixo da imagem"). */
+        const doDia = await cargaDoDia(eventos, agora, sala.idioma, motor).catch(() => null);
+        if (estado.avisos[sala.canal]) await canal.messages?.delete?.(estado.avisos[sala.canal]).catch(() => {});
+        delete estado.avisos[sala.canal];
+        if (doDia) {
+          const aviso = await canal.send(doDia).catch(() => null);
+          if (aviso) estado.avisos[sala.canal] = aviso.id;
+        }
         await salvar();
         aqui++;
       }

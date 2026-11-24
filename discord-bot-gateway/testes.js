@@ -18183,6 +18183,29 @@ function conferirCartao(onde, embed, componentes = []) {
         verdade("a versão do desenho entra na chave (desenho novo = imagem refeita sozinha)", /const chave = `v\$\{VERSAO_DO_DESENHO\}\|` \+ chaveDaSemana/.test(pub));
         verdade("a chave da semana olha cada vez de cada evento da liderança", /daLideranca\.flatMap\(\(l\) => l\.ocorrencias\.map\(\(o\) => \(\{ nome: l\.nome, \.\.\.o \}\)\)\)/.test(pub));
         verdade("a semana: edita a mensagem da sala; só manda nova quando ela sumiu", pub.indexOf("velha.edit") > 0 && pub.indexOf("velha.edit") < pub.indexOf("canal.send(carga)"));
+        /* O calendário duplicado (dono, 24/11: "os calendários se
+           multiplicaram, tem 2"): busca que falhava por um instante, ou
+           edição recusada, mandava a nova e deixava a velha lá em cima. */
+        verdade("falha passageira ao buscar a semana: espera, não duplica",
+          /if \(e\?\.code === 10008\) sumiu = true;/.test(pub) && /\} else if \(!sumiu\) \{\s*continue;/.test(pub));
+        verdade("edição recusada: a velha sai antes da nova", pub.indexOf("await velha.delete()") > pub.indexOf("velha.edit") &&
+          pub.indexOf("await velha.delete()") < pub.indexOf("canal.send(carga)"));
+        verdade("semana nova no meio do dia: o aviso do dia desce junto, embaixo dela",
+          pub.indexOf("const doDia = await cargaDoDia", pub.indexOf("canal.send(carga)")) > 0);
+        verdade("toda semana nova passa a faxina, e cada sala uma vez por ligada", (pub.match(/await faxinaDaSemana\(canal, nova\.id\)/g) || []).length === 2 &&
+          /SALAS_FAXINADAS\.has\(sala\.canal\)/.test(pub));
+        {
+          globalThis.client = { user: { id: "eu" } };
+          const F = carregar(["COR_DA_SEMANA", "SALAS_FAXINADAS", "ehSemanaDaCyron", "faxinaDaSemana"]);
+          const apagadas = [];
+          const msg = (id, autor, cor, img) => ({ id, author: { id: autor }, embeds: [{ color: cor, image: img ? { url: `https://cdn/x/${img}` } : null }],
+            delete: async () => { apagadas.push(id); } });
+          const sala = { id: "c1", name: "agenda-pt", messages: { fetch: async () => new Map([
+            ["1", msg("1", "eu", 0x36C8E6, "semana.png")], ["2", msg("2", "eu", 0x36C8E6, "semana.png")],
+            ["3", msg("3", "eu", 0x2ECC71, null)], ["4", msg("4", "outro", 0x36C8E6, "semana.png")]]) } };
+          ok("a faxina apaga só a semana repetida da CYRON (nem a atual, nem o aviso, nem a de outro)", [await F.faxinaDaSemana(sala, "2"), apagadas], [1, ["1"]]);
+          verdade("e anota a sala como faxinada", F.SALAS_FAXINADAS.has("c1"));
+        }
         verdade("o id da mensagem nova é guardado na hora (reiniciar no meio não duplica)", /estado\.semana\[sala\.canal\] = nova\.id;\s*await salvar\(\)/.test(pub));
         const novoDia = pub.slice(pub.indexOf("if (estado.dia !== dia)"), pub.indexOf("if (estado.chave !== chave)"));
         verdade("na virada: a imagem e o aviso saem e voltam JUNTOS no fim da sala (o aviso logo embaixo da imagem)",
