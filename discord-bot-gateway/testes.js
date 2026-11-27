@@ -2980,6 +2980,30 @@ function conferirCartao(onde, embed, componentes = []) {
       verdade("o anúncio aos ADMs roda no relógio, só com o Estúdio aberto e uma vez por servidor",
         /anunciarEstudioAosAdms\(\)\.catch/.test(fonte) && /String\(a\.estudio_publico \|\| ""\) !== "1"\) return;/.test(fonte) &&
         /a\[`novidade_estudio:\$\{s\.id\}`\]/.test(fonte));
+      /* No privado dos donos (dono, 25/11: "ninguém viu a atualização, acho
+         que podemos manter no privado?"). */
+      const D = carregar(["MAX_SERVIDORES_NO_PRIVADO", "cartaoDaNovidadeNoPrivado", "marcarBotaoFeito", "respostaDoEspalhar"]);
+      const um = D.cartaoDaNovidadeNoPrivado(N.NOVIDADE_DO_ESTUDIO, [{ id: "g1", nome: "Aliança" }]);
+      ok("no privado, com um servidor: personalizar e compartilhar", um.components[0].components.map((b) => [b.custom_id, b.label]),
+        [["perfil:estilo:g1", "Personalizar o meu"], ["novidade:dividir:g1", "Compartilhar com os membros"]]);
+      verdade("e diz de que servidor é", um.embeds[0].description.includes("🏰 Aliança"));
+      const varios = D.cartaoDaNovidadeNoPrivado(N.NOVIDADE_DO_ESTUDIO,
+        ["a", "b", "c", "d", "e"].map((x) => ({ id: `g${x}`, nome: `S${x}` })));
+      ok("com vários, um 📣 por servidor (até quatro), com o nome", varios.components[0].components.slice(1).map((b) => b.label),
+        ["Compartilhar com os membros · Sa", "Compartilhar com os membros · Sb", "Compartilhar com os membros · Sc", "Compartilhar com os membros · Sd"]);
+      verdade("e cabe numa linha de botões do Discord (5)", varios.components[0].components.length <= 5);
+      const feitos = D.marcarBotaoFeito([{ toJSON: () => varios.components[0] }], "novidade:dividir:gb");
+      ok("o 📣 usado vira ✅ e desliga; os outros ficam", feitos[0].components.slice(1, 3).map((b) => [!!b.disabled, b.emoji.name]),
+        [[false, "📣"], [true, "✅"]]);
+      ok("as respostas do 📣", [D.respostaDoEspalhar({ foram: ["1", "2"], destinos: 2 }), D.respostaDoEspalhar({ foram: [], destinos: 0 }),
+        D.respostaDoEspalhar({ foram: [], destinos: 3 }), D.respostaDoEspalhar({ ja: "2026-11-24T07:00:00Z" })],
+        ["📣 Compartilhado em <#1> <#2>.", "Não tenho onde publicar. Marque um canal no menu do painel e o botão passa a funcionar.",
+          "Não consegui publicar — falta permissão de escrever nas salas.", "✅ Já foi compartilhado <t:1795503600:R>."]);
+      verdade("o 📣 do privado é atendido, e confere quem manda no servidor",
+        /customId\.startsWith\("novidade:dividir:"\)\) return await cliqueDividirNoPrivado/.test(fonte) &&
+        /const manda = guild\.ownerId === inter\.user\.id \|\| membro\?\.permissions\?\.has\?\.\(PermissionFlagsBits\.ManageGuild\)/.test(fonte));
+      verdade("o privado vai uma vez por dono, só com o Estúdio aberto, no relógio",
+        /a\[`novidade_estudio_dm:\$\{guild\.ownerId\}`\]/.test(fonte) && /estudioNoPrivadoDosDonos\(\)\.catch/.test(fonte));
       const mig26 = readFileSync(`${aqui}/../supabase/migracoes/026-avisos-vistos.sql`, "utf8");
       verdade("o banco dos avisos vistos: só id e nome do aviso, fechado ao público",
         ["create table if not exists cyron_aviso_visto", "primary key (user_id, aviso)", "enable row level security"].every((t) => mig26.includes(t)));

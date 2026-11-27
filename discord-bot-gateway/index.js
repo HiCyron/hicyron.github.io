@@ -13139,40 +13139,151 @@ async function anunciarEstudioAosAdms() {
 
 /* 📣 Compartilhar: a novidade em cada sala de conversa, na língua da sala.
    Sem salas (plano grátis, só ferramentas), vai para o canal-fonte que o
-   dono marcou, como o recibo. Só ADM chega aqui (cliquePainel confere). */
-async function compartilharNovidadeDoEstudio(inter, servidor) {
-  await inter.deferReply({ flags: 64 });
+   dono marcou, como o recibo. Uma vez por servidor. Devolve { ja } (já tinha
+   ido) ou { foram: [canais], destinos: quantos havia }. */
+async function espalharNovidadeDoEstudio(guild, servidor) {
   const marca = `novidade_estudio_dividida:${servidor.id}`;
   const ja = (await ajustes())[marca];
-  if (ja) {
-    const t = Math.floor(Date.parse(ja) / 1000);
-    return inter.editReply({ content: `✅ Já foi compartilhado${t ? ` <t:${t}:R>` : ""}.` });
-  }
+  if (ja) return { ja };
   const salas = (await canaisEspelho(servidor.id).catch(() => []) || []).filter((s) => s.canal_id);
   let destinos = salas.map((s) => ({ canal: s.canal_id, idioma: s.idioma }));
   if (!destinos.length) {
     const fonte = (await sb(`discord_fonte_replica?servidor_id=eq.${servidor.id}&select=canal_id&limit=1`).catch(() => null))?.[0];
-    if (fonte?.canal_id) destinos = [{ canal: fonte.canal_id, idioma: await linguaDaSalaCyron(inter.guild) }];
+    if (fonte?.canal_id) destinos = [{ canal: fonte.canal_id, idioma: await linguaDaSalaCyron(guild) }];
   }
   const foram = [];
   const porLingua = new Map();
   for (const d of destinos) {
-    const canal = await inter.guild.channels.fetch(String(d.canal)).catch(() => null);
+    const canal = await guild.channels.fetch(String(d.canal)).catch(() => null);
     if (typeof canal?.send !== "function") continue;
-    if (!porLingua.has(d.idioma)) porLingua.set(d.idioma, await textosDaNovidade(d.idioma, inter.guildId));
-    const foi = await canal.send(cartaoDaNovidadeMembros(porLingua.get(d.idioma), inter.guildId)).catch(() => null);
+    if (!porLingua.has(d.idioma)) porLingua.set(d.idioma, await textosDaNovidade(d.idioma, guild.id));
+    const foi = await canal.send(cartaoDaNovidadeMembros(porLingua.get(d.idioma), guild.id)).catch(() => null);
     if (foi) foram.push(canal.id);
   }
-  if (!foram.length) {
-    return inter.editReply({ content: destinos.length
-      ? "Não consegui publicar — falta permissão de escrever nas salas."
-      : "Não tenho onde publicar. Marque um canal no menu do painel e o botão passa a funcionar." });
+  if (foram.length) await porAjuste(marca, new Date().toISOString());
+  return { foram, destinos: destinos.length };
+}
+
+/* Pura. O que dizer a quem tocou em 📣. */
+function respostaDoEspalhar(r) {
+  if (r?.ja) {
+    const t = Math.floor(Date.parse(r.ja) / 1000);
+    return `✅ Já foi compartilhado${t ? ` <t:${t}:R>` : ""}.`;
   }
-  await porAjuste(marca, new Date().toISOString());
-  /* O botão do cartão vira "✅ Compartilhado": quem passar depois vê que já foi. */
-  const tx = await textosDaNovidade(await linguaDaSalaCyron(inter.guild), inter.guildId);
-  await inter.message?.edit?.({ components: cartaoDaNovidadeAdm(tx, inter.guildId, true).components }).catch(() => {});
-  return inter.editReply({ content: `📣 Compartilhado em ${foram.map((id) => `<#${id}>`).join(" ")}.` });
+  if (!r?.foram?.length) {
+    return r?.destinos ? "Não consegui publicar — falta permissão de escrever nas salas."
+      : "Não tenho onde publicar. Marque um canal no menu do painel e o botão passa a funcionar.";
+  }
+  return `📣 Compartilhado em ${r.foram.map((id) => `<#${id}>`).join(" ")}.`;
+}
+
+/* No ⚙️-cyron. Só ADM chega aqui (cliquePainel confere). */
+async function compartilharNovidadeDoEstudio(inter, servidor) {
+  await inter.deferReply({ flags: 64 });
+  const r = await espalharNovidadeDoEstudio(inter.guild, servidor);
+  if (r.foram?.length) {
+    /* O botão do cartão vira "✅ Compartilhado": quem passar depois vê que já foi. */
+    const tx = await textosDaNovidade(await linguaDaSalaCyron(inter.guild), inter.guildId);
+    await inter.message?.edit?.({ components: cartaoDaNovidadeAdm(tx, inter.guildId, true).components }).catch(() => {});
+  }
+  return inter.editReply({ content: respostaDoEspalhar(r) });
+}
+
+/* 📩 A NOVIDADE NO PRIVADO DOS DONOS.
+
+   O dono (24/11), um dia depois do cartão no ⚙️-cyron: "ninguém viu a
+   atualização, acho que podemos manter no privado?" -- a sala da
+   administração quase ninguém abre (1 de 12 compartilhou). Então o mesmo
+   cartão vai para o privado do DONO de cada servidor, como os avisos de
+   vencimento e o primeiro passo, que já vão por lá. Uma vez por dono (marca
+   novidade_estudio_dm:<dono>), e não para todo membro: privado em massa,
+   sem a pessoa pedir, é o que faz o Discord tratar um bot como spam. Os
+   membros ficam com o aviso de uma vez no cartão da bandeira e com o 📣.
+
+   Um 📣 por servidor dele que ainda não espalhou (até quatro). O toque vale
+   dali mesmo: cliqueDividirNoPrivado confere que quem tocou manda naquele
+   servidor. */
+const MAX_SERVIDORES_NO_PRIVADO = 4;
+
+/* Pura. guilds: [{ id, nome }]. */
+function cartaoDaNovidadeNoPrivado(tx, guilds) {
+  const lista = (guilds || []).slice(0, MAX_SERVIDORES_NO_PRIVADO);
+  const um = lista.length === 1;
+  return {
+    embeds: [{
+      color: parseInt(corPorId("cyron").c2.slice(1), 16),
+      title: String(tx.adm_titulo).slice(0, 256),
+      description: [tx.adm_corpo, "", tx.libera, "", `-# ${tx.adm_escolha}`,
+        ...(lista.length ? [`-# 🏰 ${lista.map((g) => String(g.nome || "").slice(0, 60)).join(" · ")}`] : [])].join("\n"),
+    }],
+    components: [{ type: 1, components: [
+      { type: 2, style: 2, custom_id: `perfil:estilo:${lista[0]?.id || ""}`, label: String(tx.meu).slice(0, 80), emoji: { name: "🎨" } },
+      ...lista.map((g) => ({ type: 2, style: 3, custom_id: `novidade:dividir:${g.id}`,
+        label: String(um ? tx.compartilhar : `${tx.compartilhar} · ${g.nome}`).slice(0, 80), emoji: { name: "📣" } })),
+    ] }],
+  };
+}
+
+/* Pura. Os botões de uma mensagem com o que acabou de ser usado em ✅,
+   desligado. Aceita as linhas do discord.js (toJSON) ou já em JSON. */
+function marcarBotaoFeito(linhas, customId) {
+  return (linhas || []).map((l) => {
+    const j = typeof l?.toJSON === "function" ? l.toJSON() : l;
+    return { ...j, components: (j?.components || []).map((c) => c.custom_id === customId
+      ? { ...c, disabled: true, style: 2, emoji: { name: "✅" } } : c) };
+  });
+}
+
+async function estudioNoPrivadoDosDonos() {
+  const a = await ajustes();
+  if (a.falhou || String(a.estudio_publico || "") !== "1") return 0;
+  const servidores = await sb("cyron_servidor?saiu_em=is.null&select=id,guild_id,modo").catch(() => null) || [];
+  const porDono = new Map(); // dono -> [guild]
+  for (const s of servidores) {
+    if (a[`novidade_estudio_dividida:${s.id}`] || modoDe(s) === "escolher") continue;
+    const guild = client.guilds.cache.get(String(s.guild_id));
+    if (!guild?.ownerId || a[`novidade_estudio_dm:${guild.ownerId}`]) continue;
+    porDono.set(guild.ownerId, [...(porDono.get(guild.ownerId) || []), guild]);
+  }
+  let avisados = 0;
+  for (const [donoId, guilds] of porDono) {
+    try {
+      const dono = await client.users.fetch(donoId).catch(() => null);
+      const tx = await textosDaNovidade(await linguaDoDono(guilds[0]), guilds[0].id);
+      const foi = dono && await dono.send(cartaoDaNovidadeNoPrivado(tx, guilds.map((g) => ({ id: g.id, nome: g.name }))))
+        .catch(() => null);
+      if (foi) avisados++;
+      /* Privado fechado também vira marca, como no vencimento: insistir de
+         hora em hora num privado que não aceita mensagem não muda nada. */
+      await porAjuste(`novidade_estudio_dm:${donoId}`, new Date().toISOString());
+    } catch (e) {
+      console.error(`novidade: falhei no privado do dono ${donoId}:`, e?.message || e);
+    }
+  }
+  if (porDono.size) {
+    await avisarNoPainel(CANAL_NOVOS, `🎨 Novidade do Estúdio: avisei ${avisados} de ${porDono.size} dono(s) no privado.`).catch(() => {});
+  }
+  return avisados;
+}
+
+/* 📣 tocado no privado: confere que quem tocou manda naquele servidor (dono
+   ou Gerenciar Servidor) e espalha. A resposta vem na língua de quem tocou. */
+async function cliqueDividirNoPrivado(inter) {
+  const guildId = inter.customId.split(":")[2] || "";
+  await inter.deferReply({ flags: 64 });
+  const idioma = await linguaDe(inter);
+  const dizer = async (texto) => inter.editReply({ content: await textoNaLingua(texto, idioma).catch(() => texto) });
+  const guild = client.guilds.cache.get(guildId);
+  const servidor = guild ? await servidorDoGuild(guild.id).catch(() => null) : null;
+  if (!guild || !servidor) return dizer("Não estou mais nesse servidor.");
+  const membro = guild.ownerId === inter.user.id ? null : await guild.members.fetch(inter.user.id).catch(() => null);
+  const manda = guild.ownerId === inter.user.id || membro?.permissions?.has?.(PermissionFlagsBits.ManageGuild);
+  if (!manda) return dizer("🔒 Só quem tem **Gerenciar Servidor** naquele servidor pode compartilhar.");
+  const r = await espalharNovidadeDoEstudio(guild, servidor);
+  if (r.ja || r.foram?.length) {
+    await inter.message?.edit?.({ components: marcarBotaoFeito(inter.message.components, inter.customId) }).catch(() => {});
+  }
+  return dizer(respostaDoEspalhar(r));
 }
 
 /* 🆕 O AVISO DE UMA VEZ SÓ NO PRIVADO.
@@ -28537,6 +28648,7 @@ client.on("interactionCreate", async (inter) => {
     if (inter.isButton() && inter.customId.startsWith("perfil:estilo")) return await cliquePersonalizar(inter);
     if (inter.isButton() && inter.customId === "perfil:votei") return await cliqueJaVotei(inter);
     if (inter.isButton() && inter.customId.startsWith("titulo:")) return await cliqueTitulo(inter);
+    if (inter.isButton() && inter.customId.startsWith("novidade:dividir:")) return await cliqueDividirNoPrivado(inter);
     if (inter.isModalSubmit()) {
       if (inter.customId === "jogo:reino") return await reinoDasSalasDoJogo(inter);
       if (inter.customId === "cyron:motor") return await salvarMotor(inter);
@@ -31614,6 +31726,12 @@ client.once("clientReady", () => {
     setInterval(() => anunciarEstudioAosAdms().catch((e) => console.error("novidade: falhei:", e?.message || e)),
       60 * 60 * 1000);
   }, 6 * 60 * 1000);
+  /* E no privado dos donos (o ⚙️-cyron quase ninguém abre): uma vez por dono. */
+  setTimeout(() => {
+    estudioNoPrivadoDosDonos().catch((e) => console.error("novidade: privado falhou:", e?.message || e));
+    setInterval(() => estudioNoPrivadoDosDonos().catch((e) => console.error("novidade: privado falhou:", e?.message || e)),
+      60 * 60 * 1000);
+  }, 8 * 60 * 1000);
   setTimeout(() => {
     anunciarMarcos().catch((e) => console.error("marcos: falhei:", e?.message || e));
     setInterval(() => anunciarMarcos().catch((e) => console.error("marcos: falhei:", e?.message || e)),
