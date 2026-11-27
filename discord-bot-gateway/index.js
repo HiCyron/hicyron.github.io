@@ -31534,6 +31534,38 @@ function statusDaCyron(vez, servidores) {
   return { name: MUSICAS_DA_CYRON[((vez % n) + n) % n].replace("{n}", String(servidores || 0)), type: 2 };
 }
 
+/* 🎞️ A FOTO ANIMADA DA CYRON.
+
+   O dono (27/11) mandou o vídeo dela chegando perto, acenando e piscando:
+   "colocar uma foto de perfil que se move". A foto de um bot muda pela API
+   (o mesmo PATCH /users/@me de quem troca a própria foto), então mora aqui:
+   img/foto-animada.gif, e a CYRON se troca sozinha ao ligar -- só quando o
+   arquivo mudou (o resumo dele fica no cyron_ajuste, foto_resumo). Trocar a
+   foto toda partida bateria no limite do Discord à toa.
+
+   Se o Discord guardar parada (o hash da foto não começa com "a_"), o
+   ajuste foto_animada diz "nao", e dá para saber sem abrir o perfil. */
+const FOTO_ANIMADA = fileURLToPath(new URL("./img/foto-animada.gif", import.meta.url));
+async function trocarFotoSeMudou(ler = readFileSync) {
+  let bytes;
+  try { bytes = ler(FOTO_ANIMADA); } catch { return "sem arquivo"; }
+  const resumo = createHash("sha256").update(bytes).digest("hex").slice(0, 16);
+  const a = await ajustes();
+  if (a.falhou) return "banco fora";
+  if (a.foto_resumo === resumo || !client.user) return "igual";
+  try {
+    await client.user.setAvatar(bytes);
+  } catch (e) {
+    console.error("foto: o Discord recusou a foto nova:", e?.message || e);
+    return "recusou";
+  }
+  const animada = String(client.user.avatar || "").startsWith("a_");
+  await porAjuste("foto_resumo", resumo);
+  await porAjuste("foto_animada", animada ? "sim" : "nao");
+  console.log(`foto: trocada (${animada ? "animada" : "parada"})`);
+  return animada ? "animada" : "parada";
+}
+
 function trocarStatus() {
   if (!client.user) return;
   const presenca = { status: "online", activities: [statusDaCyron(vezDoStatus++, client.guilds.cache.size)] };
@@ -31546,6 +31578,7 @@ client.once("clientReady", () => {
 
   trocarStatus();
   setInterval(trocarStatus, STATUS_A_CADA);
+  setTimeout(() => trocarFotoSeMudou().catch((e) => console.error("foto: falhei:", e?.message || e)), 20 * 1000);
 
   /* O historico dos erros antes de tudo: o que der errado na subida ja' conta
      a partir de onde a ficha estava. */

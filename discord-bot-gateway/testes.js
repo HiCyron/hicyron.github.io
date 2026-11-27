@@ -15305,6 +15305,36 @@ function conferirCartao(onde, embed, componentes = []) {
     /client\.once\("clientReady", \(\) => \{[^]{0,200}trocarStatus\(\);\s*setInterval\(trocarStatus, STATUS_A_CADA\)/.test(idx));
 }
 
+/* ====== 🎞️ a foto animada da CYRON ====== */
+{
+  const antes = { client: globalThis.client, ajustes: globalThis.ajustes, porAjuste: globalThis.porAjuste, FOTO_ANIMADA: globalThis.FOTO_ANIMADA };
+  try {
+    globalThis.FOTO_ANIMADA = "img/foto-animada.gif";
+    const F = carregar(["trocarFotoSeMudou"]);
+    const gif = readFileSync(`${aqui}/img/foto-animada.gif`);
+    verdade("a foto animada existe, é GIF e cabe com folga no Discord", gif.slice(0, 6).toString() === "GIF89a" && gif.length < 8 * 1024 * 1024);
+    let enviada = null, marcas = {};
+    globalThis.client = { user: { avatar: "x", setAvatar: async (b) => { enviada = b; globalThis.client.user.avatar = "a_123"; } } };
+    globalThis.ajustes = async () => marcas;
+    globalThis.porAjuste = async (k, v) => { marcas = { ...marcas, [k]: v }; };
+    ok("arquivo novo: troca a foto e diz se ficou animada", await F.trocarFotoSeMudou(() => gif), "animada");
+    verdade("manda o próprio GIF e guarda o resumo", enviada === gif && /^[0-9a-f]{16}$/.test(marcas.foto_resumo) && marcas.foto_animada === "sim");
+    enviada = null;
+    ok("mesmo arquivo: não troca de novo (o Discord limita trocas)", await F.trocarFotoSeMudou(() => gif), "igual");
+    verdade("e nem chama o Discord", enviada === null);
+    ok("sem arquivo: nada acontece", await F.trocarFotoSeMudou(() => { throw new Error("sem"); }), "sem arquivo");
+    marcas = Object.defineProperty({}, "falhou", { value: true });
+    ok("banco fora: não troca (não saberia se já trocou)", await F.trocarFotoSeMudou(() => gif), "banco fora");
+    marcas = {};
+    globalThis.client.user.setAvatar = async () => { throw new Error("You are changing your avatar too fast"); };
+    ok("o Discord recusou: não marca, tenta na próxima partida", [await F.trocarFotoSeMudou(() => gif), marcas.foto_resumo], ["recusou", undefined]);
+  } finally {
+    Object.assign(globalThis, antes);
+  }
+  const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
+  verdade("a foto é conferida na subida", /setTimeout\(\(\) => trocarFotoSeMudou\(\)/.test(idx));
+}
+
 /* ====== a Visão da CYRON ======
 
    O dono via o bot por um aplicativo de terceiros que pedia o TOKEN -- e
