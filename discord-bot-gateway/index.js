@@ -23909,6 +23909,72 @@ async function mudarFuncaoDoApp(guildId, funcao, ligado, donoId) {
   return { funcoes: funcoesDoServidor(novo || servidor) };
 }
 
+/* O "diagnóstico da CYRON" no app (Fase 3): ela olha o servidor e devolve uma
+   lista do que pode estar errado, cada achado com (quando dá) uma AÇÃO pronta
+   por botão -- nunca texto livre. Só leitura aqui; o conserto vem noutra rota.
+   nivel: "aviso" (vermelho, atrapalha), "info" (dá para melhorar), "ok". */
+async function diagnosticoDoServidor(guildId) {
+  const servidor = await servidorDoGuild(guildId).catch(() => null);
+  if (!servidor?.id) return null;
+  const inicioMes = new Date().toISOString().slice(0, 7) + "-01";
+  const [espelhos, usoMes] = await Promise.all([
+    sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&canal_id=not.is.null&select=canal_id,idioma,webhook`).catch(() => []),
+    sb(`cyron_uso_diario?servidor_id=eq.${encodeURIComponent(servidor.id)}&dia=gte.${inicioMes}&select=motor,caracteres`).catch(() => []),
+  ]);
+  const salas = (espelhos || []).length;
+  const semWebhook = (espelhos || []).filter((e) => !e.webhook).length;
+  let carMes = 0, carAzure = 0;
+  for (const l of (usoMes || [])) {
+    const ca = Number(l.caracteres) || 0;
+    carMes += ca;
+    if (String(l.motor || "").startsWith("dono")) carAzure += ca;
+  }
+  const achados = [];
+  if (semWebhook > 0) achados.push({ id: "webhooks", nivel: "aviso",
+    titulo: `${semWebhook} sala${semWebhook > 1 ? "s" : ""} de idioma sem webhook`,
+    texto: "Sem webhook, a tradução pode não aparecer nessas salas. Posso refazer agora.",
+    acao: "refazer_webhooks" });
+  if (salas === 0) achados.push({ id: "sem_salas", nivel: "aviso",
+    titulo: "Nenhuma sala de idioma ainda",
+    texto: "Este servidor não tem salas por idioma. Crie pelo painel 🧩 Funções, no Discord." });
+  if (servidor.tradutor_bandeira === false) achados.push({ id: "bandeira", nivel: "info",
+    titulo: "Tradução por bandeira desligada",
+    texto: "Ninguém traduz reagindo com a bandeira de um país. Posso ligar.",
+    acao: "ligar_bandeira" });
+  if (!servidor.niveis_ligado) achados.push({ id: "niveis", nivel: "info",
+    titulo: "Níveis e XP desligados",
+    texto: "Sem XP por conversar nem o aviso de quem sobe de nível. Posso ligar.",
+    acao: "ligar_niveis" });
+  if (!servidor.boas_vindas_canal) achados.push({ id: "boas_vindas", nivel: "info",
+    titulo: "Boas-vindas com imagem desligadas",
+    texto: "Para ligar, escolha o canal no Discord: /boas-vindas." });
+  if (carMes > 0 && carAzure === 0) achados.push({ id: "motor", nivel: "info",
+    titulo: "Tudo no motor grátis este mês",
+    texto: "A tradução está no motor grátis. Uma chave de tradução (Azure/DeepL) melhora a qualidade e tira o limite — coloque pelo /admin." });
+  if (!achados.length) achados.push({ id: "ok", nivel: "ok",
+    titulo: "Está tudo em ordem", texto: "Não achei nada para consertar neste servidor. 🎉" });
+  return { achados };
+}
+
+/* As ações do diagnóstico que CONSERTAM (rota /visao/consertar). Whitelist
+   pura: por enquanto só "webhooks" (refazer o webhook das salas que estão sem).
+   Reaproveita refazerWebhookDoEspelho, que é limitado por canal e trata sala
+   sem acesso. Devolve o diagnóstico novo. */
+async function consertarPeloApp(guildId, o, donoId) {
+  const servidor = await servidorDoGuild(guildId).catch(() => null);
+  if (!servidor?.id) return { erro: "esse servidor ainda não está pronto", status: 404 };
+  if (o !== "webhooks") return { erro: "conserto desconhecido", status: 400 };
+  const espelhos = await sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&canal_id=not.is.null&webhook=is.null&select=canal_id,idioma`).catch(() => []);
+  let refeitos = 0;
+  for (const e of (espelhos || [])) {
+    const url = await refazerWebhookDoEspelho(servidor.id, { canal_id: e.canal_id, idioma: e.idioma, webhook: null }).catch(() => null);
+    if (url) refeitos++;
+  }
+  rastrear("app", "consertar", { guild: guildId, usuario: donoId, detalhe: `webhooks:${refeitos}` });
+  console.log(`app: ${donoId || "dono"} refez ${refeitos} webhook(s) em ${guildId}`);
+  return Object.assign({ feito: refeitos }, await diagnosticoDoServidor(guildId));
+}
+
 /* Os nomes do que o contarUso() conta. Comando e menu nao precisam estar aqui:
    viram "/nome" e "Apps → nome" sozinhos. */
 const NOMES_DAS_FUNCOES = {
@@ -32231,7 +32297,7 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    o bot so' empresta o motor. */
 /* O app do dono também lê o calendário: ele não é ADM no TOP, e o comando
    de Apps só aparece para ADM (dono, 21/11: "pelo app da CYRON eu consigo?"). */
-ligarVisao({ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, mudarFuncao: mudarFuncaoDoApp, listarPrivados, lerCalendario: calendarioDaMensagem });
+ligarVisao({ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, mudarFuncao: mudarFuncaoDoApp, diagnostico: diagnosticoDoServidor, consertar: consertarPeloApp, listarPrivados, lerCalendario: calendarioDaMensagem });
 
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);
