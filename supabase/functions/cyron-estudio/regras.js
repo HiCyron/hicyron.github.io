@@ -47,7 +47,9 @@ export const CORES = [
 export const MOLDURAS = [
   { id: "classica", pt: "Clássica", en: "Classic" },
   { id: "dourada", pt: "Dourada", en: "Gold" },
+  { id: "prata", pt: "Prata", en: "Silver" },
   { id: "neon", pt: "Neon", en: "Neon" },
+  { id: "dupla", pt: "Dupla", en: "Double" },
   { id: "arcoiris", pt: "Arco-íris", en: "Rainbow" },
 ];
 
@@ -84,6 +86,8 @@ export const EFEITOS = [
   { id: "desfocado", pt: "Desfocado", en: "Blurred" },
   { id: "nitido", pt: "Nítido", en: "Sharp" },
   { id: "tingido", pt: "Tingido", en: "Tinted" },
+  { id: "cinza", pt: "Cinza", en: "Grayscale" },
+  { id: "escurecido", pt: "Escurecido", en: "Darkened" },
 ];
 
 /* OS TÍTULOS: um botão embaixo da mensagem da pessoa nas outras salas

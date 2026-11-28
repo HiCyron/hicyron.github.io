@@ -2707,7 +2707,7 @@ function conferirCartao(onde, embed, componentes = []) {
     const um = ESTUDIO.liberados(1);
     ok("1º voto: todas as cores, o fundo da CYRON, a frase e o primeiro herói",
       [um.cores.length, um.fundos, um.frase, um.proximo.id, um.letras.length, um.efeitos.length, um.emojis.length],
-      [ESTUDIO.CORES.length, ["servidor", "cyron", "heroi:alexandre"], true, "napoleao", 3, 3, ESTUDIO.EMOJIS_DO_TITULO.length]);
+      [ESTUDIO.CORES.length, ["servidor", "cyron", "heroi:alexandre"], true, "napoleao", 3, 5, ESTUDIO.EMOJIS_DO_TITULO.length]);
     ok("12 votos: todos os heróis, e não há próximo", [ESTUDIO.liberados(12).herois.length, ESTUDIO.liberados(12).proximo], [12, null]);
 
     const pedido = { perfil_cor: "rosa", perfil_fundo: "heroi:tesla", cartao_heroi: "napoleao", perfil_letra: "medieval",
@@ -9543,14 +9543,15 @@ function conferirCartao(onde, embed, componentes = []) {
     Object.assign(globalThis, carregar(["fonteQueEscreve"]));
     const retrato = new URL("./img/duelo/cleopatra.jpg", import.meta.url).pathname;
     const tamanhos = [];
-    for (const [moldura, efeito, letra] of [["dourada", "tingido", "medieval"], ["neon", "nitido", "classica"], ["arcoiris", "desfocado", "moderna"]]) {
+    for (const [moldura, efeito, letra] of [["dourada", "tingido", "medieval"], ["neon", "nitido", "classica"], ["arcoiris", "desfocado", "moderna"],
+      ["prata", "cinza", "moderna"], ["dupla", "escurecido", "medieval"]]) {
       const img = await x.desenharPerfil(sharpP, { nome: "Tiago", reserva: "t", nivel: 9, dentro: 50, precisa: 100, posicao: 1, xp: 900,
         mensagens: 80, foto: null, fundo: retrato, fundoRetrato: true, cor: corPorId("roxo"), moldura, efeito, letra,
         frase: "Rally no urso toda noite 🐻" }, FONTE_P);
       const m = await sharpP(img).metadata();
       tamanhos.push(`${m.width}x${m.height}`);
     }
-    ok("o /perfil do Estúdio desenha com cada moldura, efeito e letra", tamanhos, ["1024x340", "1024x340", "1024x340"]);
+    ok("o /perfil do Estúdio desenha com cada moldura, efeito e letra", tamanhos, ["1024x340", "1024x340", "1024x340", "1024x340", "1024x340"]);
     const cirilico = await x.desenharPerfil(sharpP, { nome: "Иван", reserva: "i", nivel: 1, dentro: 1, precisa: 100, posicao: 1, xp: 1,
       mensagens: 1, foto: null, fundo: null, letra: "medieval" }, FONTE_P);
     verdade("nome que a letra medieval não escreve sai na de sempre, sem estourar", cirilico.length > 10000);

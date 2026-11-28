@@ -12461,17 +12461,23 @@ async function desenharPerfil(sharp, { nome, reserva, nivel, dentro, precisa, po
   let fundoBase = sharp(fundo || FUNDO_DA_CYRON)
     .resize(W, H, { fit: "cover", position: fundoRetrato && sharp.strategy ? sharp.strategy.attention : "centre" });
   if (efeito === "tingido") fundoBase = fundoBase.blur(4).tint(cor.c2);
+  else if (efeito === "cinza") fundoBase = fundoBase.blur(6).grayscale();
+  else if (efeito === "escurecido") fundoBase = fundoBase.blur(6).modulate({ brightness: 0.55 });
   else if (efeito !== "nitido") fundoBase = fundoBase.blur(6);
   const base = await fundoBase.toBuffer();
   const aros = {
     classica: `<circle cx="150" cy="170" r="122" fill="${cor.c1}" opacity="0.7" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="#FFFFFF"/>`,
     dourada: `<circle cx="150" cy="170" r="124" fill="#FFD95A" opacity="0.75" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="url(#ouro)"/>`,
+    prata: `<circle cx="150" cy="170" r="124" fill="#E8EDF2" opacity="0.75" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="url(#prata)"/>`,
     neon: `<circle cx="150" cy="170" r="130" fill="${cor.c2}" opacity="0.9" filter="url(#g)"/>` +
       `<circle cx="150" cy="170" r="124" fill="none" stroke="${cor.c2}" stroke-width="6"/><circle cx="150" cy="170" r="118" fill="${cor.c1}"/>`,
+    dupla: `<circle cx="150" cy="170" r="124" fill="${cor.c1}" opacity="0.6" filter="url(#g)"/>` +
+      `<circle cx="150" cy="170" r="123" fill="none" stroke="${cor.c2}" stroke-width="5"/><circle cx="150" cy="170" r="116" fill="#FFFFFF"/>`,
     arcoiris: `<circle cx="150" cy="170" r="122" fill="${cor.c1}" opacity="0.6" filter="url(#g)"/><circle cx="150" cy="170" r="118" fill="url(#arco)"/>`,
   };
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><defs>` +
     `<linearGradient id="ouro" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF3B0"/><stop offset="0.55" stop-color="#D99A0B"/><stop offset="1" stop-color="#FFE08A"/></linearGradient>` +
+    `<linearGradient id="prata" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#9AA6B2"/><stop offset="1" stop-color="#E8EDF2"/></linearGradient>` +
     `<linearGradient id="arco" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF5E5E"/><stop offset="0.2" stop-color="#FFD95A"/><stop offset="0.4" stop-color="#5EE38B"/>` +
     `<stop offset="0.6" stop-color="#5EC8FF"/><stop offset="0.8" stop-color="#B07CFF"/><stop offset="1" stop-color="#FF5E9E"/></linearGradient>` +
     `<linearGradient id="v" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity="0.75"/>` +
