@@ -117,6 +117,8 @@ html[lang="en"] [data-en]{display:revert}
 .perfil .fundo.retrato{background-position:center 22%}
 .perfil .fundo.nitido{filter:none; inset:0}
 .perfil .fundo.tingido{filter:blur(4px) grayscale(1)}
+.perfil .fundo.cinza{filter:blur(6px) grayscale(1)}
+.perfil .fundo.escurecido{filter:blur(6px) brightness(.55)}
 .perfil .tinta{position:absolute; inset:0; mix-blend-mode:color; opacity:0; transition:opacity .2s}
 .perfil .nome.medieval{font-family:"Cinzel CYRON",serif; font-size:50px; top:68px}
 .perfil .nome.classica{font-family:"EB Garamond",Georgia,"Times New Roman",serif; font-size:58px; top:60px}
@@ -305,7 +307,7 @@ html[lang="en"] [data-en]{display:revert}
           <div class="titulos" id="op-titulo"></div></div>
       </section>
 
-      <section class="grupo" id="grupo-cartao">
+      <section class="grupo" id="grupo-cartao" hidden>
         <h2>📩 <span data-pt>Cartão da bandeira (no privado)</span><span data-en>Flag card (in DMs)</span></h2>
         <p><span data-pt>Como a tradução chega no seu privado quando você reage com uma bandeira.</span><span data-en>How the translation reaches your DMs when you react with a flag.</span></p>
         <div class="campo"><b><span data-pt>Cor</span><span data-en>Color</span></b><div class="cores" id="op-cartao-cor"></div></div>
@@ -328,7 +330,7 @@ html[lang="en"] [data-en]{display:revert}
         </div>
       </section>
 
-      <section class="grupo" id="grupo-perfil">
+      <section class="grupo" id="grupo-perfil" hidden>
         <h2>🪪 /perfil</h2>
         <p><span data-pt>A imagem que aparece quando alguém usa /perfil com você, em qualquer servidor.</span><span data-en>The image shown when someone uses /perfil on you, in any server.</span></p>
         <div class="campo"><b><span data-pt>Cor</span><span data-en>Color</span></b><div class="cores" id="op-perfil-cor"></div></div>
@@ -577,9 +579,10 @@ function desenharOpcoes() {
 
 function fundoDaMoldura(id, cor) {
   if (id === "dourada") return "linear-gradient(135deg,#FFF3B0,#D99A0B 55%,#FFE08A)";
+  if (id === "prata") return "linear-gradient(135deg,#FFFFFF,#9AA6B2 55%,#E8EDF2)";
   if (id === "neon") return cor.c1;
   if (id === "arcoiris") return "conic-gradient(#FF5E5E,#FFD95A,#5EE38B,#5EC8FF,#B07CFF,#FF5E9E,#FF5E5E)";
-  return "#FFFFFF";
+  return "#FFFFFF"; /* clássica e dupla: miolo branco (a dupla ganha os anéis no boxShadow) */
 }
 
 /* ---- a prévia ---- */
@@ -619,13 +622,16 @@ function desenharPrevia() {
   fundo.classList.toggle("retrato", f.startsWith("heroi:"));
   fundo.classList.toggle("nitido", rascunho.perfil_efeito === "nitido");
   fundo.classList.toggle("tingido", rascunho.perfil_efeito === "tingido");
+  fundo.classList.toggle("cinza", rascunho.perfil_efeito === "cinza");
+  fundo.classList.toggle("escurecido", rascunho.perfil_efeito === "escurecido");
   $("pf-tinta").style.background = pc.c2;
   $("pf-tinta").style.opacity = rascunho.perfil_efeito === "tingido" ? "1" : "0";
   $("pf-nome").className = "nome" + (rascunho.perfil_letra === "moderna" ? "" : ` ${rascunho.perfil_letra}`);
   fundo.style.backgroundImage = `url("${f === "cyron" ? "./img/estudio/fundo-cyron.jpg" : f.startsWith("heroi:") ? `./img/duelo/${f.slice(6)}.jpg` : "./img/banner.jpg"}")`;
-  $("pf-brilho").style.background = rascunho.perfil_moldura === "neon" ? pc.c2 : rascunho.perfil_moldura === "dourada" ? "#FFD95A" : pc.c1;
+  $("pf-brilho").style.background = rascunho.perfil_moldura === "neon" ? pc.c2 : rascunho.perfil_moldura === "dourada" ? "#FFD95A" : rascunho.perfil_moldura === "prata" ? "#E8EDF2" : pc.c1;
   $("pf-aro").style.background = fundoDaMoldura(rascunho.perfil_moldura, pc);
-  $("pf-aro").style.boxShadow = rascunho.perfil_moldura === "neon" ? `0 0 0 6px ${pc.c2}` : "none";
+  $("pf-aro").style.boxShadow = rascunho.perfil_moldura === "neon" ? `0 0 0 6px ${pc.c2}`
+    : rascunho.perfil_moldura === "dupla" ? `0 0 0 5px ${pc.c2}, 0 0 0 9px ${pc.c1}` : "none";
   $("pf-lv").style.color = pc.c1;
   $("pf-barra").style.background = `linear-gradient(90deg, ${pc.c1}, ${pc.c2})`;
   $("pf-frase").textContent = rascunho.perfil_frase ? `“${rascunho.perfil_frase}”` : "";
@@ -703,6 +709,11 @@ function trocarAba(qual) {
   $("palco-sala").hidden = qual !== "sala";
   $("palco-cartao").hidden = qual !== "cartao";
   $("palco-perfil").hidden = qual !== "perfil";
+  /* A aba também troca as OPÇÕES: cada aba mostra a prévia E as opções dela,
+     em vez de empilhar tudo numa lista só. */
+  $("grupo-sala").hidden = qual !== "sala";
+  $("grupo-cartao").hidden = qual !== "cartao";
+  $("grupo-perfil").hidden = qual !== "perfil";
   desenharPrevia();
 }
 document.querySelectorAll("[data-aba]").forEach((b) => b.addEventListener("click", () => trocarAba(b.dataset.aba)));
