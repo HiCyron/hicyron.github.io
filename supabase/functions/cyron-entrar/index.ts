@@ -246,22 +246,29 @@ Deno.serve(async (req) => {
       const sids = instalados.map((s: any) => `"${String(s.id).replace(/[^0-9a-fA-F-]/g, "")}"`).join(",");
       const desde = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
       const [uso, salas] = await Promise.all([
-        sb(`cyron_uso_diario?servidor_id=in.(${sids})&dia=gte.${desde}&select=servidor_id,dia,traducoes,do_cache,caracteres`).catch(() => []),
+        sb(`cyron_uso_diario?servidor_id=in.(${sids})&dia=gte.${desde}&select=servidor_id,dia,motor,traducoes,do_cache,caracteres`).catch(() => []),
         sb(`discord_chat_espelho?servidor_id=in.(${sids})&canal_id=not.is.null&select=servidor_id,idioma`).catch(() => []),
       ]);
       const dias7: string[] = [];
       for (let i = 6; i >= 0; i--) dias7.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+      const mesAtual = new Date().toISOString().slice(0, 7); // AAAA-MM
       for (const s of instalados) {
         stats.set(String(s.id), { traducoes: 0, cache: 0, caracteres: 0, idiomas: new Set<string>(), salas: 0,
-          porDia: Object.fromEntries(dias7.map((d) => [d, 0])) });
+          porDia: Object.fromEntries(dias7.map((d) => [d, 0])),
+          /* O mês corrente, separado: a chave Azure do cliente (motor "dono-…")
+             tem cota, o motor grátis ("auto") não. */
+          mes: { traducoes: 0, cache: 0, caracteres: 0, azure: 0 } });
       }
       for (const r of (uso as any[])) {
         const e = stats.get(String(r.servidor_id)); if (!e) continue;
-        e.traducoes += Number(r.traducoes) || 0;
-        e.cache += Number(r.do_cache) || 0;
-        e.caracteres += Number(r.caracteres) || 0;
+        const tr = Number(r.traducoes) || 0, ca = Number(r.caracteres) || 0, ch = Number(r.do_cache) || 0;
+        e.traducoes += tr; e.cache += ch; e.caracteres += ca;
         const d = String(r.dia).slice(0, 10);
-        if (d in e.porDia) e.porDia[d] += Number(r.traducoes) || 0;
+        if (d in e.porDia) e.porDia[d] += tr;
+        if (d.slice(0, 7) === mesAtual) {
+          e.mes.traducoes += tr; e.mes.cache += ch; e.mes.caracteres += ca;
+          if (String(r.motor || "").startsWith("dono")) e.mes.azure += ca;
+        }
       }
       for (const r of (salas as any[])) {
         const e = stats.get(String(r.servidor_id)); if (!e) continue;
@@ -274,7 +281,8 @@ Deno.serve(async (req) => {
       if (!e) return null;
       const dias = Object.keys(e.porDia).sort();
       return { traducoes: e.traducoes, cache: e.cache, caracteres: e.caracteres,
-        idiomas: e.idiomas.size, salas: e.salas, dias7: dias.map((d) => ({ d, t: e.porDia[d] })) };
+        idiomas: e.idiomas.size, salas: e.salas, dias7: dias.map((d) => ({ d, t: e.porDia[d] })),
+        mes: e.mes };
     };
 
     /* O link do Estúdio da pessoa logada (a chave vai só no retorno; no banco

@@ -95,8 +95,8 @@ main{padding:40px 0 80px}
 .stat .r b{color:var(--verde); font-weight:700}
 .bloco{background:var(--fundo-2); border:1px solid var(--borda); border-radius:var(--raio); padding:20px 22px; margin-top:16px}
 .bloco h2{font-size:14px; text-transform:uppercase; letter-spacing:.05em; color:var(--texto-fraco); margin:0 0 16px; font-weight:700}
-.barras{display:flex; align-items:flex-end; gap:8px; height:120px}
-.col{flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; min-width:0}
+.barras{display:flex; align-items:flex-end; gap:8px; height:140px}
+.col{flex:1; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:7px; min-width:0}
 .col .haste{width:100%; max-width:34px; background:linear-gradient(180deg,var(--ambar),#434ebb); border-radius:5px 5px 0 0; min-height:3px; position:relative}
 .col .haste:hover::after{content:attr(data-v); position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:var(--fundo-3); border:1px solid var(--borda-viva); border-radius:6px; padding:2px 7px; font-size:12px; white-space:nowrap; margin-bottom:5px}
 .col small{color:var(--texto-fraquinho); font-size:11px; white-space:nowrap}
@@ -316,6 +316,7 @@ function telaDoServidor(s, quando_) {
         '<div class="stat"><div class="n">' + num(st.cache) + '</div><div class="r">' +
           (st.cache ? "<b>" + pt("economizadas", "saved") + "</b> " + pt("pelo cache", "by cache") : pt("do cache", "from cache")) + "</div></div>" +
       "</div>" +
+      cotasDoMes(st.mes) +
       graficoSemana(st.dias7);
   }
 
@@ -331,6 +332,25 @@ function telaDoServidor(s, quando_) {
 
   tela.innerHTML = html;
   setTimeout(function () { barraDaConta(quando_); }, 0);
+}
+
+/* As cotas do mês corrente. A chave Azure do cliente ("azure") tem cota
+   mensal; o motor grátis e o cache não gastam nada. Mostro o uso; não sei o
+   plano da conta Azure, então não invento um limite. */
+function cotasDoMes(mes) {
+  if (!mes) return "";
+  var total = (mes.traducoes || 0) + (mes.cache || 0);
+  var pctCache = total ? Math.round((mes.cache / total) * 100) : 0;
+  var linhas =
+    '<div class="painel-stats" style="margin-top:0">' +
+      '<div class="stat"><div class="n">' + num(mes.traducoes) + '</div><div class="r">' + pt("traduções neste mês", "translations this month") + "</div></div>" +
+      '<div class="stat"><div class="n">' + num(mes.azure) + '</div><div class="r">' + pt("caracteres pela sua chave Azure", "characters via your Azure key") + "</div></div>" +
+      '<div class="stat"><div class="n">' + pctCache + '%</div><div class="r">' + pt("vieram do cache (de graça)", "came from cache (free)") + "</div></div>" +
+    "</div>";
+  return '<div class="bloco"><h2>' + pt("Cotas deste mês", "This month's usage") + "</h2>" + linhas +
+    '<p style="color:var(--texto-fraquinho);font-size:13px;margin:14px 0 0">' + pt(
+      "Só a sua chave Azure tem cota mensal. A tradução por bandeira e por botão, o motor grátis e o cache não entram nela. O limite depende do seu plano Azure — confira no portal da Azure.",
+      "Only your Azure key has a monthly quota. Flag and button translation, the free engine and the cache don't count against it. The limit depends on your Azure plan — check it in the Azure portal.") + "</p></div>";
 }
 
 function graficoSemana(dias7) {
