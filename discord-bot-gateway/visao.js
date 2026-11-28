@@ -22,6 +22,8 @@
      GET  /visao/admin/numeros          -> o painel do dono (metricas do /admin)
      POST /visao/enviar  {c, texto}     -> fala no canal como a CYRON
      POST /visao/funcao  {g, funcao, ligado} -> liga/desliga uma função do servidor
+     GET  /visao/diagnostico?g=<id>     -> o que pode estar errado no servidor
+     POST /visao/consertar {g, o}       -> uma ação de conserto do diagnóstico
      POST /visao/sair                   -> esquece o login (o "Sair" do app)
      WS   /visao/ao-vivo                -> as mensagens do canal aberto, na hora
 
@@ -698,6 +700,36 @@ async function atender(req, res) {
     });
     if (r?.erro) return responder(res, r.status || 400, { erro: r.erro }, cab);
     console.log(`visao: o dono ${dono} ${ligado ? "ligou" : "desligou"} ${funcao} em ${g}`);
+    return responder(res, 200, r, cab);
+  }
+
+  /* O diagnóstico da CYRON (Fase 3): o que pode estar errado no servidor, cada
+     achado com (quando dá) uma ação por botão. Só o dono; só leitura. */
+  if (rota === "GET /visao/diagnostico") {
+    if (typeof d.diagnostico !== "function") return responder(res, 404, { erro: "nao existe" }, cab);
+    const g = url.searchParams.get("g") || "";
+    if (!c.guilds.cache.get(g)) return responder(res, 404, { erro: "a CYRON nao esta nesse servidor" }, cab);
+    const dg = await d.diagnostico(g).catch(() => null);
+    if (!dg) return responder(res, 404, { erro: "esse servidor ainda nao esta pronto" }, cab);
+    return responder(res, 200, dg, cab);
+  }
+
+  /* Uma ação de conserto do diagnóstico (ex.: refazer os webhooks das salas).
+     Whitelist no index; devolve o diagnóstico novo. */
+  if (rota === "POST /visao/consertar") {
+    if (typeof d.consertar !== "function") return responder(res, 404, { erro: "nao existe" }, cab);
+    let corpo;
+    try { corpo = await lerCorpo(req); }
+    catch { return responder(res, 413, { erro: "pedido grande demais" }, cab); }
+    const g = String(corpo?.g || "");
+    if (!c.guilds.cache.get(g)) return responder(res, 404, { erro: "a CYRON nao esta nesse servidor" }, cab);
+    const o = String(corpo?.o || "");
+    const r = await d.consertar(g, o, dono).catch((e) => {
+      console.error("visao: nao consegui consertar:", e?.message || e);
+      return { erro: "nao consegui agora; tente de novo", status: 503 };
+    });
+    if (r?.erro) return responder(res, r.status || 400, { erro: r.erro }, cab);
+    console.log(`visao: o dono ${dono} consertou ${o} em ${g}`);
     return responder(res, 200, r, cab);
   }
 

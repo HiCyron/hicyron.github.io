@@ -15453,6 +15453,12 @@ function conferirCartao(onde, embed, componentes = []) {
       estadoFuncoes[funcao] = funcao === "boas_vindas" ? false : !!ligado;
       return { funcoes: { ...estadoFuncoes } };
     },
+    diagnostico: async (g) => (g === "g"
+      ? { achados: [{ id: "webhooks", nivel: "aviso", titulo: "1 sala sem webhook", texto: "...", acao: "refazer_webhooks" }] }
+      : null),
+    consertar: async (g, o) => (o === "webhooks"
+      ? { feito: 1, achados: [{ id: "ok", nivel: "ok", titulo: "Está tudo em ordem", texto: "..." }] }
+      : { erro: "conserto desconhecido", status: 400 }),
     listarPrivados: async () => [{ id: "333333333333333333", usuario: "u9", nome: "Budi (guardado)", avatar: "", ultima: "2026-11-09T00:00:00Z" }],
     lerCalendario: async (msg) => (msg.prints ? { titulo: "🧪 Leitura", corpo: "🔴 **Agora**", rodape: "modelo", eventos: 6, prints: 3, falhas: 0 } : { erro: "sem-print" }) }, 0);
   await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
@@ -15486,6 +15492,15 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("função num servidor onde a CYRON não está: 404",
       (await pedir("/visao/funcao", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "999999999999999999", funcao: "niveis", ligado: true }) })).status, 404);
     ok("quem não é dono não mexe nas funções", (await pedir("/visao/funcao", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
+    /* Fase 3: diagnóstico e conserto */
+    const diag = await pedir("/visao/diagnostico?g=g", "token-do-dono-123");
+    ok("o diagnóstico lista os achados, com ação", [diag.status, (await diag.json()).achados[0].acao].join("|"), "200|refazer_webhooks");
+    ok("diagnóstico de servidor onde a CYRON não está: 404", (await pedir("/visao/diagnostico?g=999999999999999999", "token-do-dono-123")).status, 404);
+    ok("quem não é dono não vê o diagnóstico", (await pedir("/visao/diagnostico?g=g", "token-de-outro-123")).status, 403);
+    const cons = await pedir("/visao/consertar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "g", o: "webhooks" }) });
+    ok("o conserto roda e devolve o diagnóstico novo", [cons.status, (await cons.json()).feito].join("|"), "200|1");
+    ok("conserto desconhecido: 400", (await pedir("/visao/consertar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "g", o: "xpto" }) })).status, 400);
+    ok("quem não é dono não conserta", (await pedir("/visao/consertar", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
     const env = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "111111111111111111", texto: "oi, aqui é a CYRON" }) });
     ok("o dono fala como a CYRON", (await env.json()).mensagem.texto, "oi, aqui é a CYRON");
     ok("menção a pessoa toca; @everyone e cargo não", JSON.stringify(enviadas[0].allowedMentions), JSON.stringify({ parse: ["users"] }));
@@ -15715,7 +15730,7 @@ function conferirCartao(onde, embed, componentes = []) {
     } finally { srv.close(); }
   }
 
-  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, mudarFuncao: mudarFuncaoDoApp, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
+  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, mudarFuncao: mudarFuncaoDoApp, diagnostico: diagnosticoDoServidor, consertar: consertarPeloApp, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));
   verdade("e NUNCA desliga a máquina por falta de visita", /auto_stop_machines = "off"/.test(fly) && /min_machines_running = 1/.test(fly));
