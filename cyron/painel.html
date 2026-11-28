@@ -254,8 +254,8 @@ function acaoDe(s, px) {
   if (!s.instalado) return '<a class="bt bt-2' + (px ? " bt-p" : "") + '" href="' + CONVITE + '">' + pt("Adicionar", "Add") + "</a>";
   if (s.plano === "pago") return s.pagar ? '<a class="' + c + '" href="' + esc(s.pagar) + '">' + pt("Assinar", "Subscribe") + "</a>" : "";
   if (s.pagar || s.pagarPro) {
-    return (s.pagarPro ? '<a class="' + c + '" href="' + esc(s.pagarPro) + '">' + pt("Pro R$ 29,90", "Pro $6") + "</a> " : "") +
-           (s.pagar ? '<a class="' + c + '" href="' + esc(s.pagar) + '">' + pt("Aliança R$ 79", "Alliance $15") + "</a>" : "");
+    return (s.pagarPro ? '<a class="' + c + '" href="' + esc(s.pagarPro) + '">' + pt("Pro R$ 29,90/mês", "Pro $6/mo") + "</a> " : "") +
+           (s.pagar ? '<a class="' + c + '" href="' + esc(s.pagar) + '">' + pt("Aliança R$ 79/mês", "Alliance $15/mo") + "</a>" : "");
   }
   return '<span class="indisponivel">' + pt("Assinatura em breve", "Subscription soon") + "</span>";
 }
