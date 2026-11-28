@@ -15294,19 +15294,23 @@ function conferirCartao(onde, embed, componentes = []) {
 
 /* ====== 🎧 o status da CYRON: "Ouvindo ..." ====== */
 {
-  const S = carregar(["MUSICAS_DA_CYRON", "musicaDaVez", "statusDaCyron"]);
-  ok("o status é \"Ouvindo\": a música em cima e o artista embaixo, como no cartão de música",
-    [0, 1, S.MUSICAS_DA_CYRON.length].map((v) => S.statusDaCyron(v)),
-    [{ name: "🎵 Espresso", state: "🎤 Sabrina Carpenter", type: 2 }, { name: "🎵 Abracadabra", state: "🎤 Lady Gaga", type: 2 },
-      { name: "🎵 Espresso", state: "🎤 Sabrina Carpenter", type: 2 }]);
+  const S = carregar(["MUSICAS_DA_CYRON", "musicaDaVez", "barraDaMusica", "statusDaCyron"]);
+  ok("o status é \"Ouvindo\": música e artista em cima; álbum e a barra de tempo embaixo",
+    [S.statusDaCyron(0, 0), S.statusDaCyron(8, 72)],
+    [{ name: "🎵 Espresso — Sabrina Carpenter", state: "💿 Short n' Sweet · 0:00 ●────────── 2:55", type: 2 },
+      { name: "🎵 Feather — Sabrina Carpenter", state: "💿 emails i can't send · 1:12 ━━━━●────── 3:05", type: 2 }]);
+  ok("a barra anda até o fim e não passa dele", [S.barraDaMusica(185, 185), S.barraDaMusica(999, 185), S.barraDaMusica(-5, 185)],
+    ["3:05 ━━━━━━━━━━● 3:05", "3:05 ━━━━━━━━━━● 3:05", "0:00 ●────────── 3:05"]);
+  ok("a lista dá a volta", S.statusDaCyron(S.MUSICAS_DA_CYRON.length).name, "🎵 Espresso — Sabrina Carpenter");
   verdade("uma música por vez, sem repetir na volta", new Set(S.MUSICAS_DA_CYRON.map(([m]) => m)).size === S.MUSICAS_DA_CYRON.length);
-  verdade("cada música com o tempo de verdade dela (entre 2 e 5 minutos e meio)",
-    S.MUSICAS_DA_CYRON.every(([, , d]) => Number.isInteger(d) && d >= 120 && d <= 330));
-  verdade("tudo cabe no Discord (128)", S.MUSICAS_DA_CYRON.every(([m, a]) => `🎵 ${m}`.length <= 128 && `🎤 ${a}`.length <= 128));
+  verdade("cada música com o tempo de verdade dela (entre 2 e 5 minutos e meio) e o álbum",
+    S.MUSICAS_DA_CYRON.every(([, , d, al]) => Number.isInteger(d) && d >= 120 && d <= 330 && al));
+  verdade("tudo cabe no Discord (128)", S.MUSICAS_DA_CYRON.every((_, i) => {
+    const st = S.statusDaCyron(i, 9999); return st.name.length <= 128 && st.state.length <= 128; }));
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
-  verdade("o status entra na subida, e a próxima música entra quando esta acaba",
+  verdade("o status entra na subida; a barra anda a cada 20 s e a próxima entra quando a música acaba",
     /client\.once\("clientReady", \(\) => \{[^]{0,200}trocarStatus\(\);/.test(idx) &&
-    /proximaMusica = setTimeout\(trocarStatus, \(musicaDaVez\(vez\)\[2\] \+ 2\) \* 1000\)/.test(idx) && !/STATUS_A_CADA/.test(idx));
+    /const BARRA_A_CADA = 20 \* 1000;/.test(idx) && /if \(seg >= dur\) \{ proximaMusica = setTimeout\(trocarStatus, 2000\); return; \}/.test(idx));
 }
 
 /* ====== 🎞️ a foto animada da CYRON ====== */
