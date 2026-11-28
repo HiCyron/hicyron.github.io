@@ -15294,15 +15294,19 @@ function conferirCartao(onde, embed, componentes = []) {
 
 /* ====== 🎧 o status da CYRON: "Ouvindo ..." ====== */
 {
-  const S = carregar(["MUSICAS_DA_CYRON", "statusDaCyron"]);
-  ok("o status é \"Ouvindo\" e troca de música (de verdade: Sabrina Carpenter, Lady Gaga)",
-    [0, 1, S.MUSICAS_DA_CYRON.length].map((v) => [S.statusDaCyron(v, 12).type, S.statusDaCyron(v, 12).name]),
-    [[2, "🎵 Espresso — Sabrina Carpenter"], [2, "🎵 Abracadabra — Lady Gaga"], [2, "🎵 Espresso — Sabrina Carpenter"]]);
-  verdade("uma música por vez, sem repetir na volta", new Set(S.MUSICAS_DA_CYRON).size === S.MUSICAS_DA_CYRON.length);
-  verdade("todo status cabe no Discord (128)", S.MUSICAS_DA_CYRON.every((m) => m.replace("{n}", "99999").length <= 128));
+  const S = carregar(["MUSICAS_DA_CYRON", "musicaDaVez", "statusDaCyron"]);
+  ok("o status é \"Ouvindo\": a música em cima e o artista embaixo, como no cartão de música",
+    [0, 1, S.MUSICAS_DA_CYRON.length].map((v) => S.statusDaCyron(v)),
+    [{ name: "🎵 Espresso", state: "🎤 Sabrina Carpenter", type: 2 }, { name: "🎵 Abracadabra", state: "🎤 Lady Gaga", type: 2 },
+      { name: "🎵 Espresso", state: "🎤 Sabrina Carpenter", type: 2 }]);
+  verdade("uma música por vez, sem repetir na volta", new Set(S.MUSICAS_DA_CYRON.map(([m]) => m)).size === S.MUSICAS_DA_CYRON.length);
+  verdade("cada música com o tempo de verdade dela (entre 2 e 5 minutos e meio)",
+    S.MUSICAS_DA_CYRON.every(([, , d]) => Number.isInteger(d) && d >= 120 && d <= 330));
+  verdade("tudo cabe no Discord (128)", S.MUSICAS_DA_CYRON.every(([m, a]) => `🎵 ${m}`.length <= 128 && `🎤 ${a}`.length <= 128));
   const idx = semComentarios(readFileSync(`${aqui}/index.js`, "utf8"));
-  verdade("o status entra na subida e troca a cada música",
-    /client\.once\("clientReady", \(\) => \{[^]{0,200}trocarStatus\(\);\s*setInterval\(trocarStatus, STATUS_A_CADA\)/.test(idx));
+  verdade("o status entra na subida, e a próxima música entra quando esta acaba",
+    /client\.once\("clientReady", \(\) => \{[^]{0,200}trocarStatus\(\);/.test(idx) &&
+    /proximaMusica = setTimeout\(trocarStatus, \(musicaDaVez\(vez\)\[2\] \+ 2\) \* 1000\)/.test(idx) && !/STATUS_A_CADA/.test(idx));
 }
 
 /* ====== 🎞️ a foto animada da CYRON ====== */
