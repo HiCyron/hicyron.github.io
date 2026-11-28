@@ -23837,6 +23837,47 @@ async function numerosDoDono() {
   };
 }
 
+/* As estatísticas de UM servidor, para o app do dono (a tela que abre ao tocar
+   num servidor). Mesmas contas do painel do site: o uso dos últimos 180 dias
+   (traduções, cache, caracteres) e as salas por idioma, mais o mês corrente
+   separado (a chave Azure do cliente, "dono-…", é a única com cota). */
+async function estatisticasDoServidorDoApp(guildId) {
+  const servidor = await servidorDoGuild(guildId).catch(() => null);
+  if (!servidor?.id) return null;
+  const desde = diaISO(Date.now() - 180 * 864e5);
+  const [uso, salas] = await Promise.all([
+    sb(`cyron_uso_diario?servidor_id=eq.${encodeURIComponent(servidor.id)}&dia=gte.${desde}&select=dia,motor,traducoes,do_cache,caracteres`).catch(() => []),
+    sb(`discord_chat_espelho?servidor_id=eq.${encodeURIComponent(servidor.id)}&canal_id=not.is.null&select=idioma`).catch(() => []),
+  ]);
+  const dias7 = Array.from({ length: 7 }, (_, i) => diaISO(Date.now() - (6 - i) * 864e5));
+  const porDia = Object.fromEntries(dias7.map((d) => [d, 0]));
+  const mesAtual = new Date().toISOString().slice(0, 7);
+  let traducoes = 0, cache = 0, caracteres = 0;
+  const mes = { traducoes: 0, cache: 0, caracteres: 0, azure: 0 };
+  for (const l of (uso || [])) {
+    const tr = Number(l.traducoes) || 0, ca = Number(l.caracteres) || 0, ch = Number(l.do_cache) || 0;
+    traducoes += tr; cache += ch; caracteres += ca;
+    const d = String(l.dia).slice(0, 10);
+    if (d in porDia) porDia[d] += tr;
+    if (d.slice(0, 7) === mesAtual) {
+      mes.traducoes += tr; mes.cache += ch; mes.caracteres += ca;
+      if (String(l.motor || "").startsWith("dono")) mes.azure += ca;
+    }
+  }
+  const idiomas = new Set((salas || []).map((x) => x.idioma).filter(Boolean));
+  return {
+    traducoes, cache, caracteres, idiomas: idiomas.size, salas: (salas || []).length,
+    dias7: dias7.map((d) => ({ d, t: porDia[d] })), mes,
+    /* Para a Fase 2 (ligar/desligar): o estado atual das funções. Null quando
+       a coluna nem existe ainda -- a tela mostra o padrão. */
+    funcoes: {
+      bandeira: servidor.tradutor_bandeira !== false,
+      niveis: !!servidor.niveis_ligado,
+      boas_vindas: !!servidor.boas_vindas_canal,
+    },
+  };
+}
+
 /* Os nomes do que o contarUso() conta. Comando e menu nao precisam estar aqui:
    viram "/nome" e "Apps → nome" sozinhos. */
 const NOMES_DAS_FUNCOES = {
@@ -32159,7 +32200,7 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    o bot so' empresta o motor. */
 /* O app do dono também lê o calendário: ele não é ADM no TOP, e o comando
    de Apps só aparece para ADM (dono, 21/11: "pelo app da CYRON eu consigo?"). */
-ligarVisao({ client, ehDono, numerosDoDono, listarPrivados, lerCalendario: calendarioDaMensagem });
+ligarVisao({ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, listarPrivados, lerCalendario: calendarioDaMensagem });
 
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);

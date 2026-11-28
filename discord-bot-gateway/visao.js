@@ -584,6 +584,18 @@ async function atender(req, res) {
     return responder(res, 200, { conversas: privadosParaVisao(c.channels.cache) }, cab);
   }
 
+  /* As estatisticas de um servidor, para a tela que abre ao toca-lo no app.
+     So' entra se o index entregou a funcao (o bot que nao a tem devolve 404,
+     e o app so' esconde o painel). */
+  if (rota === "GET /visao/servidor") {
+    if (typeof d.estatisticasDoServidor !== "function") return responder(res, 404, { erro: "nao existe" }, cab);
+    const g = url.searchParams.get("g") || "";
+    if (!c.guilds.cache.get(g)) return responder(res, 404, { erro: "a CYRON nao esta nesse servidor" }, cab);
+    const stats = await d.estatisticasDoServidor(g).catch(() => null);
+    if (!stats) return responder(res, 404, { erro: "esse servidor ainda nao tem numeros" }, cab);
+    return responder(res, 200, stats, cab);
+  }
+
   if (rota === "GET /visao/canais") {
     const guild = c.guilds.cache.get(url.searchParams.get("g") || "");
     if (!guild) return responder(res, 404, { erro: "a CYRON nao esta nesse servidor" }, cab);
