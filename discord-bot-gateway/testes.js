@@ -15769,6 +15769,31 @@ function conferirCartao(onde, embed, componentes = []) {
     [gravado[0][0], gravado[0][1].user_id, gravado[0][1].canal_id, gravado[0][2]].join(), "cyron_dm,u1,c1,resolution=merge-duplicates");
   await P.lembrarPrivado({ guild: { id: "g" }, author: { id: "x" }, channelId: "c2" });
   await P.lembrarPrivado({ author: { id: "bot", bot: true }, channelId: "c3" });
+  {
+    /* As conversas que a CYRON começa também entram na lista do app (dono,
+       28/11: "enviamos mensagem para os líderes, mas lá não aparece"). */
+    const antes = { client: globalThis.client, sbPost: globalThis.sbPost };
+    const gravou = [];
+    globalThis.client = { user: { id: "999" }, users: { cache: new Map([["u7", { username: "lider", globalName: "Líder", displayAvatarURL: () => "http://l" }]]),
+      fetch: async () => null } };
+    globalThis.sbPost = async (tab, linha, pr) => { gravou.push([tab, linha, pr]); };
+    const E = carregar(["PRIVADO_LEMBRADO", "lembrarPrivadoEnviado"]);
+    const minha = { author: { id: "999" }, channelId: "dm7", channel: { recipientId: "1234567" } };
+    globalThis.client.users.cache.set("1234567", { username: "lider", globalName: "Líder", displayAvatarURL: () => "http://l" });
+    ok("a minha mensagem num privado guarda a conversa com quem recebeu", [await E.lembrarPrivadoEnviado(minha, 1e9),
+      gravou[0]?.[0], gravou[0]?.[1].user_id, gravou[0]?.[1].canal_id, gravou[0]?.[1].nome, gravou[0]?.[2]],
+      [true, "cyron_dm", "1234567", "dm7", "Líder", "resolution=merge-duplicates"]);
+    ok("a mesma pessoa de novo em seguida não grava outra vez (a bandeira manda muitos)", await E.lembrarPrivadoEnviado(minha, 1e9 + 60000), false);
+    ok("dez minutos depois, grava (a lista mostra a última)", await E.lembrarPrivadoEnviado(minha, 1e9 + 11 * 60000), true);
+    ok("mensagem de outra pessoa ou em servidor não conta",
+      [await E.lembrarPrivadoEnviado({ author: { id: "5" }, channel: { recipientId: "1234568" } }, 1e9),
+        await E.lembrarPrivadoEnviado({ guild: {}, author: { id: "999" }, channel: { recipientId: "1234569" } }, 1e9)], [false, false]);
+    Object.assign(globalThis, antes);
+    const fonteP = readFileSync(`${aqui}/index.js`, "utf8");
+    verdade("o messageCreate guarda o privado que eu mando, e os donos já avisados entram uma vez",
+      /if \(msg\.author\?\.id === client\.user\?\.id\) \{ lembrarPrivadoEnviado\(msg\)/.test(fonteP) &&
+      /setTimeout\(\(\) => lembrarDonosAvisados\(\)/.test(fonteP) && /if \(a\.falhou \|\| a\.dm_donos_lembrados\) return 0;/.test(fonteP));
+  }
   ok("não guarda mensagem de servidor nem do próprio bot", gravado.length, 1);
   const lista = await P.listarPrivados();
   ok("lê as conversas guardadas no formato do app", [lista[0].id, lista[0].usuario, lista[0].nome], ["c1", "u1", "Ana"]);
