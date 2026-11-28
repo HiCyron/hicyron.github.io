@@ -15444,6 +15444,8 @@ function conferirCartao(onde, embed, componentes = []) {
   };
   const srv = V.ligarVisao({ client: clienteFalso, ehDono: async (id) => id === "dono", buscar,
     numerosDoDono: async () => ({ servidores: { ativos: 7 }, marca: "painel-do-dono" }),
+    estatisticasDoServidor: async (g) => (g === "g" ? { traducoes: 1234, cache: 300, caracteres: 9000, idiomas: 3, salas: 2,
+      dias7: [{ d: "2026-11-22", t: 10 }], mes: { traducoes: 50, cache: 9, caracteres: 900, azure: 900 }, funcoes: { bandeira: true, niveis: false, boas_vindas: false } } : null),
     listarPrivados: async () => [{ id: "333333333333333333", usuario: "u9", nome: "Budi (guardado)", avatar: "", ultima: "2026-11-09T00:00:00Z" }],
     lerCalendario: async (msg) => (msg.prints ? { titulo: "🧪 Leitura", corpo: "🔴 **Agora**", rodape: "modelo", eventos: 6, prints: 3, falhas: 0 } : { erro: "sem-print" }) }, 0);
   await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
@@ -15461,6 +15463,10 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("o login conferido fica lembrado (não pergunta ao Discord a cada clique)", perguntas.length, antes);
     const ms = await (await pedir("/visao/mensagens?c=111111111111111111", "token-do-dono-123")).json();
     ok("as mensagens vêm em ordem de conversa", ms.mensagens.map((x) => x.texto).join(","), "primeira,segunda");
+    const est = await pedir("/visao/servidor?g=g", "token-do-dono-123");
+    ok("as estatísticas de um servidor, para o app", (await est.json()).traducoes, 1234);
+    ok("servidor onde a CYRON não está: 404", (await pedir("/visao/servidor?g=999999999999999999", "token-do-dono-123")).status, 404);
+    ok("quem não é dono não vê as estatísticas", (await pedir("/visao/servidor?g=g", "token-de-outro-123")).status, 403);
     const env = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "111111111111111111", texto: "oi, aqui é a CYRON" }) });
     ok("o dono fala como a CYRON", (await env.json()).mensagem.texto, "oi, aqui é a CYRON");
     ok("menção a pessoa toca; @everyone e cargo não", JSON.stringify(enviadas[0].allowedMentions), JSON.stringify({ parse: ["users"] }));
@@ -15690,7 +15696,7 @@ function conferirCartao(onde, embed, componentes = []) {
     } finally { srv.close(); }
   }
 
-  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
+  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));
   verdade("e NUNCA desliga a máquina por falta de visita", /auto_stop_machines = "off"/.test(fly) && /min_machines_running = 1/.test(fly));
