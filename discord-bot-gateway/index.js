@@ -31513,25 +31513,34 @@ async function contarQueVoltei() {
    escutando música?". O Discord escreve o "Ouvindo"/"Listening to" na
    língua de quem olha; o resto é texto fixo, igual para todo mundo -- então
    vai curto e quase sem língua. E depois: "música de verdade, tipo Sabrina
-   Carpenter, Lady Gaga". Troca a cada 4 minutos (o tempo de uma música),
-   começando de uma qualquer a cada subida; a troca também refaz o status
-   depois de uma reconexão (e client.options.presence leva o atual para a
+   Carpenter, Lady Gaga". Começa de uma qualquer a cada subida; a troca
+   também refaz o status depois de uma reconexão (e client.options.presence leva o atual para a
    próxima sessão). Bot não ganha o cartão do Spotify (capa, barra, botão):
    o Discord só aceita o tipo e o texto. */
+/* Mais parecido com o cartão de música (dono, 28/11: "deixar mais parecido
+   com o sistema de música"): a música em cima e o artista na linha de baixo
+   (state), e cada uma dura o tempo dela de verdade -- Espresso troca em
+   2:55, Bad Romance em 4:54. Capa, barra de tempo e botão o Discord não
+   aceita de bot: só tipo, nome, state e url. */
 const MUSICAS_DA_CYRON = [
-  "🎵 Espresso — Sabrina Carpenter", "🎵 Abracadabra — Lady Gaga",
-  "🎵 Please Please Please — Sabrina Carpenter", "🎵 Die With A Smile — Lady Gaga & Bruno Mars",
-  "🎵 Taste — Sabrina Carpenter", "🎵 Bad Romance — Lady Gaga",
-  "🎵 Manchild — Sabrina Carpenter", "🎵 Poker Face — Lady Gaga",
-  "🎵 Feather — Sabrina Carpenter", "🎵 Shallow — Lady Gaga & Bradley Cooper",
+  ["Espresso", "Sabrina Carpenter", 175], ["Abracadabra", "Lady Gaga", 223],
+  ["Please Please Please", "Sabrina Carpenter", 186], ["Die With A Smile", "Lady Gaga & Bruno Mars", 251],
+  ["Taste", "Sabrina Carpenter", 157], ["Bad Romance", "Lady Gaga", 294],
+  ["Manchild", "Sabrina Carpenter", 213], ["Poker Face", "Lady Gaga", 237],
+  ["Feather", "Sabrina Carpenter", 185], ["Shallow", "Lady Gaga & Bradley Cooper", 216],
 ];
-const STATUS_A_CADA = 4 * 60 * 1000;
 let vezDoStatus = Math.floor(Math.random() * MUSICAS_DA_CYRON.length);
+let proximaMusica = null;
+
+function musicaDaVez(vez) {
+  const n = MUSICAS_DA_CYRON.length;
+  return MUSICAS_DA_CYRON[((vez % n) + n) % n];
+}
 
 /* Pura. O status da vez: tipo 2 é "Ouvindo" (ActivityType.Listening). */
-function statusDaCyron(vez, servidores) {
-  const n = MUSICAS_DA_CYRON.length;
-  return { name: MUSICAS_DA_CYRON[((vez % n) + n) % n].replace("{n}", String(servidores || 0)), type: 2 };
+function statusDaCyron(vez) {
+  const [musica, artista] = musicaDaVez(vez);
+  return { name: `🎵 ${musica}`, state: `🎤 ${artista}`, type: 2 };
 }
 
 /* 🎞️ A FOTO ANIMADA DA CYRON.
@@ -31568,16 +31577,19 @@ async function trocarFotoSeMudou(ler = readFileSync) {
 
 function trocarStatus() {
   if (!client.user) return;
-  const presenca = { status: "online", activities: [statusDaCyron(vezDoStatus++, client.guilds.cache.size)] };
+  const vez = vezDoStatus++;
+  const presenca = { status: "online", activities: [statusDaCyron(vez)] };
   client.options.presence = presenca;
   client.user.setPresence(presenca);
+  /* A próxima entra quando esta "acaba", com um respiro de 2 s entre elas. */
+  clearTimeout(proximaMusica);
+  proximaMusica = setTimeout(trocarStatus, (musicaDaVez(vez)[2] + 2) * 1000);
 }
 
 client.once("clientReady", () => {
   console.log(`Conectado como ${client.user.tag}, em ${client.guilds.cache.size} servidor(es).`);
 
   trocarStatus();
-  setInterval(trocarStatus, STATUS_A_CADA);
   setTimeout(() => trocarFotoSeMudou().catch((e) => console.error("foto: falhei:", e?.message || e)), 20 * 1000);
 
   /* O historico dos erros antes de tudo: o que der errado na subida ja' conta
