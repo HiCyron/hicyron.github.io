@@ -28159,6 +28159,57 @@ async function lembrarPrivado(msg) {
   }, "resolution=merge-duplicates").catch((e) => console.error("privado: não guardei a conversa:", e?.message || e));
 }
 
+/* E as que EU começo. O dono (28/11): "nós enviamos mensagem para os
+   líderes, mas lá não aparece no chat" -- só entrava na lista quem me
+   escrevia; o aviso aos donos, a carta do voto e a tradução por bandeira
+   saíam sem deixar rastro. Agora a minha própria mensagem num privado
+   (o Discord me devolve no messageCreate) também guarda a conversa. Uma
+   gravação por pessoa a cada 10 minutos: a bandeira manda muitos cartões
+   seguidos para a mesma pessoa, e a lista só precisa saber que a conversa
+   existe e quando foi a última. */
+const PRIVADO_LEMBRADO = new Map(); // pessoa -> quando gravei
+async function lembrarPrivadoEnviado(msg, agora = Date.now()) {
+  if (msg.guild || msg.author?.id !== client.user?.id) return false;
+  const quem = String(msg.channel?.recipientId || msg.channel?.recipient?.id || "");
+  if (!/^\d{5,25}$/.test(quem)) return false;
+  if (agora - (PRIVADO_LEMBRADO.get(quem) || 0) < 10 * 60 * 1000) return false;
+  PRIVADO_LEMBRADO.set(quem, agora);
+  while (PRIVADO_LEMBRADO.size > 5000) PRIVADO_LEMBRADO.delete(PRIVADO_LEMBRADO.keys().next().value);
+  const pessoa = client.users.cache.get(quem) || await client.users.fetch(quem).catch(() => null);
+  await sbPost("cyron_dm", {
+    user_id: quem, canal_id: msg.channelId,
+    nome: pessoa?.globalName || pessoa?.username || "usuário",
+    avatar: pessoa?.displayAvatarURL?.({ size: 64 }) || "",
+    ultima: new Date(agora).toISOString(),
+  }, "resolution=merge-duplicates").catch((e) => console.error("privado: não guardei a conversa enviada:", e?.message || e));
+  return true;
+}
+
+/* Uma vez: os donos que receberam a novidade do Estúdio no privado ANTES
+   de eu guardar o que envio entram na lista do app (quem já estava lá fica
+   como está). createDM só abre o canal; não manda nada. */
+async function lembrarDonosAvisados() {
+  const a = await ajustes();
+  if (a.falhou || a.dm_donos_lembrados) return 0;
+  const donos = Object.entries(a).filter(([k]) => k.startsWith("novidade_estudio_dm:")).map(([k, v]) => [k.split(":")[1], v]);
+  if (!donos.length) return 0;
+  const ja = new Set(((await sb(`cyron_dm?user_id=in.(${donos.map(([id]) => id).join(",")})&select=user_id`).catch(() => null)) || [])
+    .map((l) => l.user_id));
+  let n = 0;
+  for (const [id, quando] of donos) {
+    if (ja.has(id) || !/^\d{5,25}$/.test(id)) continue;
+    const pessoa = await client.users.fetch(id).catch(() => null);
+    const canal = pessoa ? await pessoa.createDM().catch(() => null) : null;
+    if (!canal) continue;
+    await sbPost("cyron_dm", { user_id: id, canal_id: canal.id, nome: pessoa.globalName || pessoa.username || "usuário",
+      avatar: pessoa.displayAvatarURL?.({ size: 64 }) || "", ultima: quando || new Date().toISOString() }, "resolution=merge-duplicates").catch(() => {});
+    n++;
+  }
+  await porAjuste("dm_donos_lembrados", new Date().toISOString());
+  console.log(`privado: ${n} conversa(s) com donos avisados entraram na lista do app`);
+  return n;
+}
+
 /* As conversas guardadas, mais recentes primeiro, para a Visão do dono. */
 async function listarPrivados() {
   const linhas = await sb("cyron_dm?select=user_id,canal_id,nome,avatar,ultima&order=ultima.desc&limit=200").catch(() => []);
@@ -28739,6 +28790,8 @@ client.on("messageCreate", async (msg) => {
        Bot nenhum entra: o meu proprio cartao voltaria como mensagem, e eu
        responderia a mim mesmo para sempre. */
     if (!msg.guild) {
+      /* A minha própria mensagem num privado: só para a lista do app. */
+      if (msg.author?.id === client.user?.id) { lembrarPrivadoEnviado(msg).catch(() => {}); return; }
       if (msg.author?.bot) return;
       if (await painelNoPrivado(msg)) return;
       await atenderNoPrivado(msg);
@@ -31621,6 +31674,7 @@ client.once("clientReady", () => {
 
   trocarStatus();
   setTimeout(() => trocarFotoSeMudou().catch((e) => console.error("foto: falhei:", e?.message || e)), 20 * 1000);
+  setTimeout(() => lembrarDonosAvisados().catch((e) => console.error("privado: não lembrei os donos:", e?.message || e)), 40 * 1000);
 
   /* O historico dos erros antes de tudo: o que der errado na subida ja' conta
      a partir de onde a ficha estava. */
