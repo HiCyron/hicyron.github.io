@@ -36,6 +36,12 @@ export const CORES = [
   { id: "fogo", pt: "Fogo", en: "Fire", c1: "#FFC18A", c2: "#E5482E" },
   { id: "gelo", pt: "Gelo", en: "Ice", c1: "#F0FAFF", c2: "#7FB8FF" },
   { id: "noite", pt: "Noite", en: "Night", c1: "#B3BBFF", c2: "#3B3FA8" },
+  { id: "turquesa", pt: "Turquesa", en: "Turquoise", c1: "#8FF0E6", c2: "#10A6A0" },
+  { id: "coral", pt: "Coral", en: "Coral", c1: "#FFB0A0", c2: "#F0552E" },
+  { id: "vinho", pt: "Vinho", en: "Wine", c1: "#E6A6BA", c2: "#7E1E3A" },
+  { id: "cobre", pt: "Cobre", en: "Copper", c1: "#F2CBA2", c2: "#B06A2C" },
+  { id: "aurora", pt: "Aurora", en: "Aurora", c1: "#AEEFD6", c2: "#6A5AE0" },
+  { id: "grafite", pt: "Grafite", en: "Graphite", c1: "#C9CED8", c2: "#363B45" },
 ];
 
 export const MOLDURAS = [
@@ -63,7 +69,7 @@ export const HEROIS = [
 ];
 
 /* O enfeite depois do nome da língua, no título do cartão. */
-export const EMOJIS_DO_TITULO = ["✨", "🌸", "⚔️", "🐻", "🔥", "💜", "👑", "🌙"];
+export const EMOJIS_DO_TITULO = ["✨", "🌸", "⚔️", "🐻", "🔥", "💜", "👑", "🌙", "⭐", "🌊", "🍀", "⚡", "🌹", "❄️", "🦋", "🎀"];
 
 /* A letra do nome no /perfil. As três fontes já moram no bot (as fichas do
    Duelo usam Cinzel e EB Garamond); "moderna" é a de sempre. */
