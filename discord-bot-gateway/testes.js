@@ -15442,10 +15442,17 @@ function conferirCartao(onde, embed, componentes = []) {
     if (t === "token-de-outro-123") return { ok: true, json: async () => ({ id: "outro" }) };
     return { ok: false, json: async () => ({}) };
   };
+  const estadoFuncoes = { bandeira: true, niveis: false, boas_vindas: false };
   const srv = V.ligarVisao({ client: clienteFalso, ehDono: async (id) => id === "dono", buscar,
     numerosDoDono: async () => ({ servidores: { ativos: 7 }, marca: "painel-do-dono" }),
     estatisticasDoServidor: async (g) => (g === "g" ? { traducoes: 1234, cache: 300, caracteres: 9000, idiomas: 3, salas: 2,
       dias7: [{ d: "2026-11-22", t: 10 }], mes: { traducoes: 50, cache: 9, caracteres: 900, azure: 900 }, funcoes: { bandeira: true, niveis: false, boas_vindas: false } } : null),
+    mudarFuncao: async (g, funcao, ligado) => {
+      if (!["bandeira", "niveis", "boas_vindas"].includes(funcao)) return { erro: "função desconhecida", status: 400 };
+      if (funcao === "boas_vindas" && ligado) return { erro: "escolha o canal no Discord", status: 409 };
+      estadoFuncoes[funcao] = funcao === "boas_vindas" ? false : !!ligado;
+      return { funcoes: { ...estadoFuncoes } };
+    },
     listarPrivados: async () => [{ id: "333333333333333333", usuario: "u9", nome: "Budi (guardado)", avatar: "", ultima: "2026-11-09T00:00:00Z" }],
     lerCalendario: async (msg) => (msg.prints ? { titulo: "🧪 Leitura", corpo: "🔴 **Agora**", rodape: "modelo", eventos: 6, prints: 3, falhas: 0 } : { erro: "sem-print" }) }, 0);
   await new Promise((r) => (srv.listening ? r() : srv.once("listening", r)));
@@ -15467,6 +15474,18 @@ function conferirCartao(onde, embed, componentes = []) {
     ok("as estatísticas de um servidor, para o app", (await est.json()).traducoes, 1234);
     ok("servidor onde a CYRON não está: 404", (await pedir("/visao/servidor?g=999999999999999999", "token-do-dono-123")).status, 404);
     ok("quem não é dono não vê as estatísticas", (await pedir("/visao/servidor?g=g", "token-de-outro-123")).status, 403);
+    /* Fase 2: ligar/desligar uma função pelo app */
+    const fOff = await pedir("/visao/funcao", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "g", funcao: "bandeira", ligado: false }) });
+    ok("o dono desliga uma função pelo app", [fOff.status, (await fOff.json()).funcoes.bandeira].join("|"), "200|false");
+    const fOn = await pedir("/visao/funcao", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "g", funcao: "niveis", ligado: true }) });
+    ok("e liga outra, recebendo o estado novo", (await fOn.json()).funcoes.niveis, true);
+    ok("boas-vindas só desliga pelo app (ligar precisa de canal): 409",
+      (await pedir("/visao/funcao", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "g", funcao: "boas_vindas", ligado: true }) })).status, 409);
+    ok("função desconhecida: 400",
+      (await pedir("/visao/funcao", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "g", funcao: "xpto", ligado: true }) })).status, 400);
+    ok("função num servidor onde a CYRON não está: 404",
+      (await pedir("/visao/funcao", "token-do-dono-123", { method: "POST", body: JSON.stringify({ g: "999999999999999999", funcao: "niveis", ligado: true }) })).status, 404);
+    ok("quem não é dono não mexe nas funções", (await pedir("/visao/funcao", "token-de-outro-123", { method: "POST", body: "{}" })).status, 403);
     const env = await pedir("/visao/enviar", "token-do-dono-123", { method: "POST", body: JSON.stringify({ c: "111111111111111111", texto: "oi, aqui é a CYRON" }) });
     ok("o dono fala como a CYRON", (await env.json()).mensagem.texto, "oi, aqui é a CYRON");
     ok("menção a pessoa toca; @everyone e cargo não", JSON.stringify(enviadas[0].allowedMentions), JSON.stringify({ parse: ["users"] }));
@@ -15696,7 +15715,7 @@ function conferirCartao(onde, embed, componentes = []) {
     } finally { srv.close(); }
   }
 
-  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
+  verdade("o index.js liga a Visão", /ligarVisao\(\{ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, mudarFuncao: mudarFuncaoDoApp, listarPrivados, lerCalendario: calendarioDaMensagem \}\)/.test(fonte));
   const fly = readFileSync(`${aqui}/fly.toml`, "utf8");
   verdade("o Fly entrega a porta da Visão", new RegExp(`internal_port = ${V.PORTA_DA_VISAO}\\b`).test(fly));
   verdade("e NUNCA desliga a máquina por falta de visita", /auto_stop_machines = "off"/.test(fly) && /min_machines_running = 1/.test(fly));
