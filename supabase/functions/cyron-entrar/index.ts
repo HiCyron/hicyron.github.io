@@ -73,6 +73,28 @@ async function sb(caminho: string) {
   return await r.json();
 }
 
+async function sbPost(caminho: string, corpo: unknown) {
+  await fetch(`${SB_URL}/rest/v1/${caminho}`, {
+    method: "POST",
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(corpo),
+  });
+}
+
+async function sha256hex(s: string): Promise<string> {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/* A MESMA chave do Estúdio que o bot cria (linkDoEstudio): 32 bytes ao acaso,
+   e só o sha256 fica no banco. A pessoa já provou no login que é ela, então
+   a área logada abre o Estúdio dela sem precisar do link que o Discord manda. */
+function chaveAleatoria(): string {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 /* Mesma conta que o bot faz em planoDe. Confiar so na coluna `plano` mostraria
    "gratis" para quem esta em teste ou acabou de pagar -- que sao exatamente as
    duas horas em que a pessoa olha esta tela. */
@@ -216,6 +238,59 @@ Deno.serve(async (req) => {
     }
     const porGuild = new Map(instalados.map((s: any) => [String(s.guild_id), s]));
 
+    /* As estatísticas de cada servidor instalado, numa ida só ao banco: o
+       uso diário (traduções, cache, caracteres) dos últimos 180 dias e as
+       salas por idioma. Somo aqui para a tela não precisar de outra chamada. */
+    const stats = new Map<string, any>();
+    if (instalados.length) {
+      const sids = instalados.map((s: any) => `"${String(s.id).replace(/[^0-9a-fA-F-]/g, "")}"`).join(",");
+      const desde = new Date(Date.now() - 180 * 864e5).toISOString().slice(0, 10);
+      const [uso, salas] = await Promise.all([
+        sb(`cyron_uso_diario?servidor_id=in.(${sids})&dia=gte.${desde}&select=servidor_id,dia,traducoes,do_cache,caracteres`).catch(() => []),
+        sb(`discord_chat_espelho?servidor_id=in.(${sids})&canal_id=not.is.null&select=servidor_id,idioma`).catch(() => []),
+      ]);
+      const dias7: string[] = [];
+      for (let i = 6; i >= 0; i--) dias7.push(new Date(Date.now() - i * 864e5).toISOString().slice(0, 10));
+      for (const s of instalados) {
+        stats.set(String(s.id), { traducoes: 0, cache: 0, caracteres: 0, idiomas: new Set<string>(), salas: 0,
+          porDia: Object.fromEntries(dias7.map((d) => [d, 0])) });
+      }
+      for (const r of (uso as any[])) {
+        const e = stats.get(String(r.servidor_id)); if (!e) continue;
+        e.traducoes += Number(r.traducoes) || 0;
+        e.cache += Number(r.do_cache) || 0;
+        e.caracteres += Number(r.caracteres) || 0;
+        const d = String(r.dia).slice(0, 10);
+        if (d in e.porDia) e.porDia[d] += Number(r.traducoes) || 0;
+      }
+      for (const r of (salas as any[])) {
+        const e = stats.get(String(r.servidor_id)); if (!e) continue;
+        e.salas += 1;
+        if (r.idioma) e.idiomas.add(String(r.idioma));
+      }
+    }
+    const statsDe = (s: any) => {
+      const e = s && stats.get(String(s.id));
+      if (!e) return null;
+      const dias = Object.keys(e.porDia).sort();
+      return { traducoes: e.traducoes, cache: e.cache, caracteres: e.caracteres,
+        idiomas: e.idiomas.size, salas: e.salas, dias7: dias.map((d) => ({ d, t: e.porDia[d] })) };
+    };
+
+    /* O link do Estúdio da pessoa logada (a chave vai só no retorno; no banco
+       fica o sha256). Falhar aqui não quebra a tela: o botão só não aparece. */
+    let estudioChave = "";
+    try {
+      estudioChave = chaveAleatoria();
+      await sbPost("cyron_estudio_link", {
+        resumo: await sha256hex(estudioChave),
+        user_id: String(user.id),
+        nome: String(user?.global_name || user?.username || "").slice(0, 100),
+        avatar: user?.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=256` : "",
+        expira_em: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
+      });
+    } catch { estudioChave = ""; }
+
     /* O mesmo Payment Link que o bot usa, guardado nos ajustes. Nenhuma
        credencial do Stripe passa por aqui. Vazio quer dizer que ninguem
        cadastrou ainda -- e a pagina precisa DIZER isso, nao mandar a pessoa
@@ -248,6 +323,7 @@ Deno.serve(async (req) => {
         nivel: s?.nivel === "pro" ? "pro" : "alianca",
         pagar: s && linkBase && !s.stripe_assinatura ? comServidor(linkBase, s) : null,
         pagarPro: s && linkPro && !s.stripe_assinatura ? comServidor(linkPro, s) : null,
+        stats: statsDe(s),
       };
     }).sort((a, b) => Number(b.instalado) - Number(a.instalado) || a.nome.localeCompare(b.nome));
 
@@ -257,6 +333,7 @@ Deno.serve(async (req) => {
         avatar: user?.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=64` : null,
       },
       servidores,
+      estudio_chave: estudioChave,
     }), { status: 200, headers: cab });
   } catch (e) {
     console.error("entrar: falhei ao montar a lista:", e instanceof Error ? e.message : e);
