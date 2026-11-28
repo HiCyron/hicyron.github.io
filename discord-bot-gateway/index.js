@@ -23868,14 +23868,45 @@ async function estatisticasDoServidorDoApp(guildId) {
   return {
     traducoes, cache, caracteres, idiomas: idiomas.size, salas: (salas || []).length,
     dias7: dias7.map((d) => ({ d, t: porDia[d] })), mes,
-    /* Para a Fase 2 (ligar/desligar): o estado atual das funções. Null quando
-       a coluna nem existe ainda -- a tela mostra o padrão. */
-    funcoes: {
-      bandeira: servidor.tradutor_bandeira !== false,
-      niveis: !!servidor.niveis_ligado,
-      boas_vindas: !!servidor.boas_vindas_canal,
-    },
+    /* Para a Fase 2 (ligar/desligar): o estado atual das funções. */
+    funcoes: funcoesDoServidor(servidor),
   };
+}
+
+/* O estado das três funções que o app liga/desliga, do jeito que a tela lê.
+   Bandeira nasce ligada (só desliga quando é exatamente false); níveis é a
+   coluna booleana; boas-vindas é "tem canal escolhido?". */
+function funcoesDoServidor(servidor) {
+  return {
+    bandeira: servidor?.tradutor_bandeira !== false,
+    niveis: !!servidor?.niveis_ligado,
+    boas_vindas: !!servidor?.boas_vindas_canal,
+  };
+}
+
+/* Ligar/desligar uma função de um servidor PELO APP (Fase 2). Só o dono chega
+   aqui -- o /visao confere o login do Discord antes de chamar isto. As três
+   funções: bandeira (tradução por reação), níveis/XP e boas-vindas com imagem.
+   A última só dá para DESLIGAR pelo app: ligar precisa escolher o canal, e isso
+   fica no Discord (/boas-vindas). Devolve o estado novo e registra quem mexeu
+   (rastrear + log do Fly). */
+const FUNCOES_DO_APP = new Set(["bandeira", "niveis", "boas_vindas"]);
+async function mudarFuncaoDoApp(guildId, funcao, ligado, donoId) {
+  if (!FUNCOES_DO_APP.has(funcao)) return { erro: "função desconhecida", status: 400 };
+  const servidor = await servidorDoGuild(guildId).catch(() => null);
+  if (!servidor?.id) return { erro: "esse servidor ainda não está pronto", status: 404 };
+  if (funcao === "boas_vindas") {
+    if (ligado) return { erro: "para ligar as boas-vindas, escolha o canal no Discord: /boas-vindas", status: 409 };
+    await sbPatch(`cyron_servidor?id=eq.${encodeURIComponent(servidor.id)}`, { boas_vindas_canal: null });
+  } else {
+    const coluna = funcao === "bandeira" ? "tradutor_bandeira" : "niveis_ligado";
+    await sbPatch(`cyron_servidor?id=eq.${encodeURIComponent(servidor.id)}`, { [coluna]: !!ligado });
+  }
+  cacheServidor.delete(guildId);
+  rastrear("app", "funcao", { guild: guildId, usuario: donoId, detalhe: `${funcao}:${ligado ? "on" : "off"}` });
+  console.log(`app: ${donoId || "dono"} ${ligado ? "ligou" : "desligou"} ${funcao} em ${guildId}`);
+  const novo = await servidorDoGuild(guildId).catch(() => null);
+  return { funcoes: funcoesDoServidor(novo || servidor) };
 }
 
 /* Os nomes do que o contarUso() conta. Comando e menu nao precisam estar aqui:
@@ -32200,7 +32231,7 @@ process.on("unhandledRejection", (e) => console.error("rejeicao nao tratada:", e
    o bot so' empresta o motor. */
 /* O app do dono também lê o calendário: ele não é ADM no TOP, e o comando
    de Apps só aparece para ADM (dono, 21/11: "pelo app da CYRON eu consigo?"). */
-ligarVisao({ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, listarPrivados, lerCalendario: calendarioDaMensagem });
+ligarVisao({ client, ehDono, numerosDoDono, estatisticasDoServidor: estatisticasDoServidorDoApp, mudarFuncao: mudarFuncaoDoApp, listarPrivados, lerCalendario: calendarioDaMensagem });
 
 client.login(TOKEN).catch((e) => {
   console.error("FATAL: nao consegui entrar no Discord:", e?.message || e);

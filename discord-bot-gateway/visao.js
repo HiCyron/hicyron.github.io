@@ -21,6 +21,7 @@
      GET  /visao/mensagens?c=<id>[&antes=<id>|&depois=<id>]
      GET  /visao/admin/numeros          -> o painel do dono (metricas do /admin)
      POST /visao/enviar  {c, texto}     -> fala no canal como a CYRON
+     POST /visao/funcao  {g, funcao, ligado} -> liga/desliga uma função do servidor
      POST /visao/sair                   -> esquece o login (o "Sair" do app)
      WS   /visao/ao-vivo                -> as mensagens do canal aberto, na hora
 
@@ -677,6 +678,27 @@ async function atender(req, res) {
       console.error("visao: nao consegui mandar:", e?.message || e);
       return responder(res, 403, { erro: "a CYRON nao conseguiu falar nesse canal (permissao?)" }, cab);
     }
+  }
+
+  /* Ligar/desligar uma função de um servidor pelo app (Fase 2): bandeira,
+     níveis ou boas-vindas. Só o dono chega aqui (o gate lá em cima garante). O
+     index entrega a função e decide o que pode; sem ela, a rota não existe. */
+  if (rota === "POST /visao/funcao") {
+    if (typeof d.mudarFuncao !== "function") return responder(res, 404, { erro: "nao existe" }, cab);
+    let corpo;
+    try { corpo = await lerCorpo(req); }
+    catch { return responder(res, 413, { erro: "pedido grande demais" }, cab); }
+    const g = String(corpo?.g || "");
+    if (!c.guilds.cache.get(g)) return responder(res, 404, { erro: "a CYRON nao esta nesse servidor" }, cab);
+    const funcao = String(corpo?.funcao || "");
+    const ligado = corpo?.ligado === true;
+    const r = await d.mudarFuncao(g, funcao, ligado, dono).catch((e) => {
+      console.error("visao: nao consegui mudar a funcao:", e?.message || e);
+      return { erro: "nao consegui agora; tente de novo", status: 503 };
+    });
+    if (r?.erro) return responder(res, r.status || 400, { erro: r.erro }, cab);
+    console.log(`visao: o dono ${dono} ${ligado ? "ligou" : "desligou"} ${funcao} em ${g}`);
+    return responder(res, 200, r, cab);
   }
 
   return responder(res, 404, { erro: "nao existe" }, cab);
