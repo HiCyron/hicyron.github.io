@@ -31521,26 +31521,41 @@ async function contarQueVoltei() {
    com o sistema de música"): a música em cima e o artista na linha de baixo
    (state), e cada uma dura o tempo dela de verdade -- Espresso troca em
    2:55, Bad Romance em 4:54. Capa, barra de tempo e botão o Discord não
-   aceita de bot: só tipo, nome, state e url. */
+   aceita de bot: só tipo, nome, state e url.
+
+   E depois: "está muito seco". Então a linha de baixo ganhou o álbum e uma
+   barra de tempo EM TEXTO que anda (1:12 ━━━━●────── 3:05), refeita a cada
+   20 s -- três trocas de presença por minuto, longe do limite do Discord. */
 const MUSICAS_DA_CYRON = [
-  ["Espresso", "Sabrina Carpenter", 175], ["Abracadabra", "Lady Gaga", 223],
-  ["Please Please Please", "Sabrina Carpenter", 186], ["Die With A Smile", "Lady Gaga & Bruno Mars", 251],
-  ["Taste", "Sabrina Carpenter", 157], ["Bad Romance", "Lady Gaga", 294],
-  ["Manchild", "Sabrina Carpenter", 213], ["Poker Face", "Lady Gaga", 237],
-  ["Feather", "Sabrina Carpenter", 185], ["Shallow", "Lady Gaga & Bradley Cooper", 216],
+  ["Espresso", "Sabrina Carpenter", 175, "Short n' Sweet"], ["Abracadabra", "Lady Gaga", 223, "Mayhem"],
+  ["Please Please Please", "Sabrina Carpenter", 186, "Short n' Sweet"], ["Die With A Smile", "Lady Gaga & Bruno Mars", 251, "Mayhem"],
+  ["Taste", "Sabrina Carpenter", 157, "Short n' Sweet"], ["Bad Romance", "Lady Gaga", 294, "The Fame Monster"],
+  ["Manchild", "Sabrina Carpenter", 213, "Man's Best Friend"], ["Poker Face", "Lady Gaga", 237, "The Fame"],
+  ["Feather", "Sabrina Carpenter", 185, "emails i can't send"], ["Shallow", "Lady Gaga & Bradley Cooper", 216, "A Star Is Born"],
 ];
+const BARRA_A_CADA = 20 * 1000;
 let vezDoStatus = Math.floor(Math.random() * MUSICAS_DA_CYRON.length);
 let proximaMusica = null;
+let musicaAtual = { vez: vezDoStatus, inicio: 0 };
+
+/* Pura. 1:12 ━━━━●────── 3:05 */
+function barraDaMusica(seg, dur, largura = 11) {
+  const mmss = (x) => `${Math.floor(x / 60)}:${String(Math.floor(x % 60)).padStart(2, "0")}`;
+  const s = Math.max(0, Math.min(dur, Math.floor(seg)));
+  const cheio = Math.min(largura - 1, Math.round((s / dur) * (largura - 1)));
+  return `${mmss(s)} ${"━".repeat(cheio)}●${"─".repeat(largura - 1 - cheio)} ${mmss(dur)}`;
+}
 
 function musicaDaVez(vez) {
   const n = MUSICAS_DA_CYRON.length;
   return MUSICAS_DA_CYRON[((vez % n) + n) % n];
 }
 
-/* Pura. O status da vez: tipo 2 é "Ouvindo" (ActivityType.Listening). */
-function statusDaCyron(vez) {
-  const [musica, artista] = musicaDaVez(vez);
-  return { name: `🎵 ${musica}`, state: `🎤 ${artista}`, type: 2 };
+/* Pura. O status da vez, a `seg` segundos do começo da música: tipo 2 é
+   "Ouvindo" (ActivityType.Listening). */
+function statusDaCyron(vez, seg = 0) {
+  const [musica, artista, dur, album] = musicaDaVez(vez);
+  return { name: `🎵 ${musica} — ${artista}`, state: `💿 ${album} · ${barraDaMusica(seg, dur)}`, type: 2 };
 }
 
 /* 🎞️ A FOTO ANIMADA DA CYRON.
@@ -31575,15 +31590,30 @@ async function trocarFotoSeMudou(ler = readFileSync) {
   return animada ? "animada" : "parada";
 }
 
+function mostrarMusica(agora = Date.now()) {
+  if (!client.user) return;
+  const seg = (agora - musicaAtual.inicio) / 1000;
+  const presenca = { status: "online", activities: [statusDaCyron(musicaAtual.vez, seg)] };
+  client.options.presence = presenca;
+  client.user.setPresence(presenca);
+}
+
+/* A próxima música: começa do zero e a barra anda a cada 20 s até ela
+   "acabar", com um respiro de 2 s antes da seguinte. */
 function trocarStatus() {
   if (!client.user) return;
   const vez = vezDoStatus++;
-  const presenca = { status: "online", activities: [statusDaCyron(vez)] };
-  client.options.presence = presenca;
-  client.user.setPresence(presenca);
-  /* A próxima entra quando esta "acaba", com um respiro de 2 s entre elas. */
+  musicaAtual = { vez, inicio: Date.now() };
+  mostrarMusica();
   clearTimeout(proximaMusica);
-  proximaMusica = setTimeout(trocarStatus, (musicaDaVez(vez)[2] + 2) * 1000);
+  const dur = musicaDaVez(vez)[2];
+  const passo = () => {
+    const seg = (Date.now() - musicaAtual.inicio) / 1000;
+    if (seg >= dur) { proximaMusica = setTimeout(trocarStatus, 2000); return; }
+    mostrarMusica();
+    proximaMusica = setTimeout(passo, Math.min(BARRA_A_CADA, (dur - seg) * 1000 + 50));
+  };
+  proximaMusica = setTimeout(passo, BARRA_A_CADA);
 }
 
 client.once("clientReady", () => {
